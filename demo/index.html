@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Battery Warranty & Claim Management System — Interactive Demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- System Banner for GitHub Pages Demo -->
+  <aside class="demo-banner">
+    <div class="banner-inner">
+      <span class="pulse-indicator"></span>
+      <span class="banner-text">
+        <strong>GitHub Pages Interactive Demo:</strong> 100% Client-Side Simulation with Mock Indian Distributor Data. Zero Backend Secrets.
+      </span>
+      <div class="banner-actions">
+        <button id="btn-reset-demo" class="btn btn-sm btn-ghost" title="Reset to original mock dataset">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          Reset Demo Data
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Top Application Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand-logo">
+        <svg class="battery-icon" viewBox="0 0 24 24">
+          <rect x="2" y="6" width="18" height="12" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M22 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M6 10v4M10 10v4M14 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="brand-title">
+        <h1>Amaron Battery Hub & Service Care</h1>
+        <p class="subtitle">Warranty Claim Management & Stock Reconciliation System • Surat Depot</p>
+      </div>
+    </div>
+
+    <!-- Omnibox Search -->
+    <div class="header-center">
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="omnibox-search" placeholder="Search Ticket #, Claim #, Battery Serial, Customer, Mobile, Vehicle...">
+        <button id="clear-search" class="clear-btn" style="display:none;">&times;</button>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button id="btn-quick-intake" class="btn btn-primary">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        New Intake Ticket
+      </button>
+      <div class="user-chip">
+        <div class="avatar">RS</div>
+        <div class="user-meta">
+          <span class="user-name">Ramesh Sharma</span>
+          <span class="user-role">ADMIN (Surat)</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Metric KPI Strip -->
+  <section class="kpi-strip">
+    <div class="kpi-card" data-filter="ALL">
+      <div class="kpi-icon icon-blue">
+        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      </div>
+      <div class="kpi-content">
+        <span class="kpi-label">Total Intakes</span>
+        <strong class="kpi-value" id="kpi-total-tickets">0</strong>
+      </div>
+    </div>
+
+    <div class="kpi-card" data-filter="TESTING">
+      <div class="kpi-icon icon-amber">
+        <svg viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+      </div>
+      <div class="kpi-content">
+        <span class="kpi-label">In Testing Lab</span>
+        <strong class="kpi-value" id="kpi-testing">0</strong>
+      </div>
+    </div>
+
+    <div class="kpi-card" data-filter="LOANER">
+      <div class="kpi-icon icon-purple">
+        <svg viewBox="0 0 24 24"><path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z"/></svg>
+      </div>
+      <div class="kpi-content">
+        <span class="kpi-label">Service Loaners Out</span>
+        <strong class="kpi-value" id="kpi-loaners">0</strong>
+      </div>
+    </div>
+
+    <div class="kpi-card" data-filter="DISPATCHED">
+      <div class="kpi-icon icon-teal">
+        <svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+      </div>
+      <div class="kpi-content">
+        <span class="kpi-label">With Company (Factory)</span>
+        <strong class="kpi-value" id="kpi-dispatched">0</strong>
+      </div>
+    </div>
+
+    <div class="kpi-card alert-card" data-filter="STOCK_PENDING">
+      <div class="kpi-icon icon-rose">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      </div>
+      <div class="kpi-content">
+        <span class="kpi-label">Stock Reconciliation Required</span>
+        <strong class="kpi-value" id="kpi-stock-tasks">0</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- Navigation Tabs -->
+  <nav class="main-nav">
+    <button class="nav-tab active" data-tab="tab-dashboard">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      Dashboard & Overview
+    </button>
+    <button class="nav-tab" data-tab="tab-intake">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      Intake Tickets (<span id="count-tickets">0</span>)
+    </button>
+    <button class="nav-tab" data-tab="tab-lab">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+      Testing Lab (<span id="count-testing">0</span>)
+    </button>
+    <button class="nav-tab" data-tab="tab-claims">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      Company Claims & Batches (<span id="count-claims">0</span>)
+    </button>
+    <button class="nav-tab" data-tab="tab-stock">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M20 2H4c-1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.69V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.7c.57-.35 1-.97 1-1.69V4c0-1.1-1-2-2-2zm-1 18H5V9h14v11zm1-13H4V4h16v3z"/></svg>
+      Busy / Tally Stock Tasks (<span id="count-stock">0</span>)
+    </button>
+    <button class="nav-tab" data-tab="tab-print">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-4 11H9v-5h6v5zm4-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-3-9H8v3h8V3z"/></svg>
+      A4 Print Center
+    </button>
+    <button class="nav-tab" data-tab="tab-audit">
+      <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      Audit Trail
+    </button>
+  </nav>
+
+  <!-- Main Content View Area -->
+  <main class="app-main">
+    <!-- 1. DASHBOARD TAB -->
+    <section id="tab-dashboard" class="tab-pane active">
+      <div class="dashboard-grid">
+        <!-- Urgent Attention Column -->
+        <div class="dash-card">
+          <div class="card-header">
+            <h3>⚡ Urgent Action Required</h3>
+            <span class="badge badge-danger">Needs Review</span>
+          </div>
+          <div class="card-body" id="urgent-actions-container">
+            <!-- Dynamic urgent items rendered here -->
+          </div>
+        </div>
+
+        <!-- Serial Number Isolation Guide -->
+        <div class="dash-card">
+          <div class="card-header">
+            <h3>🛡️ 3-Way Battery Serial Isolation</h3>
+            <span class="badge badge-info">Zero Mix-up Protocol</span>
+          </div>
+          <div class="card-body">
+            <div class="serial-rules-grid">
+              <div class="serial-rule-box original">
+                <span class="tag">Original Battery</span>
+                <p>Battery surrendered by customer/dealer. Tested in lab, sent to company factory.</p>
+                <code>original_serial_no: '0094829103'</code>
+              </div>
+              <div class="serial-rule-box loaner">
+                <span class="tag">Service / Loaner Battery</span>
+                <p>Temporary standby battery lent to customer. Tracked for overdue returns.</p>
+                <code>service_battery_serial: 'SB-00349'</code>
+              </div>
+              <div class="serial-rule-box replacement">
+                <span class="tag">Replacement Battery</span>
+                <p>Brand new battery supplied by manufacturer upon warranty approval.</p>
+                <code>replacement_serial_no: 'REP-9847120'</code>
+              </div>
+            </div>
+            <div class="text-forcing-callout">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+              <span><strong>Text Forcing Rule:</strong> All serial numbers are stored with plain-text formatting (<code>'</code> prefix) to prevent spreadsheet leading-zero truncation.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Feed -->
+        <div class="dash-card full-width">
+          <div class="card-header">
+            <h3>📋 Recent Workflow Milestones</h3>
+            <button class="btn btn-sm btn-outline" onclick="switchTab('tab-intake')">View All Intakes</button>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="data-table" id="dashboard-recent-table">
+                <thead>
+                  <tr>
+                    <th>Ticket / Claim</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model & Serials</th>
+                    <th>Status</th>
+                    <th>Date Received</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-recent-tbody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. INTAKE TICKETS TAB -->
+    <section id="tab-intake" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <h2>Battery Intake Registry</h2>
+          <p>Surrendered batteries received from direct retail customers or local authorized dealers.</p>
+        </div>
+        <div class="pane-actions">
+          <select id="filter-ticket-status" class="form-select">
+            <option value="ALL">All Statuses</option>
+            <option value="RECEIVED">Received (Holding)</option>
+            <option value="TESTING">In Testing Lab</option>
+            <option value="TEST_PASSED">Test Passed (Eligible)</option>
+            <option value="TEST_REJECTED">Test Rejected (Return)</option>
+            <option value="CLAIM_CREATED">Claim Created</option>
+          </select>
+          <button id="btn-intake-modal-open" class="btn btn-primary">+ Create New Intake</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="intake-table">
+          <thead>
+            <tr>
+              <th>Ticket #</th>
+              <th>Customer / Dealer</th>
+              <th>Vehicle #</th>
+              <th>Battery Model</th>
+              <th>Original Serial</th>
+              <th>Service Loaner</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="intake-tbody">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3. TESTING LAB TAB -->
+    <section id="tab-lab" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <h2>Battery Testing & Electrical Diagnostic Lab</h2>
+          <p>Execute standard physical inspection, Open Circuit Voltage, 6-cell hydrometer gravity, and 15-second load tests.</p>
+        </div>
+      </div>
+
+      <div class="lab-grid" id="lab-items-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- 4. CLAIMS & DISPATCH TAB -->
+    <section id="tab-claims" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <h2>Manufacturer Warranty Claims & Consolidated Dispatches</h2>
+          <p>Group approved claims into consolidated factory dispatches with LR / Consignment dockets.</p>
+        </div>
+        <div class="pane-actions">
+          <button id="btn-create-dispatch" class="btn btn-teal">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4z"/></svg>
+            + Create Consolidated Dispatch Batch
+          </button>
+        </div>
+      </div>
+
+      <div class="claims-layout">
+        <!-- Dispatches Section -->
+        <div class="dispatches-card">
+          <div class="section-title">
+            <h3>🚚 Active Factory Consignment Batches</h3>
+            <span class="badge badge-teal" id="badge-dispatch-count">0 Batches</span>
+          </div>
+          <div id="dispatches-list" class="dispatches-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Claims Table Section -->
+        <div class="claims-table-card">
+          <div class="section-title">
+            <h3>📑 Itemized Manufacturer Claims</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="claims-table">
+              <thead>
+                <tr>
+                  <th>Claim #</th>
+                  <th>Ticket #</th>
+                  <th>Customer Name</th>
+                  <th>Battery Model & Original Serial</th>
+                  <th>Warranty Status</th>
+                  <th>Claim Status</th>
+                  <th>Replacement Serial</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="claims-tbody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. STOCK RECONCILIATION TAB -->
+    <section id="tab-stock" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <h2>Mandatory Physical Stock Reconciliation Engine</h2>
+          <p>Align warehouse physical stock with <strong>Busy / Tally ERP</strong> vouchers when manufacturer replacements arrive.</p>
+        </div>
+      </div>
+
+      <div class="stock-banner">
+        <div class="banner-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        </div>
+        <div class="banner-body">
+          <h4>Enforced Accounting Control</h4>
+          <p>Customer handover is strictly locked until a staff member enters the material inward voucher reference from Tally/Busy. This prevents phantom inventory and missing warranty replacements.</p>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="stock-table">
+          <thead>
+            <tr>
+              <th>Task ID</th>
+              <th>Claim #</th>
+              <th>Replacement Model</th>
+              <th>Replacement Serial No.</th>
+              <th>Date Arrived</th>
+              <th>Reconciliation Status</th>
+              <th>Accounting Ref No. (ERP)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="stock-tbody">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. PRINT CENTER TAB -->
+    <section id="tab-print" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <h2>A4 Print Center</h2>
+          <p>Preview and print GST-compliant delivery challans and warranty forms formatted strictly for A4 paper.</p>
+        </div>
+        <div class="pane-actions">
+          <select id="print-template-selector" class="form-select">
+            <option value="DC-RET">Battery Return Delivery Challan (Rejected Batteries)</option>
+            <option value="DC-COM">Consolidated Company Dispatch Challan (Factory Consignment)</option>
+            <option value="CLAIM-FORM">Official Warranty Claim & Inspection Slip</option>
+          </select>
+          <button id="btn-trigger-print" class="btn btn-primary">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-4 11H9v-5h6v5zm4-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-3-9H8v3h8V3z"/></svg>
+            Print A4 Document
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable A4 Paper Container -->
+      <div class="print-paper-wrapper">
+        <div id="print-paper" class="a4-sheet">
+          <!-- Dynamically populated print layout -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. AUDIT TRAIL TAB -->
+    <section id="tab-audit" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <h2>Immutable System Audit Trail</h2>
+          <p>Every intake, status transition, document generation, and stock update is recorded with Indian timezone timestamps.</p>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="audit-table">
+          <thead>
+            <tr>
+              <th>Audit ID</th>
+              <th>Timestamp (IST)</th>
+              <th>Operator</th>
+              <th>Action</th>
+              <th>Record</th>
+              <th>Status Transition</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- MODAL: New Intake Ticket -->
+  <div id="modal-intake" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Create New Battery Intake Ticket</h3>
+        <button class="modal-close" onclick="closeModal('modal-intake')">&times;</button>
+      </div>
+      <form id="form-new-intake">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Source Type <span class="req">*</span></label>
+              <select id="intake-source-type" class="form-select" required>
+                <option value="CUSTOMER">Retail Customer</option>
+                <option value="DEALER">Authorized Dealer</option>
+              </select>
+            </div>
+            <div class="form-group col-6" id="group-dealer-select" style="display:none;">
+              <label>Select Dealer <span class="req">*</span></label>
+              <select id="intake-dealer-id" class="form-select">
+                <option value="DLR-001">Shree Ganesh Auto Electricals (Surat)</option>
+                <option value="DLR-002">Jai Ambe Battery Service (Ahmedabad)</option>
+                <option value="DLR-003">Balaji Automotive Spares (Vadodara)</option>
+                <option value="DLR-004">Mahalaxmi Power Solutions (Rajkot)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Customer Name <span class="req">*</span></label>
+              <input type="text" id="intake-customer-name" class="form-input" placeholder="e.g. Rahul Verma" required>
+            </div>
+            <div class="form-group col-6">
+              <label>Mobile Number <span class="req">*</span></label>
+              <input type="tel" id="intake-mobile" class="form-input" placeholder="10-digit mobile" pattern="[0-9]{10}" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Vehicle Registration #</label>
+              <input type="text" id="intake-vehicle" class="form-input" placeholder="e.g. GJ-05-CD-1234">
+            </div>
+            <div class="form-group col-6">
+              <label>Address</label>
+              <input type="text" id="intake-address" class="form-input" placeholder="City / Area">
+            </div>
+          </div>
+
+          <div class="form-divider">Battery Specifications</div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Battery Model <span class="req">*</span></label>
+              <select id="intake-battery-model" class="form-select" required>
+                <option value="Amaron Pro 42B20R">Amaron Pro 42B20R (35Ah, 36m warranty)</option>
+                <option value="Amaron Flo 55B24L">Amaron Flo 55B24L (45Ah, 48m warranty)</option>
+                <option value="Amaron Fresh 35R">Amaron Fresh 35R (35Ah, 24m warranty)</option>
+                <option value="Exide Ride 35R">Exide Ride 35R (35Ah, 36m warranty)</option>
+                <option value="Exide Mileage 45D26L">Exide Mileage 45D26L (50Ah, 42m warranty)</option>
+                <option value="Exide Matrix 65D31L">Exide Matrix 65D31L (65Ah, 60m warranty)</option>
+                <option value="Tata Green Velocity 38B20R">Tata Green Velocity 38B20R (35Ah, 36m)</option>
+              </select>
+            </div>
+            <div class="form-group col-6">
+              <label>Original Battery Serial No. <span class="req">*</span></label>
+              <input type="text" id="intake-original-serial" class="form-input font-mono" placeholder="e.g. 0094829103" required>
+              <small class="hint">Stored strictly as text to preserve leading zeroes.</small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Customer Complaint / Symptoms</label>
+            <textarea id="intake-remarks" class="form-textarea" rows="2" placeholder="e.g. Morning starting trouble, voltage dips under crank"></textarea>
+          </div>
+
+          <!-- Service / Loaner Battery Issuance Option -->
+          <div class="loaner-issuance-box">
+            <div class="checkbox-line">
+              <input type="checkbox" id="intake-issue-loaner">
+              <label for="intake-issue-loaner"><strong>Issue Service (Loaner) Battery to Customer</strong></label>
+            </div>
+            <div id="loaner-fields" class="form-row mt-2" style="display:none;">
+              <div class="form-group col-6">
+                <label>Loaner Model</label>
+                <input type="text" id="intake-loaner-model" class="form-input" value="Exide Service Pool 35R">
+              </div>
+              <div class="form-group col-6">
+                <label>Loaner Serial Number</label>
+                <input type="text" id="intake-loaner-serial" class="form-input font-mono" placeholder="e.g. SB-00412">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-intake')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Generate Intake Ticket</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Testing Lab Diagnostic -->
+  <div id="modal-test" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Record Battery Electrical Test</h3>
+        <button class="modal-close" onclick="closeModal('modal-test')">&times;</button>
+      </div>
+      <form id="form-record-test">
+        <input type="hidden" id="test-ticket-no">
+        <div class="modal-body">
+          <div class="test-header-meta">
+            <div><strong>Ticket:</strong> <span id="test-meta-ticket"></span></div>
+            <div><strong>Customer:</strong> <span id="test-meta-customer"></span></div>
+            <div><strong>Battery:</strong> <span id="test-meta-model"></span></div>
+            <div><strong>Original Serial:</strong> <code id="test-meta-serial"></code></div>
+          </div>
+
+          <div class="form-row mt-3">
+            <div class="form-group col-6">
+              <label>Open Circuit Voltage (OCV) <span class="req">*</span></label>
+              <div class="input-unit">
+                <input type="number" id="test-ocv" class="form-input" step="0.1" min="0" max="16" placeholder="e.g. 10.5" required>
+                <span class="unit">Volts</span>
+              </div>
+              <small class="hint">Normal: 12.4V - 12.8V. Below 10.8V = dead cell.</small>
+            </div>
+            <div class="form-group col-6">
+              <label>15-Second Load Test Voltage <span class="req">*</span></label>
+              <div class="input-unit">
+                <input type="number" id="test-load-v" class="form-input" step="0.1" min="0" max="16" placeholder="e.g. 8.4" required>
+                <span class="unit">Volts</span>
+              </div>
+              <small class="hint">Must hold &ge; 9.6V at 200A load for pass.</small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Specific Gravity (6 Cells) <span class="req">*</span></label>
+            <input type="text" id="test-gravity" class="form-input" placeholder="e.g. 1.18, 1.18, 1.12, 1.18, 1.18, 1.18" required>
+            <small class="hint">Enter 6 hydrometer readings. Variations &gt; 0.05 indicate cell failure.</small>
+          </div>
+
+          <div class="form-group">
+            <label>Physical Casing Condition <span class="req">*</span></label>
+            <select id="test-casing" class="form-select" required>
+              <option value="CLEAN_OK">Clean, intact, no terminal melt or bulging (Eligible)</option>
+              <option value="BULGED">Severely bulged / swollen from overcharging (Reject)</option>
+              <option value="TERMINAL_DAMAGE">Melted / hammered battery terminals (Reject)</option>
+              <option value="CONTAINER_CRACKED">Cracked container or acid leak (Reject)</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Diagnostic Test Conclusion <span class="req">*</span></label>
+              <select id="test-result" class="form-select" required>
+                <option value="PASS">PASS (Manufacturing Defect - Eligible for Claim)</option>
+                <option value="REJECT">REJECT (Abuse / Sulphated / Physical Damage)</option>
+              </select>
+            </div>
+            <div class="form-group col-6">
+              <label>Tester / Technician Name <span class="req">*</span></label>
+              <input type="text" id="test-technician" class="form-input" value="Sanjay Mistri" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Detailed Diagnostic Remarks</label>
+            <textarea id="test-remarks" class="form-textarea" rows="2" placeholder="e.g. Cell #3 dead; plate shorted internally. Recommend replacement."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-test')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Test & Progress Lifecycle</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Create Dispatch Batch -->
+  <div id="modal-dispatch" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Create Consolidated Company Dispatch Batch</h3>
+        <button class="modal-close" onclick="closeModal('modal-dispatch')">&times;</button>
+      </div>
+      <form id="form-create-dispatch">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Manufacturer / Company <span class="req">*</span></label>
+              <select id="dispatch-company" class="form-select" required>
+                <option value="Amaron Batteries Ltd.">Amaron Batteries Ltd.</option>
+                <option value="Exide Industries Ltd.">Exide Industries Ltd.</option>
+                <option value="Tata Green Batteries">Tata Green Batteries</option>
+              </select>
+            </div>
+            <div class="form-group col-6">
+              <label>Factory / Depot Destination <span class="req">*</span></label>
+              <input type="text" id="dispatch-destination" class="form-input" value="Baroda Central Regional Depot" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Carrier / Transporter <span class="req">*</span></label>
+              <input type="text" id="dispatch-carrier" class="form-input" value="Shree Tirupati Logistics" required>
+            </div>
+            <div class="form-group col-6">
+              <label>LR / Docket Number <span class="req">*</span></label>
+              <input type="text" id="dispatch-lr" class="form-input" placeholder="e.g. LR-998412" required>
+            </div>
+          </div>
+
+          <div class="form-divider">Select Approved Claims to Include in Batch</div>
+          <div id="dispatch-claims-selector" class="dispatch-claims-selector">
+            <!-- Dynamic checklist -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-dispatch')">Cancel</button>
+          <button type="submit" class="btn btn-teal">Create Batch & Generate DC-COM Challan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Receive Replacement -->
+  <div id="modal-replacement" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Receive Manufacturer Replacement Battery</h3>
+        <button class="modal-close" onclick="closeModal('modal-replacement')">&times;</button>
+      </div>
+      <form id="form-receive-replacement">
+        <input type="hidden" id="repl-claim-no">
+        <div class="modal-body">
+          <div class="alert-info-box">
+            <p><strong>Claim:</strong> <span id="repl-meta-claim"></span> | <strong>Customer:</strong> <span id="repl-meta-customer"></span></p>
+            <p><strong>Original Serial:</strong> <code id="repl-meta-orig-serial"></code></p>
+          </div>
+
+          <div class="form-row mt-3">
+            <div class="form-group col-6">
+              <label>Replacement Battery Model <span class="req">*</span></label>
+              <input type="text" id="repl-model" class="form-input" required>
+            </div>
+            <div class="form-group col-6">
+              <label>Replacement Serial Number <span class="req">*</span></label>
+              <input type="text" id="repl-serial" class="form-input font-mono" placeholder="e.g. REP-9847120" required>
+              <small class="hint">Brand new serial issued by factory.</small>
+            </div>
+          </div>
+
+          <div class="notice-box mt-2">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <div>
+              <strong>Automatic Stock Task:</strong>
+              <p>Receiving this battery will automatically generate a <code>STK-YYYY-XXXXXX</code> reconciliation task requiring Busy/Tally entry.</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-replacement')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm Receipt</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Reconcile Stock in ERP -->
+  <div id="modal-reconcile" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Reconcile Physical Stock in Accounting ERP</h3>
+        <button class="modal-close" onclick="closeModal('modal-reconcile')">&times;</button>
+      </div>
+      <form id="form-reconcile-stock">
+        <input type="hidden" id="recon-task-id">
+        <div class="modal-body">
+          <div class="alert-info-box">
+            <p><strong>Task:</strong> <span id="recon-meta-task"></span> | <strong>Claim:</strong> <span id="recon-meta-claim"></span></p>
+            <p><strong>Replacement Battery:</strong> <span id="recon-meta-battery"></span> (<code id="recon-meta-serial"></code>)</p>
+          </div>
+
+          <div class="form-group mt-3">
+            <label>Accounting ERP System <span class="req">*</span></label>
+            <select id="recon-erp-type" class="form-select" required>
+              <option value="BUSY">Busy Accounting (Material Receipt Voucher)</option>
+              <option value="TALLY">Tally Prime (Stock Journal / Receipt Note)</option>
+              <option value="MARG">Marg ERP (Warranty Replacement Inward)</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>ERP Voucher / Reference No. <span class="req">*</span></label>
+              <input type="text" id="recon-ref-no" class="form-input font-mono" placeholder="e.g. VR-2026-0941" required>
+              <small class="hint">Physical voucher generated in Busy/Tally.</small>
+            </div>
+            <div class="form-group col-6">
+              <label>Reconciled By <span class="req">*</span></label>
+              <input type="text" id="recon-operator" class="form-input" value="Ramesh Sharma" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Warehouse / Godown Location</label>
+            <input type="text" id="recon-godown" class="form-input" value="Main Warehouse - Rack B4 (Warranty Replacements)">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-reconcile')">Cancel</button>
+          <button type="submit" class="btn btn-rose">Complete Stock Reconciliation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Claim Details & Visual Timeline Inspector -->
+  <div id="modal-inspector" class="modal-overlay">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-with-badge">
+          <h3 id="inspect-title">Claim Inspection</h3>
+          <span id="inspect-badge" class="badge"></span>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-inspector')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- 3-Serial Banner -->
+        <div class="inspector-serials-card">
+          <div class="serial-item">
+            <span class="lbl">ORIGINAL SERIAL</span>
+            <code id="inspect-orig-serial">-</code>
+          </div>
+          <div class="serial-item">
+            <span class="lbl">SERVICE LOANER SERIAL</span>
+            <code id="inspect-loaner-serial">-</code>
+          </div>
+          <div class="serial-item">
+            <span class="lbl">REPLACEMENT SERIAL</span>
+            <code id="inspect-repl-serial">-</code>
+          </div>
+        </div>
+
+        <!-- Visual Milestone Timeline -->
+        <div class="timeline-container mt-4">
+          <h4>Lifecycle Progression</h4>
+          <div class="steps-timeline" id="inspect-timeline-steps">
+            <!-- Dynamic steps -->
+          </div>
+        </div>
+
+        <!-- Details Grid -->
+        <div class="details-grid mt-4">
+          <div class="detail-group">
+            <label>Customer Details</label>
+            <p id="inspect-cust-name">-</p>
+            <p id="inspect-cust-phone" class="text-muted">-</p>
+            <p id="inspect-cust-vehicle" class="text-muted">-</p>
+          </div>
+          <div class="detail-group">
+            <label>Battery Specifications</label>
+            <p id="inspect-battery-model">-</p>
+            <p id="inspect-warranty-terms" class="text-muted">-</p>
+          </div>
+          <div class="detail-group">
+            <label>Dispatch Information</label>
+            <p id="inspect-dispatch-batch">-</p>
+            <p id="inspect-lr-docket" class="text-muted">-</p>
+          </div>
+          <div class="detail-group">
+            <label>Stock Reconciliation</label>
+            <p id="inspect-stock-status">-</p>
+            <p id="inspect-stock-ref" class="text-muted">-</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" id="inspect-btn-print">Print Challan</button>
+        <button type="button" class="btn btn-primary" onclick="closeModal('modal-inspector')">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Script logic -->
+  <script src="app.js"></script>
+</body>
+</html>

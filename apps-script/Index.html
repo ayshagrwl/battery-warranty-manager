@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title><?= companyName ?> — Battery Warranty & Claim Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <?!= include('styles'); ?>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">⚡</div>
+        <div>
+          <div class="sidebar-title"><?= companyName ?></div>
+          <div class="sidebar-sub">Warranty & Claims Portal</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Core Operations</div>
+        <a class="nav-item active" data-view="dashboard" onclick="navigateTo('dashboard')">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-view="tickets" onclick="navigateTo('tickets')">
+          <span class="nav-icon">📥</span>
+          <span>Receive Battery</span>
+          <span class="nav-badge" id="badge-tickets">0</span>
+        </a>
+        <a class="nav-item" data-view="lab" onclick="navigateTo('lab')">
+          <span class="nav-icon">🔬</span>
+          <span>Testing Lab</span>
+          <span class="nav-badge warning" id="badge-lab">0</span>
+        </a>
+        <a class="nav-item" data-view="claims" onclick="navigateTo('claims')">
+          <span class="nav-icon">📋</span>
+          <span>Warranty Claims</span>
+          <span class="nav-badge" id="badge-claims">0</span>
+        </a>
+        <a class="nav-item" data-view="pending-company" onclick="navigateTo('pending-company')">
+          <span class="nav-icon">🏭</span>
+          <span>Pending Dispatch</span>
+          <span class="nav-badge warning" id="badge-pending-company">0</span>
+        </a>
+        <a class="nav-item" data-view="replacement-pending" onclick="navigateTo('replacement-pending')">
+          <span class="nav-icon">⏳</span>
+          <span>Replacements Due</span>
+          <span class="nav-badge danger" id="badge-replacement-due">0</span>
+        </a>
+
+        <div class="nav-section-title" style="margin-top:14px;">Reconciliation & ERP</div>
+        <a class="nav-item" data-view="stock-tasks" onclick="navigateTo('stock-tasks')">
+          <span class="nav-icon">📦</span>
+          <span>Stock Tasks (ERP)</span>
+          <span class="nav-badge danger" id="badge-stock-tasks">0</span>
+        </a>
+        <a class="nav-item" data-view="challans" onclick="navigateTo('challans')">
+          <span class="nav-icon">🚚</span>
+          <span>Delivery Challans</span>
+        </a>
+
+        <div class="nav-section-title" style="margin-top:14px;">Governance & Master</div>
+        <a class="nav-item" data-view="reports" onclick="navigateTo('reports')">
+          <span class="nav-icon">📈</span>
+          <span>Reports & Ageing</span>
+        </a>
+        <a class="nav-item" data-view="audit" onclick="navigateTo('audit')">
+          <span class="nav-icon">🛡️</span>
+          <span>Audit Trail</span>
+        </a>
+        <a class="nav-item" data-view="settings" onclick="navigateTo('settings')">
+          <span class="nav-icon">⚙️</span>
+          <span>Settings & Master</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div>
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:6px;"></span>
+          <strong>GAS Cloud Active</strong>
+        </div>
+        <span style="color:#64748b; font-size:10px;">v2.4 Pro</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <!-- Top Application Header Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="global-search-input" class="search-input" placeholder="Universal Search: Serial No, Ticket #, Claim #, Customer, Mobile, Vehicle..." onkeydown="handleSearchKey(event)">
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button class="btn btn-primary" onclick="openIntakeModal()">
+            <span>+</span> <span>New Intake Ticket</span>
+          </button>
+          <div class="user-badge" id="current-user-badge">
+            <div class="user-avatar" id="current-user-avatar">AD</div>
+            <span id="current-user-name">Staff Operator</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dynamic Content Area -->
+      <main class="content-area" id="content-area">
+
+        <!-- 1. DASHBOARD VIEW -->
+        <section id="view-dashboard" class="app-view">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Executive Operations Hub</h1>
+              <p class="view-subtitle">Live warranty intake, lab diagnostics, manufacturer batches, and stock status</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="refreshDashboard()">🔄 Refresh Hub</button>
+          </div>
+
+          <!-- KPI Metric Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card" onclick="navigateTo('tickets')">
+              <div class="kpi-icon blue">📥</div>
+              <div>
+                <div class="kpi-val" id="kpi-total-tickets">0</div>
+                <div class="kpi-label">Active Intake Tickets</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('lab')">
+              <div class="kpi-icon amber">🔬</div>
+              <div>
+                <div class="kpi-val" id="kpi-pending-tests">0</div>
+                <div class="kpi-label">Awaiting Lab Test</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('pending-company')">
+              <div class="kpi-icon purple">🏭</div>
+              <div>
+                <div class="kpi-val" id="kpi-pending-company">0</div>
+                <div class="kpi-label">Claims Ready to Dispatch</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('replacement-pending')">
+              <div class="kpi-icon red">⏳</div>
+              <div>
+                <div class="kpi-val" id="kpi-replacement-due">0</div>
+                <div class="kpi-label">Replacements Due from Company</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('stock-tasks')">
+              <div class="kpi-icon green">📦</div>
+              <div>
+                <div class="kpi-val" id="kpi-stock-tasks">0</div>
+                <div class="kpi-label">Pending ERP Stock Update</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- "What Needs My Attention" Action Banners -->
+          <div class="attention-box">
+            <div class="attention-header">
+              <span>⚠️</span>
+              <span>What Needs My Immediate Attention?</span>
+            </div>
+            <div class="attention-grid" id="attention-grid">
+              <div class="attention-item" onclick="navigateTo('lab')">
+                <div class="attention-count" id="att-lab-count">0</div>
+                <div class="attention-desc">Batteries received but not tested yet</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('challans', { filter: 'REJECTED — RETURN PENDING' })">
+                <div class="attention-count" id="att-return-count">0</div>
+                <div class="attention-desc">Rejected batteries waiting for return challan & customer pickup</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('pending-company')">
+                <div class="attention-count" id="att-dispatch-count">0</div>
+                <div class="attention-desc">Passed warranty claims waiting to be batched to company</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('replacement-pending')">
+                <div class="attention-count" id="att-ageing-count">0</div>
+                <div class="attention-desc">Overdue company claims pending replacement (&gt;15 days)</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('stock-tasks')">
+                <div class="attention-count" id="att-stock-count">0</div>
+                <div class="attention-desc">Replacement batteries received needing ERP stock ledger update</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity & Quick Action Lists -->
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Recent Intake Tickets</div>
+              <button class="btn btn-secondary btn-sm" onclick="navigateTo('tickets')">View All Intakes</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticket #</th>
+                    <th>Source</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date Received</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-recent-tickets">
+                  <tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">Loading intake feed...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. TICKETS VIEW -->
+        <section id="view-tickets" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Battery Intake Registry</h1>
+              <p class="view-subtitle">Batteries received from retail customers or authorized dealers</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="loadTickets()">🔄 Refresh</button>
+              <button class="btn btn-primary" onclick="openIntakeModal()">+ Receive Battery</button>
+            </div>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Intake Records</div>
+              <div class="table-filter-bar">
+                <select id="filter-tickets-status" class="form-select" style="width:200px;" onchange="loadTickets()">
+                  <option value="ALL">All Statuses</option>
+                  <option value="RECEIVED">RECEIVED (Holding)</option>
+                  <option value="TESTING">TESTING</option>
+                  <option value="TEST_PASSED">TEST_PASSED</option>
+                  <option value="TEST_REJECTED">TEST_REJECTED</option>
+                  <option value="REJECTED — RETURN PENDING">REJECTED — RETURN PENDING</option>
+                  <option value="REJECTED — RETURNED">REJECTED — RETURNED</option>
+                  <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticket #</th>
+                    <th>Source</th>
+                    <th>Party Details</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date Received</th>
+                    <th>Service Loaner</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tickets-table-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading tickets...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. TESTING LAB VIEW -->
+        <section id="view-lab" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Battery Diagnostic & Testing Lab</h1>
+              <p class="view-subtitle">Conduct diagnostic tests (voltage, specific gravity, load test) and record PASS or REJECT verdict</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadLabQueue()">🔄 Refresh Queue</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Batteries Queued for Testing</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticket #</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date Received</th>
+                    <th>Remarks / Symptoms</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="lab-queue-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading testing queue...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. WARRANTY CLAIMS VIEW -->
+        <section id="view-claims" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Manufacturer Warranty Claims</h1>
+              <p class="view-subtitle">Warranty claims created for passed batteries with auto-calculated validity</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadClaims()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Claims Registry</div>
+              <div class="table-filter-bar">
+                <select id="filter-claims-status" class="form-select" style="width:200px;" onchange="loadClaims()">
+                  <option value="ALL">All Statuses</option>
+                  <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                  <option value="SENT_TO_COMPANY">SENT_TO_COMPANY</option>
+                  <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
+                  <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Claim #</th>
+                    <th>Ticket #</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date of Sale & Expiry</th>
+                    <th>Warranty</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="claims-table-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading claims...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. PENDING FOR COMPANY VIEW -->
+        <section id="view-pending-company" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Company Dispatch Staging</h1>
+              <p class="view-subtitle">Consolidate verified warranty claims into batch dispatches with Delivery Challan (DC-COM)</p>
+            </div>
+            <button class="btn btn-primary" onclick="openDispatchBatchModal()">🚚 Create Dispatch Batch</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Claims Pending Dispatch to Battery Manufacturer</div>
+              <div><small id="selected-dispatch-count" style="font-weight:600; color:var(--accent);">0 selected</small></div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width:40px;"><input type="checkbox" id="chk-select-all-dispatch" onchange="toggleSelectAllDispatch(this.checked)"></th>
+                    <th>Claim #</th>
+                    <th>Party</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Claim Date</th>
+                    <th>Docs Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="pending-dispatch-body">
+                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading dispatch queue...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. REPLACEMENT PENDING VIEW -->
+        <section id="view-replacement-pending" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Company Replacements Pending</h1>
+              <p class="view-subtitle">Track batteries currently in manufacturer possession with real-time ageing alerts</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadReplacementPending()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Open Manufacturer Requisitions</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Claim #</th>
+                    <th>Batch / Challan</th>
+                    <th>Party Details</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Dispatch Date</th>
+                    <th>Ageing Days</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="replacement-pending-body">
+                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading pending replacements...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. STOCK TASKS VIEW -->
+        <section id="view-stock-tasks" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">ERP Stock Reconciliation Tasks</h1>
+              <p class="view-subtitle">Replacement batteries received physically that require manual ledger entry in Busy, Tally, or Marg ERP</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadStockTasks()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Stock Ledger Entry Queue</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Claim #</th>
+                    <th>Battery Model</th>
+                    <th>Replacement Serial</th>
+                    <th>Original Serial</th>
+                    <th>Received Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="stock-tasks-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading stock tasks...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 8. DELIVERY CHALLANS VIEW -->
+        <section id="view-challans" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Delivery Challans & Physical Custody</h1>
+              <p class="view-subtitle">Return Challans (DC-RET) without rates/prices and Consolidated Company Challans (DC-COM)</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadChallans()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Challan Registry</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Challan #</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th>Recipient / Company</th>
+                    <th>Serial Numbers</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="challans-table-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading challans...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 9. REPORTS VIEW -->
+        <section id="view-reports" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Warranty Reports & Ageing Analytics</h1>
+              <p class="view-subtitle">Detailed turnaround time, failure distributions, and operational volume</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadReports()">🔄 Run Report</button>
+          </div>
+
+          <div class="kpi-grid" id="report-ageing-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon green">⚡</div>
+              <div><div class="kpi-val" id="rep-ageing-0-7">0</div><div class="kpi-label">0–7 Days (Normal)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon blue">⚡</div>
+              <div><div class="kpi-val" id="rep-ageing-8-15">0</div><div class="kpi-label">8–15 Days (Routine)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon amber">⚠️</div>
+              <div><div class="kpi-val" id="rep-ageing-16-30">0</div><div class="kpi-label">16–30 Days (Follow-up)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">🚨</div>
+              <div><div class="kpi-val" id="rep-ageing-31-60">0</div><div class="kpi-label">31–60 Days (Escalate)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">🔥</div>
+              <div><div class="kpi-val" id="rep-ageing-60-plus">0</div><div class="kpi-label">60+ Days (Critical)</div></div>
+            </div>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar"><div class="table-title">Performance Summary by Battery Model</div></div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Model Code</th>
+                    <th>Model Name</th>
+                    <th>Warranty Period</th>
+                    <th>Total Received</th>
+                    <th>Passed</th>
+                    <th>Rejected</th>
+                    <th>Rejection Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-models-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Run report to view model breakdown.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 10. AUDIT TRAIL VIEW -->
+        <section id="view-audit" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">System Audit Log</h1>
+              <p class="view-subtitle">Immutable append-only chronological log of all warranty transitions and updates</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadAuditTrail()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar"><div class="table-title">Audit Log Entries</div></div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Entity ID</th>
+                    <th>User</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-table-body">
+                  <tr><td colspan="6" style="text-align:center; padding:20px;">Loading audit trail...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 11. SETTINGS VIEW -->
+        <section id="view-settings" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Settings & Master Configuration</h1>
+              <p class="view-subtitle">Company profile, battery model warranty durations, and authorized dealers</p>
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+          </div>
+
+          <div class="card-table" style="padding:24px;">
+            <h3 style="font-size:15px; margin-bottom:16px;">Distributor Profile</h3>
+            <div class="form-grid form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Distributor / Business Name</label>
+                <input type="text" id="cfg-company-name" class="form-control" value="<?= companyName ?>">
+              </div>
+              <div class="form-group">
+                <label class="form-label">GSTIN</label>
+                <input type="text" id="cfg-company-gst" class="form-control" placeholder="e.g. 24AAACG1234A1Z5">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label class="form-label">Complete Address</label>
+                <input type="text" id="cfg-company-address" class="form-control" placeholder="Street, Area, City, State, PIN">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contact Phone / Mobile</label>
+                <input type="text" id="cfg-company-phone" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contact Email</label>
+                <input type="text" id="cfg-company-email" class="form-control">
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ─── MODALS ────────────────────────────────────────────────────────── -->
+
+  <!-- 1. INTAKE MODAL -->
+  <div class="modal" id="modal-intake">
+    <div class="modal-backdrop" onclick="closeModal('modal-intake')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Receive Battery — New Intake Ticket</h2>
+        <button class="modal-close" onclick="closeModal('modal-intake')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-intake" onsubmit="handleIntakeSubmit(event)">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Battery Source *</label>
+              <select id="intake-source" class="form-select" onchange="toggleSourceFields()" required>
+                <option value="CUSTOMER">Customer (Direct Retail)</option>
+                <option value="DEALER">Dealer (Authorized Channel)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="group-dealer" style="display:none;">
+              <label class="form-label">Dealer Name *</label>
+              <select id="intake-dealer-name" class="form-select">
+                <option value="">-- Select Dealer --</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Customer Name *</label>
+              <input type="text" id="intake-customer-name" class="form-control" required placeholder="Full Name">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Mobile Number *</label>
+              <input type="tel" id="intake-mobile" class="form-control" required placeholder="10-digit Mobile">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Customer Address</label>
+              <input type="text" id="intake-address" class="form-control" placeholder="House/Shop, Locality, City">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Vehicle Registration Number</label>
+              <input type="text" id="intake-vehicle" class="form-control" placeholder="e.g. GJ-05-AB-1234">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Battery Model *</label>
+              <select id="intake-model" class="form-select" required>
+                <option value="">-- Select Battery Model --</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Original Battery Serial Number * (Stored exactly as text)</label>
+              <input type="text" id="intake-serial" class="form-control" required placeholder="e.g. 0094829103" style="font-family:monospace; font-weight:bold; font-size:15px;">
+              <small style="color:#64748b;">Leading zeros will be strictly preserved.</small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Date Received *</label>
+              <input type="date" id="intake-date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Service (Standby) Battery Issued?</label>
+              <select id="intake-service-issued" class="form-select" onchange="toggleServiceBatteryFields()">
+                <option value="NO">No</option>
+                <option value="YES">Yes (Standby Lent)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="group-sb-model" style="display:none;">
+              <label class="form-label">Service Battery Model</label>
+              <input type="text" id="intake-sb-model" class="form-control" placeholder="e.g. Service Pool 35R">
+            </div>
+
+            <div class="form-group" id="group-sb-serial" style="display:none;">
+              <label class="form-label">Service Battery Serial Number</label>
+              <input type="text" id="intake-sb-serial" class="form-control" placeholder="e.g. SB-00349" style="font-family:monospace;">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Problem Symptoms / Remarks</label>
+              <textarea id="intake-remarks" class="form-control" rows="2" placeholder="e.g. Morning cranking issue, voltage dropping under self-start load"></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-intake')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Generate Ticket</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. TESTING MODAL -->
+  <div class="modal" id="modal-test">
+    <div class="modal-backdrop" onclick="closeModal('modal-test')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Record Battery Test Diagnostic</h2>
+        <button class="modal-close" onclick="closeModal('modal-test')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-test" onsubmit="handleTestSubmit(event)">
+          <input type="hidden" id="test-ticket-no">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
+            <div><strong>Ticket:</strong> <span id="test-view-ticket"></span> | <strong>Model:</strong> <span id="test-view-model"></span></div>
+            <div><strong>Original Serial:</strong> <span id="test-view-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Test Result *</label>
+              <select id="test-result" class="form-select" required style="font-weight:bold;">
+                <option value="PASS" style="color:#16a34a;">PASS — Eligible for Warranty Claim</option>
+                <option value="REJECT" style="color:#dc2626;">REJECT — Return to Customer/Dealer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Test Date *</label>
+              <input type="date" id="test-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tested By *</label>
+              <input type="text" id="test-tested-by" class="form-control" required placeholder="Technician Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Open Circuit Voltage (V)</label>
+              <input type="text" id="test-voltage" class="form-control" placeholder="e.g. 10.4V (Dead Cell)">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Diagnostic Remarks *</label>
+              <textarea id="test-remarks" class="form-control" rows="3" required placeholder="e.g. Cell 3 shorted. Fails 200A load test. Physical condition intact."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-test')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Diagnostic Result</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. WARRANTY CLAIM MODAL -->
+  <div class="modal" id="modal-claim">
+    <div class="modal-backdrop" onclick="closeModal('modal-claim')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Generate Warranty Claim</h2>
+        <button class="modal-close" onclick="closeModal('modal-claim')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-claim" onsubmit="handleClaimSubmit(event)">
+          <input type="hidden" id="claim-ticket-no">
+          <input type="hidden" id="claim-model-code">
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
+            <div><strong>Ticket:</strong> <span id="claim-view-ticket"></span> | <strong>Party:</strong> <span id="claim-view-party"></span></div>
+            <div><strong>Model:</strong> <span id="claim-view-model"></span> | <strong>Serial:</strong> <span id="claim-view-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Date of Sale *</label>
+              <input type="date" id="claim-dos" class="form-control" required onchange="calculateClaimWarranty()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Warranty Status</label>
+              <div id="claim-calc-box" style="padding:8px 12px; background:#f1f5f9; border-radius:6px; font-weight:bold;">
+                Enter date of sale to calculate
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Purchase Invoice Number</label>
+              <input type="text" id="claim-invoice-no" class="form-control" placeholder="e.g. INV-9842">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vehicle Kilometers / Reading</label>
+              <input type="text" id="claim-km" class="form-control" placeholder="e.g. 42,500 km">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Claim Submission Remarks</label>
+              <textarea id="claim-remarks" class="form-control" rows="2" placeholder="e.g. Verified genuine sale bill. Battery eligible for full manufacturer replacement."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-claim')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Claim</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MARK RETURNED MODAL -->
+  <div class="modal" id="modal-mark-returned">
+    <div class="modal-backdrop" onclick="closeModal('modal-mark-returned')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Mark Battery Physically Returned</h2>
+        <button class="modal-close" onclick="closeModal('modal-mark-returned')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-mark-returned" onsubmit="handleMarkReturnedSubmit(event)">
+          <input type="hidden" id="ret-challan-no">
+          <p style="margin-bottom:14px; color:#475569;">
+            Record the physical hand-over of the rejected battery back to the customer or dealer.
+          </p>
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Receiver Name *</label>
+              <input type="text" id="ret-receiver-name" class="form-control" required placeholder="Person who collected">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Receiver Mobile Number</label>
+              <input type="tel" id="ret-receiver-mobile" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Return Date *</label>
+              <input type="date" id="ret-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Return Time</label>
+              <input type="time" id="ret-time" class="form-control">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Handover Remarks</label>
+              <textarea id="ret-remarks" class="form-control" rows="2" placeholder="e.g. Signed Delivery Challan collected in file. Standby battery recovered."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-mark-returned')">Cancel</button>
+            <button type="submit" class="btn btn-danger">Confirm Battery Handover</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. COMPANY DISPATCH BATCH MODAL -->
+  <div class="modal" id="modal-dispatch">
+    <div class="modal-backdrop" onclick="closeModal('modal-dispatch')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Create Consolidated Company Dispatch</h2>
+        <button class="modal-close" onclick="closeModal('modal-dispatch')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-dispatch" onsubmit="handleDispatchSubmit(event)">
+          <p style="margin-bottom:12px; font-weight:600;">Selected Claims to Dispatch (<span id="dispatch-batch-count">0</span>):</p>
+          <div id="dispatch-selected-claims-list" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; max-height:140px; overflow-y:auto; margin-bottom:16px; font-size:12px;"></div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Company / Factory Name *</label>
+              <input type="text" id="dsp-company-name" class="form-control" required value="Amaron Batteries Ltd.">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dispatch Date *</label>
+              <input type="date" id="dsp-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Transport / Courier *</label>
+              <input type="text" id="dsp-carrier" class="form-control" required placeholder="e.g. V-Trans Logistics / Direct Van">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Docket / LR Number</label>
+              <input type="text" id="dsp-docket" class="form-control" placeholder="e.g. VT-SUR-98124">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Dispatch Remarks</label>
+              <textarea id="dsp-remarks" class="form-control" rows="2" placeholder="e.g. Dispatched to regional service center with physical warranty claims attached."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-dispatch')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Generate Consolidated Challan & Dispatch</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. RECORD REPLACEMENT RECEIVED MODAL -->
+  <div class="modal" id="modal-replacement">
+    <div class="modal-backdrop" onclick="closeModal('modal-replacement')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Record Replacement Battery Received</h2>
+        <button class="modal-close" onclick="closeModal('modal-replacement')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-replacement" onsubmit="handleReplacementSubmit(event)">
+          <input type="hidden" id="rep-claim-no">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
+            <div><strong>Claim:</strong> <span id="rep-view-claim"></span> | <strong>Model:</strong> <span id="rep-view-model"></span></div>
+            <div><strong>Original Serial:</strong> <span id="rep-view-original-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">New Replacement Battery Serial Number * (Stored as Text)</label>
+              <input type="text" id="rep-new-serial" class="form-control" required placeholder="e.g. REP-0098412" style="font-family:monospace; font-weight:bold; font-size:15px;">
+              <small style="color:#64748b;">Must NOT match original serial number or any active serial.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date Received from Company *</label>
+              <input type="date" id="rep-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Company Invoice / Credit Note Ref</label>
+              <input type="text" id="rep-ref" class="form-control" placeholder="e.g. AM-CN-2026-991">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Receipt Remarks</label>
+              <textarea id="rep-remarks" class="form-control" rows="2" placeholder="e.g. Brand new sealed unit delivered by factory depot."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-replacement')">Cancel</button>
+            <button type="submit" class="btn btn-success">Save Replacement & Create Stock Task</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. MARK STOCK UPDATED MODAL -->
+  <div class="modal" id="modal-stock">
+    <div class="modal-backdrop" onclick="closeModal('modal-stock')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Confirm ERP Stock Ledger Update</h2>
+        <button class="modal-close" onclick="closeModal('modal-stock')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-stock" onsubmit="handleStockSubmit(event)">
+          <input type="hidden" id="stk-claim-no">
+          <p style="margin-bottom:14px; color:#475569;">
+            Enter the Busy, Tally, or Marg ERP entry voucher reference to certify that this replacement battery was reconciled in accounting inventory.
+          </p>
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">ERP Software Used *</label>
+              <select id="stk-software" class="form-select" required>
+                <option value="Busy">Busy Accounting</option>
+                <option value="TallyPrime">TallyPrime</option>
+                <option value="Marg">Marg ERP</option>
+                <option value="Manual Register">Manual Stock Register</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Voucher / Entry Ref Number *</label>
+              <input type="text" id="stk-voucher" class="form-control" required placeholder="e.g. STK-IN-2026-0842">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Reconciliation Remarks</label>
+              <textarea id="stk-remarks" class="form-control" rows="2" placeholder="e.g. Stock inward entry completed in branch warehouse ledger."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-stock')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Certify Stock Updated</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. CLOSE CLAIM MODAL -->
+  <div class="modal" id="modal-close-claim">
+    <div class="modal-backdrop" onclick="closeModal('modal-close-claim')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Close Warranty Claim</h2>
+        <button class="modal-close" onclick="closeModal('modal-close-claim')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-close-claim" onsubmit="handleCloseClaimSubmit(event)">
+          <input type="hidden" id="close-claim-no">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Customer Delivery Date *</label>
+              <input type="date" id="close-del-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Receiver Name *</label>
+              <input type="text" id="close-receiver-name" class="form-control" required placeholder="Name of party">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Closure Remarks</label>
+              <textarea id="close-remarks" class="form-control" rows="2" placeholder="e.g. Replacement battery handed over. Service loaner returned in good condition."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-close-claim')">Cancel</button>
+            <button type="submit" class="btn btn-success">Close Claim</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. UPLOAD DOCUMENT MODAL -->
+  <div class="modal" id="modal-upload">
+    <div class="modal-backdrop" onclick="closeModal('modal-upload')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Upload Claim Document to Google Drive</h2>
+        <button class="modal-close" onclick="closeModal('modal-upload')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-upload" onsubmit="handleUploadSubmit(event)">
+          <input type="hidden" id="upload-claim-no">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Document Type *</label>
+              <select id="upload-doc-type" class="form-select" required>
+                <option value="INVOICE">Sale Invoice / Bill</option>
+                <option value="WARRANTY_CARD">Warranty Card</option>
+                <option value="TEST_REPORT">Battery Diagnostic Report</option>
+                <option value="BATTERY_PHOTO">Battery Serial Photo</option>
+                <option value="TERMINAL_PHOTO">Terminal Condition Photo</option>
+                <option value="OTHER">Other Technical Document</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Select File *</label>
+              <input type="file" id="upload-file" class="form-control" required accept="image/*,application/pdf">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-upload')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-upload-submit">Upload to Drive</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. UNIVERSAL TIMELINE MODAL -->
+  <div class="modal" id="modal-timeline">
+    <div class="modal-backdrop" onclick="closeModal('modal-timeline')"></div>
+    <div class="modal-content" style="max-width:750px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Battery End-to-End Lifecycle History</h2>
+        <button class="modal-close" onclick="closeModal('modal-timeline')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="timeline-meta-box" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:20px;"></div>
+        <div class="timeline-container" id="timeline-nodes-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-timeline')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. PRINT PREVIEW MODAL -->
+  <div class="modal" id="modal-print">
+    <div class="modal-backdrop" onclick="closeModal('modal-print')"></div>
+    <div class="modal-content" style="max-width:900px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="print-modal-title">Print Document Preview</h2>
+        <button class="modal-close" onclick="closeModal('modal-print')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:10px;">
+        <iframe id="print-iframe" class="print-frame-container"></iframe>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-print')">Close</button>
+        <button class="btn btn-primary" onclick="triggerIframePrint()">🖨️ Print Document</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast">
+    <span id="toast-icon">ℹ️</span>
+    <span id="toast-message">Notification message</span>
+  </div>
+
+  <?!= include('app'); ?>
+</body>
+</html>

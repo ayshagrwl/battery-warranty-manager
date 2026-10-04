@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Battery Warranty Claim Form</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm 15mm; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 0; padding: 20px; line-height: 1.45; background: #fff; }
+    .header-table { width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+    .company-title { font-size: 19px; font-weight: bold; color: #0f172a; text-transform: uppercase; margin: 0; }
+    .company-meta { font-size: 11px; color: #475569; margin-top: 3px; }
+    .badge-doc { display: inline-block; font-size: 13px; font-weight: bold; background: #f3e8ff; color: #7e22ce; padding: 4px 8px; border-radius: 4px; border: 1px solid #c084fc; letter-spacing: 0.5px; }
+    .section-title { background: #1e293b; color: #ffffff; padding: 4px 8px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-top: 12px; margin-bottom: 8px; border-radius: 3px; }
+    .grid-2 { display: flex; justify-content: space-between; gap: 12px; }
+    .grid-col { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 10px; background: #f8fafc; }
+    .row { display: flex; margin-bottom: 4px; }
+    .lbl { width: 130px; font-weight: 600; color: #475569; font-size: 11px; }
+    .val { flex: 1; color: #0f172a; font-weight: 500; font-size: 11px; }
+    table.test-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    table.test-table th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 5px; font-size: 11px; text-align: left; }
+    table.test-table td { border: 1px solid #cbd5e1; padding: 5px; font-size: 11px; }
+    .sig-container { display: flex; justify-content: space-between; margin-top: 30px; }
+    .sig-box { width: 30%; text-align: center; border-top: 1px solid #94a3b8; padding-top: 6px; font-size: 11px; font-weight: 600; color: #334155; }
+    .sig-sub { font-size: 10px; font-weight: normal; color: #64748b; margin-top: 2px; }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 14px; text-align: right;">
+    <button onclick="window.print()" style="background:#0284c7; color:#fff; border:none; padding:8px 16px; border-radius:4px; font-weight:bold; cursor:pointer;">🖨️ Print Claim Form (A4)</button>
+  </div>
+
+  <table class="header-table">
+    <tr>
+      <td style="vertical-align: top;">
+        <div class="company-title" id="cf-company-name">Amaron Battery Hub & Service Care</div>
+        <div class="company-meta" id="cf-company-address">Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002</div>
+        <div class="company-meta">Phone: <span id="cf-company-phone">+91 98250 12345</span> | GSTIN: <span id="cf-company-gst">24AAACG1234A1Z5</span></div>
+      </td>
+      <td style="text-align: right; vertical-align: top;">
+        <div class="badge-doc">BATTERY WARRANTY CLAIM FORM</div>
+        <div style="font-size: 11px; color: #64748b; margin-top: 3px; font-weight: 600;">TECHNICAL REQUISITION</div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="section-title">1. Claim & Battery Specification</div>
+  <div class="grid-2">
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Claim Number:</div><div class="val"><strong id="cf-claim-no">CLM-2026-001001</strong></div></div>
+      <div class="row"><div class="lbl">Claim Date:</div><div class="val" id="cf-claim-date">04/10/2026</div></div>
+      <div class="row"><div class="lbl">Originating Ticket:</div><div class="val" id="cf-ticket-no">TKT-2026-001001</div></div>
+      <div class="row"><div class="lbl">Battery Model:</div><div class="val" id="cf-battery-model">Amaron Pro 42B20R</div></div>
+      <div class="row"><div class="lbl">Original Serial No:</div><div class="val"><span style="font-family: monospace; font-size: 13px; font-weight: bold;" id="cf-original-serial">0094829103</span></div></div>
+    </div>
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Date of Sale:</div><div class="val" id="cf-date-of-sale">15/01/2025</div></div>
+      <div class="row"><div class="lbl">Warranty Period:</div><div class="val" id="cf-warranty-months">36 Months</div></div>
+      <div class="row"><div class="lbl">Warranty Expiry Date:</div><div class="val" id="cf-warranty-expiry">15/01/2028</div></div>
+      <div class="row"><div class="lbl">Warranty Status:</div><div class="val"><strong style="color:#16a34a;" id="cf-warranty-status">IN_WARRANTY</strong></div></div>
+      <div class="row"><div class="lbl">Coverage Type:</div><div class="val" id="cf-coverage-type">100% Free Replacement Guarantee</div></div>
+    </div>
+  </div>
+
+  <div class="section-title">2. Customer & Origin Information</div>
+  <div class="grid-2">
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Customer / Garage:</div><div class="val" id="cf-customer-name">Rahul S. Verma</div></div>
+      <div class="row"><div class="lbl">Mobile Number:</div><div class="val" id="cf-mobile">9876543210</div></div>
+      <div class="row"><div class="lbl">Vehicle Registration:</div><div class="val" id="cf-vehicle-no">GJ-05-CD-1234</div></div>
+    </div>
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Source Type:</div><div class="val" id="cf-source-type">Customer Direct</div></div>
+      <div class="row"><div class="lbl">Dealer / Channel:</div><div class="val" id="cf-dealer-name">-</div></div>
+      <div class="row"><div class="lbl">Address:</div><div class="val" id="cf-address">Surat, Gujarat</div></div>
+    </div>
+  </div>
+
+  <div class="section-title">3. Laboratory Diagnostic & Electrical Test Findings</div>
+  <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 10px; background: #fff;">
+    <table class="test-table">
+      <tr>
+        <th style="width: 25%;">Open Circuit Voltage (OCV)</th>
+        <th style="width: 25%;">15s Carbon Pile Load Test</th>
+        <th style="width: 25%;">Physical Condition</th>
+        <th style="width: 25%;">Test Result</th>
+      </tr>
+      <tr>
+        <td id="cf-test-ocv">10.4 V</td>
+        <td id="cf-test-load">8.2 V</td>
+        <td id="cf-test-physical">Clean, no bulging, terminal OK</td>
+        <td><strong style="color:#16a34a;" id="cf-test-result">PASS (Eligible for Replacement)</strong></td>
+      </tr>
+    </table>
+    <div style="margin-top: 8px; font-size: 11px;">
+      <strong>Specific Gravity Readings across Cells:</strong>
+      <span style="font-family: monospace; font-size: 11px; color:#0f172a;" id="cf-test-sg">1.18, 1.18, 1.12, 1.18, 1.18, 1.18</span>
+    </div>
+    <div style="margin-top: 6px; font-size: 11px;">
+      <strong>Technical Diagnostic Conclusion:</strong>
+      <span id="cf-test-remarks" style="color:#334155;">Internal cell #3 failure detected. Battery eligible for manufacturer warranty replacement.</span>
+    </div>
+    <div style="margin-top: 4px; font-size: 10px; color: #64748b;">
+      Tested By: <span id="cf-tested-by">Sanjay Mistri</span> | Date Tested: <span id="cf-test-date">04/10/2026</span>
+    </div>
+  </div>
+
+  <div class="section-title">4. Document Verification & Enclosures</div>
+  <div style="display: flex; gap: 20px; font-size: 11px; padding: 4px 6px;">
+    <div>☑ Original Purchase Invoice Copy</div>
+    <div>☑ Manufacturer Warranty Card</div>
+    <div>☑ Battery Diagnostic Printout / Slip</div>
+  </div>
+
+  <div class="sig-container">
+    <div class="sig-box">
+      <br><br>
+      Customer / Dealer Signature
+      <div class="sig-sub">Surrender Confirmation</div>
+    </div>
+    <div class="sig-box">
+      <br><br>
+      Technical Examiner
+      <div class="sig-sub">Verified & Approved</div>
+    </div>
+    <div class="sig-box">
+      <br><br>
+      For <span id="cf-sig-company">Amaron Battery Hub & Service Care</span>
+      <div class="sig-sub">Authorized Distributor Signatory & Stamp</div>
+    </div>
+  </div>
+</body>
+</html>

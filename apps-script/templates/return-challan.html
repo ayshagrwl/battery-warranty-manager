@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <title>Delivery Challan - Battery Return</title>
+  <style>
+    @page { size: A4; margin: 15mm; }
+    body {
+      font-family: Arial, sans-serif;
+      color: #1e293b;
+      margin: 0;
+      padding: 20px;
+      background: #ffffff;
+      font-size: 13px;
+    }
+    .header {
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .company-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #0f172a;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .company-details {
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    .doc-badge {
+      text-align: right;
+    }
+    .doc-title {
+      font-size: 15px;
+      font-weight: bold;
+      background: #f1f5f9;
+      padding: 6px 12px;
+      border: 1px solid #cbd5e1;
+      display: inline-block;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .doc-meta {
+      font-size: 12px;
+      margin-top: 6px;
+      color: #334155;
+    }
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .panel {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 10px 14px;
+      background: #f8fafc;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    .info-row {
+      margin-bottom: 4px;
+      display: flex;
+    }
+    .info-label {
+      width: 110px;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .info-val {
+      font-weight: bold;
+      color: #0f172a;
+      flex: 1;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: bold;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .ack-box {
+      border: 2px dashed #94a3b8;
+      border-radius: 6px;
+      padding: 16px;
+      background: #fcfcfd;
+      margin-top: 30px;
+    }
+    .ack-statement {
+      font-size: 13px;
+      font-weight: bold;
+      color: #0f172a;
+      margin-bottom: 18px;
+    }
+    .sig-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 40px;
+    }
+    .sig-line {
+      border-top: 1px solid #475569;
+      padding-top: 6px;
+      font-size: 12px;
+      color: #334155;
+    }
+    .no-price-banner {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-style: italic;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 16px; text-align: right;">
+    <button onclick="window.print()" style="padding: 8px 16px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Print Challan (A4)</button>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="company-title"><?= data.company.name ?></div>
+      <div class="company-details">
+        <?= data.company.address ?><br>
+        Phone: <?= data.company.phone ?> | Email: <?= data.company.email ?><br>
+        <? if (data.company.gstin) { ?>GSTIN: <?= data.company.gstin ?><? } ?>
+      </div>
+    </div>
+    <div class="doc-badge">
+      <div class="doc-title">Battery Return Challan</div>
+      <div class="doc-meta">
+        <strong>Challan No:</strong> <?= data.challan.challan_no ?><br>
+        <strong>Date:</strong> <?= data.challan.challan_date ?><br>
+        <strong>Ticket Ref:</strong> <?= data.challan.ticket_no ?>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-price-banner">
+    Notice: Physical Goods Return Delivery Challan. Commercial value: NIL. Not for sale or accounting purchase return.
+  </div>
+
+  <div class="grid-two">
+    <div class="panel">
+      <div class="panel-title">Returned To (Customer / Dealer)</div>
+      <div class="info-row"><span class="info-label">Name:</span><span class="info-val"><?= data.challan.recipient_name ?></span></div>
+      <div class="info-row"><span class="info-label">Type:</span><span class="info-val"><?= data.challan.recipient_type ?></span></div>
+      <div class="info-row"><span class="info-label">Mobile:</span><span class="info-val"><?= data.challan.mobile || '-' ?></span></div>
+      <div class="info-row"><span class="info-label">Address:</span><span class="info-val"><?= data.challan.address || '-' ?></span></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Test & Inspection Status</div>
+      <div class="info-row"><span class="info-label">Inspection:</span><span class="info-val" style="color: #dc2626;">TEST REJECTED</span></div>
+      <div class="info-row"><span class="info-label">Reason:</span><span class="info-val"><?= data.challan.remarks || 'Physical wear / out of warranty terms' ?></span></div>
+      <div class="info-row"><span class="info-label">Vehicle No:</span><span class="info-val"><?= (data.ticket && data.ticket.vehicle_number) ? data.ticket.vehicle_number : '-' ?></span></div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 40px;">#</th>
+        <th>Battery Model Description</th>
+        <th>Battery Serial Number</th>
+        <th style="width: 80px; text-align: center;">Qty</th>
+        <th>Return Reason / Remarks</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align: center;">1</td>
+        <td><strong><?= data.challan.battery_model ?></strong></td>
+        <td style="font-family: monospace; font-size: 14px; font-weight: bold;"><?= data.challan.battery_serial_no ?></td>
+        <td style="text-align: center; font-weight: bold;">1 No.</td>
+        <td><?= data.challan.remarks || 'Warranty claim rejected after electrical test' ?></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="ack-box">
+    <div class="ack-statement">
+      ACKNOWLEDGEMENT: "Received the above mentioned battery in good physical possession along with test report."
+    </div>
+    <div style="font-size: 12px; margin-bottom: 8px;">
+      Received By Name: __________________________________________________ &nbsp;&nbsp;&nbsp; Mobile: _________________________
+    </div>
+    <div class="sig-grid">
+      <div>
+        <div style="height: 45px;"></div>
+        <div class="sig-line">
+          <strong>Customer / Dealer Signature</strong><br>
+          Date: ______________ &nbsp;&nbsp; Time: ______________
+        </div>
+      </div>
+      <div>
+        <div style="height: 45px;"></div>
+        <div class="sig-line" style="text-align: right;">
+          <strong>For <?= data.company.name ?></strong><br>
+          Authorized Representative / Store Keeper
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "timeZone": "Asia/Kolkata",
+  "dependencies": {
+    "enabledAdvancedServices": []
+  },
+  "webapp": {
+    "access": "ANYONE",
+    "executeAs": "USER_ACCESSING"
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/script.container.ui"
+  ]
+}
