@@ -177,11 +177,54 @@ var DriveService = (function () {
     };
   }
 
+  /**
+   * Zip download helper: Bundles all attached documents for a claim into a single downloadable zip file.
+   *
+   * @param {string} claimNo - Claim ID
+   * @return {Object} Zip file metadata { file_id, file_name, file_url, size_kb }
+   */
+  function createClaimDocumentZip(claimNo) {
+    if (!claimNo) throw new Error('Claim number is required');
+    var docs = getClaimDocuments(claimNo);
+    if (!docs || docs.length === 0) {
+      throw new Error('No documents found for claim ' + claimNo);
+    }
+
+    var blobs = [];
+    for (var i = 0; i < docs.length; i++) {
+      try {
+        var file = DriveApp.getFileById(docs[i].drive_file_id);
+        if (file) {
+          blobs.push(file.getBlob().setName(docs[i].file_name));
+        }
+      } catch (e) {
+        Logger.log('Could not fetch file for zip: ' + docs[i].file_name + ': ' + e.toString());
+      }
+    }
+
+    if (blobs.length === 0) {
+      throw new Error('Could not access any file blobs for claim ' + claimNo);
+    }
+
+    var zipBlob = Utilities.zip(blobs, claimNo + '_Documents.zip');
+    var root = getRootFolder();
+    var claimFolder = getClaimFolder(claimNo, 'Generated Documents');
+    var zipFile = claimFolder.createFile(zipBlob);
+
+    return {
+      file_id: zipFile.getId(),
+      file_name: zipFile.getName(),
+      file_url: zipFile.getUrl(),
+      size_kb: Math.round(zipBlob.getBytes().length / 1024)
+    };
+  }
+
   return {
     getRootFolder: getRootFolder,
     getClaimFolder: getClaimFolder,
     uploadDocument: uploadDocument,
     getClaimDocuments: getClaimDocuments,
-    saveGeneratedPdf: saveGeneratedPdf
+    saveGeneratedPdf: saveGeneratedPdf,
+    createClaimDocumentZip: createClaimDocumentZip
   };
 })();

@@ -207,6 +207,15 @@ function apiUploadDocument(data) {
   }
 }
 
+function apiDownloadClaimZip(claimNo) {
+  try {
+    var res = DriveService.createClaimDocumentZip(claimNo);
+    return Utils.success(res, 'Claim document zip archive created.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
 function apiSearchUniversal(query) {
   try {
     return Utils.success(ClaimService.searchUniversal(query));

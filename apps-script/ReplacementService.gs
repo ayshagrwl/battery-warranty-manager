@@ -202,6 +202,11 @@ var ReplacementService = (function () {
     var claim = Database.getRowById('Claims', 'claim_no', data.claim_no);
     if (!claim) throw new Error('Claim ' + data.claim_no + ' not found');
 
+    // Verified Closure Gate: Block closure if stock reconciliation is pending
+    if (claim.stock_status === 'UPDATE_REQUIRED') {
+      throw new Error('Cannot close claim ' + data.claim_no + ': Physical stock reconciliation is pending (STOCK_UPDATE_REQUIRED). Please log accounting voucher reference first.');
+    }
+
     var todayIso = Utils.toIsoDate(new Date());
     var nowIso = new Date().toISOString();
     var userEmail = Utils.getCurrentUserEmail();
