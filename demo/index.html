@@ -124,6 +124,7 @@
     <button class="nav-tab active" data-tab="tab-dashboard">
       <svg class="tab-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
       Dashboard & Overview
+      <span id="sidebar-urgent-badge" class="tab-count-badge" style="display:none;"></span>
     </button>
     <button class="nav-tab" data-tab="tab-intake">
       <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
@@ -242,6 +243,9 @@
             <option value="TEST_PASSED">Test Passed (Eligible)</option>
             <option value="TEST_REJECTED">Test Rejected (Return)</option>
             <option value="CLAIM_CREATED">Claim Created</option>
+            <option value="CLOSED">Closed (Approved)</option>
+            <option value="CLOSED_REJECTED">Closed (Rejected Return)</option>
+            <option value="LOANER_OUT">Loaners Still Out</option>
           </select>
           <button id="btn-intake-modal-open" class="btn btn-primary">+ Create New Intake</button>
         </div>
@@ -274,7 +278,7 @@
       <div class="pane-header">
         <div class="pane-title">
           <h2>Battery Testing & Electrical Diagnostic Lab</h2>
-          <p>Execute standard physical inspection, Open Circuit Voltage, 6-cell hydrometer gravity, and 15-second load tests.</p>
+          <p>Record the bench test once. The system recommends PASS/REJECT from voltage, gravity, and casing so you do not guess the next click.</p>
         </div>
       </div>
 
@@ -291,6 +295,15 @@
           <p>Group approved claims into consolidated factory dispatches with LR / Consignment dockets.</p>
         </div>
         <div class="pane-actions">
+          <select id="filter-claim-status" class="form-select">
+            <option value="ALL">All Claims</option>
+            <option value="READY_FOR_COMPANY">Ready to Dispatch</option>
+            <option value="SENT_TO_COMPANY">With Company</option>
+            <option value="REPLACEMENT_RECEIVED">Replacement In — ERP Pending</option>
+            <option value="STOCK_UPDATED">Stock Done — Handover Pending</option>
+            <option value="REJECTED_BY_COMPANY">Rejected by Company</option>
+            <option value="CLOSED">Closed</option>
+          </select>
           <button id="btn-create-dispatch" class="btn btn-teal">
             <svg class="icon" viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4z"/></svg>
             + Create Consolidated Dispatch Batch
@@ -326,6 +339,7 @@
                   <th>Warranty Status</th>
                   <th>Claim Status</th>
                   <th>Replacement Serial</th>
+                  <th>Stock / ERP</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -607,6 +621,8 @@
             </div>
           </div>
 
+          <div id="test-recommendation" class="test-recommendation" hidden></div>
+
           <div class="form-group">
             <label>Detailed Diagnostic Remarks</label>
             <textarea id="test-remarks" class="form-textarea" rows="2" placeholder="e.g. Cell #3 dead; plate shorted internally. Recommend replacement."></textarea>
@@ -821,9 +837,41 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline" id="inspect-btn-print">Print Challan</button>
-        <button type="button" class="btn btn-primary" onclick="closeModal('modal-inspector')">Done</button>
+        <button type="button" class="btn btn-outline" id="inspect-btn-print">Print Document</button>
+        <button type="button" class="btn btn-primary" id="inspect-primary-action">Done</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Customer close-out (handover or rejected return) -->
+  <div id="modal-closeout" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="closeout-title">Complete Customer Handover</h3>
+        <button class="modal-close" onclick="closeModal('modal-closeout')">&times;</button>
+      </div>
+      <form id="form-closeout">
+        <input type="hidden" id="closeout-mode">
+        <input type="hidden" id="closeout-ticket-no">
+        <div class="modal-body">
+          <div class="alert-info-box">
+            <p><strong>Ticket:</strong> <span id="closeout-meta-ticket"></span> · <strong>Customer:</strong> <span id="closeout-meta-customer"></span></p>
+            <p id="closeout-meta-detail"></p>
+          </div>
+          <p class="hint" id="closeout-copy" style="margin-top:12px;"></p>
+          <div id="closeout-loaner-box" class="loaner-issuance-box" style="margin-top:12px; display:none;">
+            <div class="checkbox-line">
+              <input type="checkbox" id="closeout-loaner-returned">
+              <label for="closeout-loaner-returned"><strong id="closeout-loaner-label">Service loaner physically collected</strong></label>
+            </div>
+            <small class="hint">Closure is blocked until the loaner serial is recovered. This is how lost service batteries happen.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-closeout')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="closeout-submit">Confirm Handover & Close</button>
+        </div>
+      </form>
     </div>
   </div>
 

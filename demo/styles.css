@@ -624,15 +624,21 @@ code, pre, .font-mono {
   letter-spacing: 0.03em;
 }
 
-.status-RECEIVED { background: #e0f2fe; color: #0369a1; }
-.status-TESTING { background: #fef3c7; color: #b45309; }
-.status-TEST_PASSED { background: #dcfce7; color: #15803d; }
-.status-TEST_REJECTED { background: #ffe4e6; color: #b91c1c; }
-.status-READY_FOR_COMPANY { background: #e0e7ff; color: #4338ca; }
-.status-SENT_TO_COMPANY { background: #ccfbf1; color: #0f766e; }
-.status-REPLACEMENT_RECEIVED { background: #fdf4ff; color: #a21caf; }
+.status-RECEIVED, .status-received { background: #e0f2fe; color: #0369a1; }
+.status-TESTING, .status-testing { background: #fef3c7; color: #b45309; }
+.status-TEST_PASSED, .status-passed { background: #dcfce7; color: #15803d; }
+.status-TEST_REJECTED, .status-rejected, .status-CLOSED_REJECTED, .status-REJECTED_BY_COMPANY { background: #ffe4e6; color: #b91c1c; }
+.status-CLAIM_CREATED, .status-claim { background: #ede9fe; color: #6d28d9; }
+.status-READY_FOR_COMPANY, .status-ready { background: #e0e7ff; color: #4338ca; }
+.status-SENT_TO_COMPANY, .status-sent { background: #ccfbf1; color: #0f766e; }
+.status-REPLACEMENT_RECEIVED, .status-replacement { background: #fdf4ff; color: #a21caf; }
 .status-STOCK_UPDATED { background: #ecfdf5; color: #047857; }
-.status-CLOSED { background: #f1f5f9; color: #334155; }
+.status-CLOSED, .status-closed { background: #f1f5f9; color: #334155; }
+.status-IN_WARRANTY { background: #d1fae5; color: #047857; }
+.status-OUT_OF_WARRANTY { background: #ffe4e6; color: #be123c; }
+.status-UPDATE_REQUIRED { background: #ffe4e6; color: #be123c; }
+.status-UPDATED { background: #d1fae5; color: #047857; }
+.status-default { background: #f1f5f9; color: #475569; }
 
 /* ==========================================================================
    Buttons
@@ -791,6 +797,15 @@ code, pre, .font-mono {
   gap: 16px;
 }
 
+.lab-section-header {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-600);
+  grid-column: 1 / -1;
+}
+
 .lab-card {
   background: white;
   border: 1px solid var(--slate-200);
@@ -800,6 +815,36 @@ code, pre, .font-mono {
   display: flex;
   flex-direction: column;
 }
+
+.lab-card-passed { border-color: #86efac; }
+.lab-card-rejected { border-color: #fda4af; }
+
+.test-recommendation {
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.test-recommendation.rec-pass { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.test-recommendation.rec-reject { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+
+.tab-count-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--rose);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.urgent-item.teal { border-left-color: var(--teal); }
+.urgent-item.rose { border-left-color: var(--rose); }
 
 .lab-card-header {
   display: flex;
