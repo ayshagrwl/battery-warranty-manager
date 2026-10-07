@@ -3,6 +3,8 @@
 > **Enterprise-grade, zero-cost operational platform for Indian battery distributors, service centers, and authorized dealers.**
 > Built on Google Workspace (Google Sheets, Drive, Apps Script) and deployable via clasp, with a 100% client-side interactive demo for GitHub Pages.
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-GitHub_Pages-22c55e?style=for-the-badge&logo=github)](https://ayshagrwl.github.io/battery-warranty-manager/)
+
 ---
 
 ## 📌 Executive Summary
@@ -164,6 +166,8 @@ clasp push
 ---
 
 ## 💻 Standalone Interactive Demo (GitHub Pages)
+
+🌐 **Live Web Application:** [https://ayshagrwl.github.io/battery-warranty-manager/](https://ayshagrwl.github.io/battery-warranty-manager/)
 
 The `/demo` folder contains a **100% self-contained client-side simulation** of the complete system:
 * Pre-loaded with realistic Indian battery distributor data (**Amaron, Exide, Tata Green**).
