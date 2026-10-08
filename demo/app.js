@@ -1619,21 +1619,20 @@
     if (claim) {
       claim.stock_status = 'UPDATED';
       claim.stock_ref_no = `${erp}:${refNo}`;
-      claim.status = 'CLOSED';
-      claim.closed_date = new Date().toISOString().split('T')[0];
+      claim.status = 'STOCK_UPDATED';
       const ticket = state.tickets.find(t => t.ticket_no === claim.ticket_no);
-      if (ticket) ticket.status = 'CLOSED';
+      if (ticket) ticket.status = 'STOCK_UPDATED';
     }
 
     state.audits.push({
       audit_id: nextSeq('AUD', state.audits), timestamp: new Date().toISOString(),
       user_email: operator + '@batteryhub.in', action: 'STOCK_UPDATE', record_type: 'STOCK_TASK',
-      record_id: taskId, old_status: 'UPDATE_REQUIRED', new_status: 'CLOSED',
-      details: `Reconciled in ${erp} with voucher ref ${refNo}. Claim ${task.claim_no} fully closed.`
+      record_id: taskId, old_status: 'UPDATE_REQUIRED', new_status: 'STOCK_UPDATED',
+      details: `Reconciled in ${erp} with voucher ref ${refNo}. Replacement ready for customer handover.`
     });
 
     saveState(); closeModal('modal-reconcile'); renderAll();
-    showToast(`⚖️ Stock reconciled (${refNo})! Claim ${task.claim_no} marked CLOSED. Full cycle complete.`, 'success', 6000);
+    showToast(`⚖️ Stock reconciled (${refNo})! Replacement ready for customer handover.`, 'success', 6000);
   });
 
   // ─── INSPECTOR MODAL ─────────────────────────────────────────────────────────
@@ -1713,6 +1712,13 @@
       else { switchTab('tab-print'); renderPrintTemplate('CLAIM-FORM'); }
     };
 
+    const inspectDoneBtn = document.getElementById('inspect-primary-action');
+    if (inspectDoneBtn) {
+      inspectDoneBtn.onclick = function () {
+        closeModal('modal-inspector');
+      };
+    }
+
     openModal('modal-inspector');
   };
 
@@ -1770,10 +1776,180 @@
     clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; handleSearch(); });
   }
 
+  // ─── CLOSEOUT MODAL (CUSTOMER HANDOVER & REJECT RETURN) ──────────────────────
+  window.openCloseoutModal = function (ticketNo, mode = 'HANDOVER') {
+    const t = state.tickets.find(x => x.ticket_no === ticketNo);
+    if (!t) { showToast('Ticket not found: ' + ticketNo, 'warning'); return; }
+    const claim = t.claim_no ? state.claims.find(c => c.claim_no === t.claim_no) : null;
+
+    document.getElementById('closeout-mode').value = mode;
+    document.getElementById('closeout-ticket-no').value = ticketNo;
+    document.getElementById('closeout-meta-ticket').textContent = t.ticket_no;
+    document.getElementById('closeout-meta-customer').textContent = t.customer_name;
+
+    const titleEl = document.getElementById('closeout-title');
+    const copyEl = document.getElementById('closeout-copy');
+    const detailEl = document.getElementById('closeout-meta-detail');
+    const submitBtn = document.getElementById('closeout-submit');
+    const loanerBox = document.getElementById('closeout-loaner-box');
+    const loanerChk = document.getElementById('closeout-loaner-returned');
+    const loanerLbl = document.getElementById('closeout-loaner-label');
+
+    if (mode === 'HANDOVER') {
+      titleEl.textContent = 'Deliver Replacement Battery & Close Ticket';
+      submitBtn.textContent = 'Confirm Handover & Close';
+      submitBtn.className = 'btn btn-primary';
+      detailEl.innerHTML = `<strong>Replacement Unit:</strong> ${claim && claim.replacement_model ? claim.replacement_model : t.battery_model} (Serial <code class="font-mono">'${claim && claim.replacement_serial_no ? claim.replacement_serial_no : 'N/A'}</code>)`;
+      copyEl.textContent = 'Confirm that the customer or dealer has received their brand new replacement battery. If a service loaner battery was lent to them, verify its return below.';
+    } else {
+      titleEl.textContent = 'Return Rejected Battery & Close Ticket';
+      submitBtn.textContent = 'Confirm Return & Close';
+      submitBtn.className = 'btn btn-rose';
+      detailEl.innerHTML = `<strong>Original Battery:</strong> ${t.battery_model} (Serial <code class="font-mono">'${t.original_serial_no}</code>) — Rejected with Return Challan ${t.challan_no || 'Pending'}`;
+      copyEl.textContent = 'Confirm that the customer has collected their unserviced battery and acknowledged receipt. If a standby loaner battery was lent, verify physical collection below.';
+    }
+
+    if (t.service_battery_issued && !t.service_battery_returned) {
+      loanerBox.style.display = 'block';
+      loanerChk.checked = false;
+      loanerLbl.textContent = `Service loaner physically collected (${t.service_battery_serial} - ${t.service_battery_model})`;
+    } else {
+      loanerBox.style.display = 'none';
+      loanerChk.checked = true;
+    }
+
+    openModal('modal-closeout');
+  };
+
+  document.getElementById('form-closeout').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const ticketNo = document.getElementById('closeout-ticket-no').value;
+    const mode = document.getElementById('closeout-mode').value;
+    const loanerChk = document.getElementById('closeout-loaner-returned');
+
+    const t = state.tickets.find(x => x.ticket_no === ticketNo);
+    if (!t) return;
+    const claim = t.claim_no ? state.claims.find(c => c.claim_no === t.claim_no) : null;
+
+    if (t.service_battery_issued && !t.service_battery_returned && !loanerChk.checked) {
+      showToast(`⚠️ Cannot close ticket until standby loaner battery (${t.service_battery_serial}) is confirmed returned!`, 'danger', 6000);
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    if (t.service_battery_issued) {
+      t.service_battery_returned = true;
+    }
+
+    if (mode === 'HANDOVER') {
+      t.status = 'CLOSED';
+      if (claim) {
+        claim.status = 'CLOSED';
+        claim.closed_date = today;
+      }
+      state.audits.push({
+        audit_id: nextSeq('AUD', state.audits),
+        timestamp: new Date().toISOString(),
+        user_email: 'ramesh@batteryhub.in',
+        action: 'HANDOVER_DELIVERY',
+        record_type: 'TICKET',
+        record_id: ticketNo,
+        old_status: 'STOCK_UPDATED',
+        new_status: 'CLOSED',
+        details: `Replacement battery handed over to ${t.customer_name}. Ticket closed.`
+      });
+      showToast(`🎉 Ticket ${ticketNo} closed! Replacement handed over to customer.`, 'success');
+    } else {
+      t.status = 'CLOSED_REJECTED';
+      if (claim) {
+        claim.status = 'CLOSED';
+        claim.closed_date = today;
+      }
+      state.audits.push({
+        audit_id: nextSeq('AUD', state.audits),
+        timestamp: new Date().toISOString(),
+        user_email: 'ramesh@batteryhub.in',
+        action: 'REJECT_RETURN_HANDOVER',
+        record_type: 'TICKET',
+        record_id: ticketNo,
+        old_status: t.status,
+        new_status: 'CLOSED_REJECTED',
+        details: `Rejected battery returned to ${t.customer_name}. Standby loaner recovered. Ticket closed.`
+      });
+      showToast(`Rejected battery returned to customer. Ticket ${ticketNo} closed.`, 'info');
+    }
+
+    saveState();
+    closeModal('modal-closeout');
+    renderAll();
+  });
+
+  // ─── DISPATCH & COMPANY REJECTION ACTIONS ────────────────────────────────────
+  window.openDispatchModal = function () {
+    const btn = document.getElementById('btn-create-dispatch');
+    if (btn) btn.click();
+  };
+
+  window.rejectByCompany = function (claimNo) {
+    const claim = state.claims.find(c => c.claim_no === claimNo);
+    if (!claim) { showToast('Claim not found: ' + claimNo, 'warning'); return; }
+
+    const reason = prompt(`Enter manufacturer rejection reason for Claim ${claimNo}:`, 'Factory inspection rejected: customer physical damage / out of warranty terms');
+    if (reason === null) return;
+
+    const oldStatus = claim.status;
+    claim.status = 'REJECTED_BY_COMPANY';
+    claim.remarks = (claim.remarks ? claim.remarks + ' | ' : '') + 'Rejected by Co: ' + reason;
+
+    const ticket = state.tickets.find(t => t.ticket_no === claim.ticket_no);
+    if (ticket) {
+      ticket.status = 'TEST_REJECTED';
+    }
+
+    state.audits.push({
+      audit_id: nextSeq('AUD', state.audits),
+      timestamp: new Date().toISOString(),
+      user_email: 'ramesh@batteryhub.in',
+      action: 'COMPANY_REJECTION',
+      record_type: 'CLAIM',
+      record_id: claimNo,
+      old_status: oldStatus,
+      new_status: 'REJECTED_BY_COMPANY',
+      details: `Claim rejected by manufacturer technical team: ${reason}`
+    });
+
+    saveState();
+    renderAll();
+    showToast(`Claim ${claimNo} marked as REJECTED BY COMPANY. Battery eligible for return delivery challan.`, 'warning', 6000);
+  };
+
+  // ─── TICKET FILTERING HELPER ─────────────────────────────────────────────────
+  window.filterTickets = function (filterVal) {
+    switchTab('tab-intake');
+    const sel = document.getElementById('filter-ticket-status');
+    if (sel) {
+      sel.value = filterVal;
+      sel.dispatchEvent(new Event('change'));
+    }
+  };
+
   document.getElementById('filter-ticket-status').addEventListener('change', function () {
     const val = this.value;
-    renderTicketsTable(val === 'ALL' ? undefined : state.tickets.filter(t => t.status === val));
+    if (val === 'ALL') {
+      renderTicketsTable();
+    } else if (val === 'LOANER_OUT') {
+      renderTicketsTable(state.tickets.filter(t => t.service_battery_issued && !t.service_battery_returned));
+    } else {
+      renderTicketsTable(state.tickets.filter(t => t.status === val));
+    }
   });
+
+  const filterClaimStatusEl = document.getElementById('filter-claim-status');
+  if (filterClaimStatusEl) {
+    filterClaimStatusEl.addEventListener('change', function () {
+      renderClaimsView();
+    });
+  }
 
   // ─── NAVIGATION ──────────────────────────────────────────────────────────────
   document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -1786,7 +1962,12 @@
       if (f === 'TESTING') switchTab('tab-lab');
       else if (f === 'DISPATCHED') switchTab('tab-claims');
       else if (f === 'STOCK_PENDING') switchTab('tab-stock');
-      else switchTab('tab-intake');
+      else if (f === 'LOANER') filterTickets('LOANER_OUT');
+      else {
+        switchTab('tab-intake');
+        const sel = document.getElementById('filter-ticket-status');
+        if (sel) { sel.value = 'ALL'; sel.dispatchEvent(new Event('change')); }
+      }
     });
   });
 

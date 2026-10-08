@@ -658,6 +658,13 @@ code, pre, .font-mono {
   text-decoration: none;
 }
 
+.icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
 .btn .icon {
   width: 16px;
   height: 16px;
@@ -788,6 +795,51 @@ code, pre, .font-mono {
   gap: 8px;
 }
 
+.alert-info-box {
+  background: #f8fafc;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--slate-700);
+  margin-bottom: 12px;
+}
+
+.alert-info-box p {
+  margin: 0 0 4px 0;
+}
+
+.alert-info-box p:last-child {
+  margin-bottom: 0;
+}
+
+.notice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #1e40af;
+}
+
+.notice-box .icon {
+  width: 20px;
+  height: 20px;
+  fill: #2563eb;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notice-box p {
+  margin: 4px 0 0 0;
+  color: #1e3a8a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 /* ==========================================================================
    Testing Lab Grid
    ========================================================================== */
@@ -871,6 +923,36 @@ code, pre, .font-mono {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
+}
+
+.test-results-box {
+  background: #f8fafc;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.test-results-box.test-pass {
+  border-left: 4px solid var(--emerald);
+}
+
+.test-results-box.test-reject {
+  border-left: 4px solid var(--rose);
+}
+
+.test-verdict {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.test-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--slate-700);
 }
 
 .lab-card-actions {
@@ -1314,6 +1396,28 @@ code, pre, .font-mono {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.toast-icon {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+.mt-2 { margin-top: 8px !important; }
+.mt-3 { margin-top: 12px !important; }
+.mt-4 { margin-top: 16px !important; }
+.text-muted { color: var(--slate-500) !important; }
+.text-center { text-align: center !important; }
+.text-blue { color: var(--primary) !important; }
+.text-emerald { color: var(--emerald) !important; }
+.p-0 { padding: 0 !important; }
+.p-3 { padding: 12px !important; }
+.p-4 { padding: 16px !important; }
 
 /* ==========================================================================
    PRINT MEDIA RULES (@media print)
