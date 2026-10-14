@@ -147,11 +147,22 @@ function toggleSidebar() {
 
 function refreshDashboard() {
   callServer('apiGetDashboard', [], function(res) {
-    if (!res || !res.success || !res.data) return;
+    if (!res || !res.success || !res.data) {
+      console.warn('apiGetDashboard returned unsuccessful response:', res);
+      return;
+    }
     var data = res.data;
+    console.log('Live Dashboard Data:', data);
 
-    // Update KPI numbers
-    var kpis = data.kpis || {};
+    // Update KPI numbers (supporting both nested kpis object and root properties)
+    var kpis = data.kpis || {
+      total_tickets: data.totalBatteriesReceived || 0,
+      pending_tests: data.underTesting || 0,
+      total_claims: data.warrantyClaimsTotal || 0,
+      pending_company_dispatch: data.readyForCompany || 0,
+      replacements_pending: data.replacementPending || 0,
+      stock_updates_pending: data.stockUpdatePending || 0
+    };
     document.getElementById('kpi-total-tickets').textContent = kpis.total_tickets || 0;
     document.getElementById('kpi-pending-tests').textContent = kpis.pending_tests || 0;
     document.getElementById('kpi-pending-company').textContent = kpis.pending_company_dispatch || 0;
@@ -167,7 +178,13 @@ function refreshDashboard() {
     document.getElementById('badge-stock-tasks').textContent = kpis.stock_updates_pending || 0;
 
     // Attention Box
-    var att = data.attention || {};
+    var att = data.attention || {
+      untested_batteries: data.underTesting || 0,
+      rejected_return_pending: data.rejectedReturnPending || 0,
+      passed_claims_pending_dispatch: data.readyForCompany || 0,
+      ageing_claims_over_15_days: (data.ageing ? (data.ageing.d16_30 || 0) + (data.ageing.d31_60 || 0) + (data.ageing.d60_plus || 0) : 0),
+      stock_updates_pending: data.stockUpdatePending || 0
+    };
     document.getElementById('att-lab-count').textContent = att.untested_batteries || 0;
     document.getElementById('att-return-count').textContent = att.rejected_return_pending || 0;
     document.getElementById('att-dispatch-count').textContent = att.passed_claims_pending_dispatch || 0;

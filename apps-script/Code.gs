@@ -13,6 +13,20 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // Diagnostic API endpoints for verification
+  if (params.api === 'dashboard' || params.dashboard === 'true') {
+    return ContentService.createTextOutput(JSON.stringify(apiGetDashboard(), null, 2))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  if (params.api === 'tickets' || params.tickets === 'true') {
+    return ContentService.createTextOutput(JSON.stringify(apiListTickets({}), null, 2))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  if (params.api === 'initial') {
+    return ContentService.createTextOutput(JSON.stringify(apiGetInitialData(), null, 2))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // 2. Self-service initialization and seeding via URL
   if (params.init === 'true' || params.seed === 'true') {
     Database.setupDatabase();

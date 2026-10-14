@@ -123,16 +123,29 @@ var ReportService = (function () {
       });
     }
 
-    if (summary.stockUpdatePending > 0) {
-      summary.actionRequired.push({
-        count: summary.stockUpdatePending,
-        type: 'STOCK',
-        badge: 'AMBER',
-        title: summary.stockUpdatePending + ' Replacement batteries received but stock not updated in store',
-        actionView: 'stockTasks',
-        filter: 'PENDING'
-      });
-    }
+    var ageingOver15 = (summary.ageing.d16_30 || 0) + (summary.ageing.d31_60 || 0) + (summary.ageing.d60_plus || 0);
+
+    // Standardized KPI object expected by app.html
+    summary.kpis = {
+      total_tickets: tickets.length,
+      pending_tests: summary.underTesting,
+      total_claims: claims.length,
+      pending_company_dispatch: summary.readyForCompany,
+      replacements_pending: summary.replacementPending,
+      stock_updates_pending: summary.stockUpdatePending
+    };
+
+    // Standardized Attention object expected by app.html
+    summary.attention = {
+      untested_batteries: summary.underTesting,
+      rejected_return_pending: summary.rejectedReturnPending,
+      passed_claims_pending_dispatch: summary.readyForCompany,
+      ageing_claims_over_15_days: ageingOver15,
+      stock_updates_pending: summary.stockUpdatePending
+    };
+
+    // Recent Tickets feed (newest first, up to 15)
+    summary.recent_tickets = tickets.slice().reverse().slice(0, 15);
 
     return summary;
   }
