@@ -62,12 +62,12 @@ var Database = (function () {
 
   function getSpreadsheet() {
     var props = PropertiesService.getScriptProperties();
-    var sheetId = props.getProperty('SPREADSHEET_ID');
+    var sheetId = props.getProperty('SPREADSHEET_ID') || '1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08';
     if (sheetId) {
       try {
         return SpreadsheetApp.openById(sheetId);
       } catch (e) {
-        // Fallback to active spreadsheet
+        // Fallback to active spreadsheet if bound
       }
     }
     return SpreadsheetApp.getActiveSpreadsheet();
@@ -436,6 +436,55 @@ var Database = (function () {
     });
   }
 
+  function checkDatabaseConnection() {
+    var ss = getSpreadsheet();
+    if (!ss) {
+      return {
+        success: false,
+        error: 'Spreadsheet not accessible. Set SPREADSHEET_ID in Script Properties or bind script to active spreadsheet.'
+      };
+    }
+
+    var sheetNames = ss.getSheets().map(function (s) { return s.getName(); });
+    var missing = [];
+    var present = [];
+
+    for (var req in SCHEMA_DEF) {
+      if (SCHEMA_DEF.hasOwnProperty(req)) {
+        if (sheetNames.indexOf(req) !== -1) {
+          present.push(req);
+        } else {
+          missing.push(req);
+        }
+      }
+    }
+
+    var companyName = 'Not Configured';
+    try {
+      var configSheet = ss.getSheetByName('Config');
+      if (configSheet) {
+        var vals = configSheet.getDataRange().getValues();
+        for (var i = 1; i < vals.length; i++) {
+          if (vals[i][0] === 'COMPANY_NAME') {
+            companyName = vals[i][1];
+            break;
+          }
+        }
+      }
+    } catch (e) { }
+
+    return {
+      success: true,
+      spreadsheetId: ss.getId(),
+      spreadsheetName: ss.getName(),
+      totalSheets: sheetNames.length,
+      presentSheets: present,
+      missingSheets: missing,
+      isFullyConfigured: missing.length === 0,
+      companyName: companyName
+    };
+  }
+
   return {
     getSpreadsheet: getSpreadsheet,
     getSheet: getSheet,
@@ -444,7 +493,8 @@ var Database = (function () {
     updateRow: updateRow,
     getRowById: getRowById,
     setupDatabase: setupDatabase,
-    seedDemoData: seedDemoData
+    seedDemoData: seedDemoData,
+    checkDatabaseConnection: checkDatabaseConnection
   };
 })();
 
@@ -460,4 +510,11 @@ function seedDemoData() {
   var ok = Database.seedDemoData();
   Logger.log('seedDemoData result: ' + ok);
   return ok;
+}
+
+/** Global connection test callable directly from Apps Script Editor */
+function checkConnection() {
+  var res = Database.checkDatabaseConnection();
+  Logger.log('Database Connection Check: ' + JSON.stringify(res, null, 2));
+  return res;
 }

@@ -5,6 +5,38 @@
 
 function doGet(e) {
   var params = e && e.parameter ? e.parameter : {};
+
+  // 1. Instant Health Check & Diagnostic endpoint
+  if (params.test === 'true' || params.check === 'true') {
+    var checkResult = Database.checkDatabaseConnection();
+    return ContentService.createTextOutput(JSON.stringify(checkResult, null, 2))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 2. Self-service initialization and seeding via URL
+  if (params.init === 'true' || params.seed === 'true') {
+    Database.setupDatabase();
+    if (params.seed === 'true') {
+      Database.seedDemoData();
+    }
+    var initStatus = Database.checkDatabaseConnection();
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'SUCCESS',
+      message: params.seed === 'true' ? 'Database initialized and demo data seeded!' : 'Database initialized with 14 schema tabs!',
+      report: initStatus
+    }, null, 2)).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 3. Auto-initialize database on first web visit if Config tab missing
+  try {
+    var ss = Database.getSpreadsheet();
+    if (ss && !ss.getSheetByName('Config')) {
+      Database.setupDatabase();
+    }
+  } catch (initErr) {
+    Logger.log('Auto-setup error: ' + initErr.message);
+  }
+
   var page = params.page || 'app';
 
   // Handle direct print views
@@ -20,7 +52,12 @@ function doGet(e) {
 
   // Render primary single page app
   var template = HtmlService.createTemplateFromFile('Index');
-  template.companyName = Config.get('COMPANY_NAME', 'Battery Warranty Manager');
+  var compName = 'Battery Warranty Manager';
+  try {
+    compName = Config.get('COMPANY_NAME', compName);
+  } catch (e) { }
+
+  template.companyName = compName;
   template.subtitle = 'Warranty Claims & Battery Service Management';
 
   return template.evaluate()
@@ -46,6 +83,10 @@ function renderPrintTemplate(filename, printData) {
 
 function apiGetInitialData() {
   try {
+    var ss = Database.getSpreadsheet();
+    if (ss && !ss.getSheetByName('Config')) {
+      Database.setupDatabase();
+    }
     return Utils.success({
       config: Config.getAll(),
       models: WarrantyService.getActiveModels(),
@@ -251,6 +292,14 @@ function apiSaveConfig(configData) {
       }
     }
     return Utils.success(Config.getAll(), 'Settings updated successfully.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiCheckConnection() {
+  try {
+    return Utils.success(Database.checkDatabaseConnection(), 'Connection verified successfully.');
   } catch (err) {
     return Utils.error(err.message);
   }

@@ -1,9 +1,10 @@
 # ⚡ Battery Warranty & Claim Management System
 
 > **Enterprise-grade, zero-cost operational platform for Indian battery distributors, service centers, and authorized dealers.**
-> Built on Google Workspace (Google Sheets, Drive, Apps Script) and deployable via clasp, with a 100% client-side interactive demo for GitHub Pages.
+> Built on Google Workspace (Google Sheets, Drive, Apps Script) and deployed directly to production.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-GitHub_Pages-22c55e?style=for-the-badge&logo=github)](https://ayshagrwl.github.io/battery-warranty-manager/)
+[![Live Production Web App](https://img.shields.io/badge/Live_Production-Google_Workspace-2563eb?style=for-the-badge&logo=google)](https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec)
+[![Master Google Sheet](https://img.shields.io/badge/Database-Google_Sheets-34a853?style=for-the-badge&logo=googlesheets)](https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit)
 
 ---
 
@@ -129,10 +130,12 @@ battery-warranty-manager/
 │   ├── DriveService.gs       # Google Drive folder & upload manager
 │   ├── AuditService.gs       # Immutable event audit logging
 │   └── templates/            # HTML Service templates (UI & print layouts)
-├── demo/                     # Standalone GitHub Pages interactive demo
-│   ├── index.html            # Main single-page application interface
-│   ├── styles.css            # Responsive, industrial design system & print CSS
-│   └── app.js                # In-memory reactive state, search, & print simulation
+├── dist/                     # Production builds and deployment bundles
+│   ├── apps-script-bundle/   # All-in-one compiled GAS bundle
+│   └── apps-script-production.zip # Direct import archive
+├── scripts/                  # Production CLI utilities and diagnostics
+│   ├── check-connection.js   # Automated Sheets API connection tester
+│   └── run-full-system-test.js # End-to-end integration test runner
 └── docs/                     # Comprehensive engineering documentation
     ├── architecture.md       # Technical design and architectural decisions
     ├── deployment.md         # Administrator guide for Sheets, Drive, & Clasp
@@ -142,47 +145,33 @@ battery-warranty-manager/
 
 ---
 
-## 🛠️ Deployment & Quick Start
+## 🛠️ Production Operation & Verification
 
-For detailed administrator instructions on setting up Google Sheets, Drive folders, Script Properties, and Clasp push, refer to:
-👉 **[Administrator Deployment Guide (docs/deployment.md)](docs/deployment.md)**
-
-### Local Clasp Sync
+### Running Automated Diagnostics
 ```bash
-# 1. Install Google Clasp
-npm install -g @google/clasp
+# Test Google Cloud infrastructure, Sheets connectivity & rules engine:
+npm test
 
-# 2. Login to Google
-clasp login
+# Verify Google Sheet relational schema & permissions:
+npm run check-connection
+```
 
-# 3. Configure your project
-cp .clasp.json.example .clasp.json
-# Edit .clasp.json and enter your Script ID
+### Direct Production Deployment Sync
+```bash
+# Push latest changes to live Google Apps Script:
+npm run clasp:push
 
-# 4. Push code to Google Apps Script
-clasp push
+# Deploy new production version:
+npm run clasp:deploy
 ```
 
 ---
 
-## 💻 Standalone Interactive Demo (GitHub Pages)
+## 🌐 Live Production Links
 
-🌐 **Live Web Application:** [https://ayshagrwl.github.io/battery-warranty-manager/](https://ayshagrwl.github.io/battery-warranty-manager/)
-
-The `/demo` folder contains a **100% self-contained client-side simulation** of the complete system:
-* Pre-loaded with realistic Indian battery distributor data (**Amaron, Exide, Tata Green**).
-* Full ticket intake simulation with service battery loaner issuance.
-* Diagnostic test bench simulator (OCV, Specific Gravity, 15s Load Test).
-* Consolidated company dispatch batch creator with LR/Docket assignment.
-* Replacement battery receiving with **mandatory Busy/Tally stock reconciliation task**.
-* **Print Center:** Authentic, A4-formatted Delivery Challans (`DC-RET`, `DC-COM`) and Claim Forms ready for direct browser printing.
-* **Zero Backend Secrets:** Runs locally by double-clicking `demo/index.html` or directly on GitHub Pages without API keys or credentials.
-
-To preview locally:
-```bash
-# Open in your default browser
-open demo/index.html
-```
+* **Live Web App:** [https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec](https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec)
+* **Master Google Sheet Database:** [https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit](https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit)
+* **Apps Script Project:** [https://script.google.com/d/1W69fIh938IkP6IX7zh4vpIINQZe24l86q6xKSJHpsqKyYcODMT2bsieg/edit](https://script.google.com/d/1W69fIh938IkP6IX7zh4vpIINQZe24l86q6xKSJHpsqKyYcODMT2bsieg/edit)
 
 ---
 

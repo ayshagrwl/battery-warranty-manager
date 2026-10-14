@@ -1,0 +1,36 @@
+{
+  "name": "battery-warranty-manager",
+  "version": "1.0.0",
+  "description": "> **Enterprise-grade, zero-cost operational platform for Indian battery distributors, service centers, and authorized dealers.** > Built on Google Workspace (Google Sheets, Drive, Apps Script) and deployable via clasp, with a 100% client-side interactive demo for GitHub Pages.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "node scripts/run-full-system-test.js",
+    "check-connection": "node scripts/check-connection.js",
+    "init-sheets": "node scripts/check-connection.js --init",
+    "bundle": "node scripts/bundle-apps-script.js",
+    "clasp:login": "clasp login",
+    "clasp:push": "clasp push",
+    "clasp:deploy": "clasp deploy",
+    "clasp:open": "clasp open"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ayshagrwl/battery-warranty-manager.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ayshagrwl/battery-warranty-manager/issues"
+  },
+  "homepage": "https://github.com/ayshagrwl/battery-warranty-manager#readme",
+  "dependencies": {
+    "@google/clasp": "^3.4.1",
+    "dotenv": "^18.0.7",
+    "googleapis": "^185.0.0"
+  }
+}

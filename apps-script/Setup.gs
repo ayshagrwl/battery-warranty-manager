@@ -28,3 +28,13 @@ function setupApplication() {
 function seedDemoData() {
   return Database.seedDemoData();
 }
+
+/**
+ * Checks connection to the Google Sheet and verifies all 14 schema tabs.
+ * Can be run directly from the Apps Script editor toolbar.
+ *
+ * @return {Object} Diagnostic report with spreadsheet details and tab verification.
+ */
+function checkConnection() {
+  return Database.checkDatabaseConnection();
+}

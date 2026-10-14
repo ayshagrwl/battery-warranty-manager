@@ -4,6 +4,8 @@
 credentials.json
 token.json
 client_secret*.json
+service_account*.json
+service-account*.json
 
 # Environment variables & secrets
 .env
