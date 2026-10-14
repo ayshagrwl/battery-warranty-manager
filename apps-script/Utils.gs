@@ -8,18 +8,39 @@ var Utils = (function () {
 
   function withLock(callback, timeoutMs) {
     var timeout = timeoutMs || 30000;
-    var lock = LockService.getScriptLock();
+    var lock;
     try {
-      var acquired = lock.waitLock(timeout);
-      if (!acquired) {
-        throw new Error('System is busy processing another request. Please retry in a few seconds.');
+      lock = LockService.getScriptLock();
+    } catch (e) {
+      lock = null;
+    }
+
+    if (lock && typeof lock.hasLock === 'function' && lock.hasLock()) {
+      return callback();
+    }
+
+    var acquired = false;
+    if (lock) {
+      try {
+        acquired = lock.tryLock(timeout);
+      } catch (e) {
+        acquired = false;
       }
+    } else {
+      acquired = true;
+    }
+
+    if (!acquired) {
+      throw new Error('System is busy processing another request. Please retry in a few seconds.');
+    }
+
+    try {
       return callback();
     } finally {
-      try {
-        lock.releaseLock();
-      } catch (e) {
-        // Ignored if lock was already released
+      if (lock && acquired) {
+        try {
+          lock.releaseLock();
+        } catch (e) { }
       }
     }
   }

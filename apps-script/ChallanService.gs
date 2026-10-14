@@ -186,6 +186,7 @@ var ChallanService = (function () {
     markChallanReturned: markChallanReturned,
     getChallanByNo: getChallanByNo,
     getChallanForTicket: getChallanForTicket,
-    getPrintData: getPrintData
+    getPrintData: getPrintData,
+    getChallanPrintData: getPrintData
   };
 })();

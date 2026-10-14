@@ -452,13 +452,53 @@ var ClaimService = (function () {
     };
   }
 
+  function getPendingForCompany() {
+    var claims = getClaims();
+    return claims.filter(function (c) {
+      return c.status === STATUS.CLAIM_CREATED || c.status === STATUS.READY_FOR_COMPANY;
+    });
+  }
+
+  function getReplacementPending() {
+    var claims = getClaims();
+    return claims.filter(function (c) {
+      return c.status === STATUS.SENT_TO_COMPANY;
+    });
+  }
+
+  function getClaimFormPrintData(claimNo) {
+    var claim = getClaimByNo(claimNo);
+    if (!claim) throw new Error('Claim ' + claimNo + ' not found');
+    var ticket = claim.ticket_no ? Database.getRowById('Tickets', 'ticket_no', claim.ticket_no) : {};
+    var tests = claim.ticket_no ? BatteryTestService.getTestsByTicket(claim.ticket_no) : [];
+    var config = Config.getAll();
+    return {
+      company: {
+        name: config.COMPANY_NAME || 'Amaron Battery Hub & Service Care',
+        address: config.COMPANY_ADDRESS || '',
+        phone: config.COMPANY_PHONE || '',
+        email: config.COMPANY_EMAIL || '',
+        gst: config.COMPANY_GST || ''
+      },
+      claim: claim,
+      ticket: ticket || {},
+      test: tests.length > 0 ? tests[tests.length - 1] : {}
+    };
+  }
+
   return {
     STATUS: STATUS,
     createClaim: createClaim,
     getClaimByTicket: getClaimByTicket,
     getClaimByNo: getClaimByNo,
+    getClaimDetails: getClaimByNo,
     getClaims: getClaims,
+    listClaims: getClaims,
     universalSearch: universalSearch,
+    searchUniversal: universalSearch,
+    getPendingForCompany: getPendingForCompany,
+    getReplacementPending: getReplacementPending,
+    getClaimFormPrintData: getClaimFormPrintData,
     getClaimTimeline: getClaimTimeline
   };
 })();

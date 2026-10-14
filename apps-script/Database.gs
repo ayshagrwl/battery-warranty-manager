@@ -128,6 +128,10 @@ var Database = (function () {
         newRow.push(val);
       }
 
+      if (sheet.getMaxColumns() < newRow.length) {
+        sheet.insertColumnsAfter(sheet.getMaxColumns(), newRow.length - sheet.getMaxColumns());
+      }
+
       sheet.appendRow(newRow);
       var lastRow = sheet.getLastRow();
 
@@ -207,6 +211,11 @@ var Database = (function () {
 
           if (!sheet) {
             sheet = ss.insertSheet(sheetName);
+          }
+
+          // Ensure sheet has enough columns to hold all headers (e.g. Claims has 30 columns)
+          if (sheet.getMaxColumns() < headers.length) {
+            sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
           }
 
           // Check if headers already exist

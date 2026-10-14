@@ -248,6 +248,7 @@ var ReplacementService = (function () {
     recordReplacementReceived: recordReplacementReceived,
     getStockPendingTasks: getStockPendingTasks,
     markStockUpdated: markStockUpdated,
+    recordStockUpdated: markStockUpdated,
     closeClaim: closeClaim
   };
 })();

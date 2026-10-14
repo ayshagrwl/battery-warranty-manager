@@ -140,6 +140,7 @@ var WarrantyService = (function () {
     COVERAGE: COVERAGE,
     getModelDetails: getModelDetails,
     getAllActiveModels: getAllActiveModels,
+    getActiveModels: getAllActiveModels,
     calculateWarranty: calculateWarranty
   };
 })();

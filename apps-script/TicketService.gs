@@ -178,7 +178,11 @@ var TicketService = (function () {
     for (var i = rows.length - 1; i >= 0; i--) {
       var t = rows[i];
 
-      if (filterObj.status && t.status !== filterObj.status) continue;
+      if (filterObj.status) {
+        var cleanTarget = String(filterObj.status).toUpperCase().replace(/[\s\—\-]+/g, '_');
+        var cleanActual = String(t.status).toUpperCase().replace(/[\s\—\-]+/g, '_');
+        if (cleanActual !== cleanTarget) continue;
+      }
       if (filterObj.source_type && t.source_type !== filterObj.source_type) continue;
 
       if (filterObj.search) {
@@ -246,7 +250,10 @@ var TicketService = (function () {
     checkDuplicateSerial: checkDuplicateSerial,
     createTicket: createTicket,
     getTickets: getTickets,
+    listTickets: getTickets,
     getTicketByNo: getTicketByNo,
-    updateTicketStatus: updateTicketStatus
+    getTicketDetails: getTicketByNo,
+    updateTicketStatus: updateTicketStatus,
+    recordBatteryTest: function (data) { return BatteryTestService.recordTest(data); }
   };
 })();

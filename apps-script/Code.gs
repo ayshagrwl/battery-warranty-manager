@@ -71,12 +71,26 @@ function include(filename) {
 }
 
 function renderPrintTemplate(filename, printData) {
-  var template = HtmlService.createTemplateFromFile(filename);
+  var template;
+  try {
+    template = HtmlService.createTemplateFromFile(filename);
+  } catch (e) {
+    var baseName = filename.indexOf('/') !== -1 ? filename.split('/').pop() : filename;
+    template = HtmlService.createTemplateFromFile(baseName);
+  }
   template.data = printData;
   return template.evaluate()
-    .setTitle(printData.company.name + ' - Document')
+    .setTitle((printData && printData.company ? printData.company.name : 'Battery Hub') + ' - Document')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function apiGetAuditLog() {
+  try {
+    return Utils.success(Database.getRows('Audit_Log'));
+  } catch (err) {
+    return Utils.error(err.message);
+  }
 }
 
 // ─── CLIENT RPC APIS ──────────────────────────────────────────────────────────

@@ -986,7 +986,8 @@ function loadReports() {
 }
 
 function loadAuditTrail() {
-  callServer('Database.getRows', ['Audit_Log'], function(rows) {
+  callServer('apiGetAuditLog', [], function(res) {
+    var rows = (res && res.data) ? res.data : (Array.isArray(res) ? res : []);
     var tbody = document.getElementById('audit-table-body');
     tbody.innerHTML = '';
     if (!rows || rows.length === 0) {

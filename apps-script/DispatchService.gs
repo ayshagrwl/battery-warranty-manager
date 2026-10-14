@@ -227,6 +227,8 @@ var DispatchService = (function () {
     getPendingClaims: getPendingClaims,
     createCompanyDispatch: createCompanyDispatch,
     getDispatchByBatchNo: getDispatchByBatchNo,
-    getPrintData: getPrintData
+    getPrintData: getPrintData,
+    getCompanyChallanPrintData: getPrintData,
+    getClaimFormPrintData: function (id) { return ClaimService.getClaimFormPrintData(id); }
   };
 })();
