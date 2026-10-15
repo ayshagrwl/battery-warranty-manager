@@ -27,6 +27,21 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // Cross-Domain REST API dispatcher for GitHub Pages (GET)
+  if (params.action) {
+    var getArgs = [];
+    if (params.args) {
+      try { getArgs = JSON.parse(params.args); } catch (e) { getArgs = [params.args]; }
+    } else if (params.data) {
+      try { getArgs = [JSON.parse(params.data)]; } catch (e) { getArgs = [params.data]; }
+    }
+    if (!Array.isArray(getArgs)) getArgs = [getArgs];
+
+    var getResult = executeApiAction(params.action, getArgs);
+    return ContentService.createTextOutput(JSON.stringify(getResult))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // 2. Self-service initialization and seeding via URL
   if (params.init === 'true' || params.seed === 'true') {
     Database.setupDatabase();
@@ -332,3 +347,69 @@ function apiCheckConnection() {
     return Utils.error(err.message);
   }
 }
+
+// ─── CROSS-ORIGIN REST DISPATCHER & DOPOST (FOR GITHUB PAGES) ─────────────────
+
+function executeApiAction(action, args) {
+  if (!args) args = [];
+  if (!Array.isArray(args)) args = [args];
+
+  var apiMap = {
+    'apiGetInitialData': function() { return apiGetInitialData(); },
+    'apiGetDashboard': function() { return apiGetDashboard(); },
+    'apiCreateTicket': function(a) { return apiCreateTicket(a[0]); },
+    'apiRecordBatteryTest': function(a) { return apiRecordBatteryTest(a[0]); },
+    'apiGetTicket': function(a) { return apiGetTicket(a[0]); },
+    'apiListTickets': function(a) { return apiListTickets(a[0]); },
+    'apiCreateClaim': function(a) { return apiCreateClaim(a[0]); },
+    'apiGetClaim': function(a) { return apiGetClaim(a[0]); },
+    'apiListClaims': function(a) { return apiListClaims(a[0]); },
+    'apiGetPendingForCompany': function() { return apiGetPendingForCompany(); },
+    'apiGetReplacementPending': function() { return apiGetReplacementPending(); },
+    'apiCreateReturnChallan': function(a) { return apiCreateReturnChallan(a[0]); },
+    'apiMarkChallanReturned': function(a) { return apiMarkChallanReturned(a[0]); },
+    'apiCreateCompanyDispatch': function(a) { return apiCreateCompanyDispatch(a[0]); },
+    'apiRecordReplacementReceived': function(a) { return apiRecordReplacementReceived(a[0]); },
+    'apiRecordStockUpdated': function(a) { return apiRecordStockUpdated(a[0]); },
+    'apiCloseClaim': function(a) { return apiCloseClaim(a[0]); },
+    'apiUploadDocument': function(a) { return apiUploadDocument(a[0]); },
+    'apiDownloadClaimZip': function(a) { return apiDownloadClaimZip(a[0]); },
+    'apiSearchUniversal': function(a) { return apiSearchUniversal(a[0]); },
+    'apiGetReports': function() { return apiGetReports(); },
+    'apiCalculateWarranty': function(a) { return apiCalculateWarranty(a[0], a[1], a[2]); },
+    'apiSaveConfig': function(a) { return apiSaveConfig(a[0]); },
+    'apiCheckConnection': function() { return apiCheckConnection(); },
+    'apiGetAuditLog': function() { return apiGetAuditLog(); }
+  };
+
+  if (apiMap.hasOwnProperty(action)) {
+    return apiMap[action](args);
+  }
+  return Utils.error('Action [' + action + '] not recognized by backend.');
+}
+
+function doPost(e) {
+  try {
+    var raw = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
+    var payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (parseErr) {
+      payload = (e && e.parameter) ? e.parameter : {};
+    }
+    var action = payload.action || (e && e.parameter ? e.parameter.action : '');
+    var args = payload.args || (payload.data !== undefined ? [payload.data] : []);
+    if (!Array.isArray(args)) args = [args];
+
+    var result = executeApiAction(action, args);
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.message,
+      data: null
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+

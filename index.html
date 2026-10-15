@@ -1,42 +1,2980 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>⚡ Battery Warranty & Claim Management System — Production</title>
-  <meta http-equiv="refresh" content="0; url=https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec">
+  <title>Amaron Battery Hub & Service Care — Battery Warranty & Claim Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    iframe { width: 100%; height: 100%; border: none; display: block; }
-    .loader {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: #0f172a; color: #f8fafc; z-index: 10; transition: opacity 0.4s ease;
-    }
-    .spinner {
-      width: 48px; height: 48px; border: 4px solid #334155; border-top-color: #38bdf8;
-      border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    a.btn {
-      display: inline-block; margin-top: 16px; padding: 10px 22px;
-      background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600;
-    }
-  </style>
-  <script>
-    // Immediate redirect to production web app
-    var prodUrl = "https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec" + window.location.search + window.location.hash;
-    window.location.replace(prodUrl);
-  </script>
+  :root {
+    --primary: #0f172a;
+    --primary-light: #1e293b;
+    --accent: #0284c7;
+    --accent-hover: #0369a1;
+    --bg-page: #f8fafc;
+    --bg-card: #ffffff;
+    --border: #e2e8f0;
+    --border-dark: #cbd5e1;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --sidebar-width: 250px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { background-color: var(--bg-page); color: var(--text-main); font-size: 14px; line-height: 1.5; }
+
+  /* App Shell */
+  .app-container { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--primary);
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+    z-index: 100;
+  }
+  .sidebar-header {
+    padding: 18px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sidebar-logo {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+  }
+  .sidebar-title { font-size: 14px; font-weight: 700; line-height: 1.2; letter-spacing: 0.3px; }
+  .sidebar-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  .sidebar-nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
+  .nav-section-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; padding: 8px 12px 4px; letter-spacing: 0.5px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    color: #cbd5e1;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background-color: rgba(255, 255, 255, 0.08); color: #ffffff; }
+  .nav-item.active { background-color: var(--accent); color: #ffffff; font-weight: 600; }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    font-weight: bold;
+  }
+  .nav-badge.danger { background: #ef4444; color: #fff; }
+  .nav-badge.warning { background: #f59e0b; color: #fff; }
+
+  .sidebar-footer {
+    padding: 14px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 11px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Main Area */
+  .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Top Bar */
+  .topbar {
+    height: 60px;
+    background-color: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 10;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 14px; flex: 1; max-width: 550px; }
+  .mobile-toggle {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--text-main);
+  }
+  .search-wrapper { position: relative; width: 100%; }
+  .search-input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+    background: #f1f5f9;
+    transition: all 0.2s;
+  }
+  .search-input:focus { background: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15); }
+  .search-icon { position: absolute; left: 12px; top: 9px; color: var(--text-muted); font-size: 14px; }
+
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .user-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: #f1f5f9;
+    padding: 5px 10px;
+    border-radius: 20px;
+  }
+  .user-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+  }
+
+  /* Content Body */
+  .content-area { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* View Header */
+  .view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .view-title { font-size: 20px; font-weight: 700; color: var(--text-main); }
+  .view-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary { background-color: var(--accent); color: #ffffff; }
+  .btn-primary:hover { background-color: var(--accent-hover); }
+  .btn-secondary { background-color: #ffffff; color: var(--text-main); border-color: var(--border-dark); }
+  .btn-secondary:hover { background-color: #f1f5f9; }
+  .btn-success { background-color: var(--success); color: #ffffff; }
+  .btn-success:hover { background-color: #15803d; }
+  .btn-danger { background-color: var(--danger); color: #ffffff; }
+  .btn-danger:hover { background-color: #b91c1c; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* KPI Grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+  .kpi-icon.blue { background: #e0f2fe; color: #0284c7; }
+  .kpi-icon.amber { background: #fef3c7; color: #d97706; }
+  .kpi-icon.green { background: #dcfce7; color: #16a34a; }
+  .kpi-icon.red { background: #fee2e2; color: #dc2626; }
+  .kpi-icon.purple { background: #f3e8ff; color: #9333ea; }
+  .kpi-val { font-size: 24px; font-weight: 700; color: var(--text-main); line-height: 1.1; }
+  .kpi-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; font-weight: 500; }
+
+  /* Alert Banners */
+  .attention-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .attention-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #991b1b;
+    margin-bottom: 12px;
+  }
+  .attention-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .attention-item {
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .attention-item:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+  .attention-count { font-size: 20px; font-weight: 800; color: #be123c; }
+  .attention-desc { font-size: 12px; color: #4c0519; margin-top: 2px; font-weight: 500; }
+
+  /* Tables */
+  .card-table {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 24px;
+  }
+  .table-header-bar {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff;
+  }
+  .table-title { font-size: 15px; font-weight: 700; }
+  .table-filter-bar { display: flex; gap: 10px; }
+  .table-responsive { width: 100%; overflow-x: auto; }
+  table.data-table { width: 100%; border-collapse: collapse; text-align: left; }
+  table.data-table th {
+    background: #f8fafc;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  table.data-table td {
+    padding: 12px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  table.data-table tr:hover td { background-color: #f8fafc; }
+  .serial-badge {
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: bold;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    letter-spacing: 0.5px;
+  }
+
+  /* Status Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .badge-received { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+  .badge-testing { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .badge-passed { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .badge-rejected_return_pending { background: #ffe4e6; color: #9f1239; border: 1px solid #f43f5e; }
+  .badge-rejected_returned { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+  .badge-claim_created { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+  .badge-ready_for_company { background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; }
+  .badge-sent_to_company { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; font-weight: 800; }
+  .badge-replacement_received { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .badge-stock_update_required { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+  .badge-stock_updated { background: #ccfbf1; color: #115e59; border: 1px solid #5eead4; }
+  .badge-closed { background: #e2e8f0; color: #1e293b; border: 1px solid #94a3b8; }
+
+  /* Ageing Pills */
+  .ageing-pill { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+  .ageing-0-7 { background: #dcfce7; color: #15803d; }
+  .ageing-8-15 { background: #fef9c3; color: #854d0e; }
+  .ageing-16-30 { background: #ffedd5; color: #c2410c; }
+  .ageing-30plus { background: #fee2e2; color: #b91c1c; font-weight: bold; }
+
+  /* Forms */
+  .form-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 900px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .form-section-header {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--primary);
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--accent);
+    margin: 18px 0 14px;
+  }
+  .form-section-header:first-child { margin-top: 0; }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--text-main); }
+  .form-label .req { color: var(--danger); }
+  .form-control, .form-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-dark);
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.15s;
+    background: #ffffff;
+    color: var(--text-main);
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+  }
+  .form-hint { font-size: 11px; color: var(--text-muted); }
+  .radio-group { display: flex; gap: 16px; align-items: center; margin-top: 4px; }
+  .radio-label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .form-grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* Modals — Fixed Popups */
+  .modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    display: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 99999 !important;
+  }
+  .modal.active, .modal.open {
+    display: flex !important;
+  }
+  .modal-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(15, 23, 42, 0.65) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    z-index: 100000 !important;
+    cursor: pointer;
+  }
+  .modal-content {
+    position: relative !important;
+    z-index: 100001 !important;
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    width: 95% !important;
+    max-width: 680px !important;
+    max-height: 90vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important;
+    animation: modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    overflow: hidden !important;
+  }
+  @keyframes modalPopIn {
+    0% { opacity: 0; transform: translateY(20px) scale(0.97); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff;
+    flex-shrink: 0;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; color: var(--text-main); margin: 0; }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 26px;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  .modal-close:hover { color: var(--danger); background: #fee2e2; }
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+    max-height: calc(90vh - 130px);
+  }
+  .modal-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: #f8fafc;
+    border-radius: 0 0 12px 12px;
+    flex-shrink: 0;
+  }
+
+  /* Overlay Alias for Compatibility */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.open, .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  .modal-box {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 95%;
+    max-width: 650px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    transform: translateY(20px);
+    transition: transform 0.2s;
+  }
+  .modal-overlay.open .modal-box, .modal-overlay.active .modal-box { transform: translateY(0); }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; margin: 16px 0; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: #cbd5e1;
+  }
+  .timeline-node { position: relative; margin-bottom: 20px; }
+  .timeline-node:last-child { margin-bottom: 0; }
+  .timeline-dot {
+    position: absolute;
+    left: -28px;
+    top: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 3px solid var(--accent);
+  }
+  .timeline-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .timeline-title { font-size: 14px; font-weight: 700; color: var(--text-main); }
+  .timeline-date { font-size: 11px; color: var(--text-muted); }
+  .timeline-details { font-size: 12px; color: #475569; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); margin-top: 4px; }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.25s;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .toast.success { background: #059669; }
+  .toast.error { background: #dc2626; }
+
+  /* Print Preview iframe container */
+  .print-frame-container {
+    width: 100%;
+    height: 70vh;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  /* Responsive media queries */
+  @media (max-width: 900px) {
+    .sidebar { position: fixed; top: 0; bottom: 0; left: -260px; }
+    .sidebar.open { left: 0; }
+    .mobile-toggle { display: block; }
+    .content-area { padding: 16px; }
+  }
+
+  @media print {
+    .sidebar, .topbar, .modal-footer, .no-print { display: none !important; }
+    .app-container { display: block; height: auto; }
+    .main-wrapper { display: block; overflow: visible; }
+    .content-area { padding: 0; overflow: visible; }
+  }
+</style>
+
 </head>
 <body>
-  <div class="loader" id="loader">
-    <div class="spinner"></div>
-    <h2 style="margin-bottom: 8px;">⚡ Battery Warranty & Claim Management System</h2>
-    <p style="color: #94a3b8;">Connecting directly to Production Google Workspace Backend...</p>
-    <a class="btn" href="https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec">Launch Production App Directly</a>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">⚡</div>
+        <div>
+          <div class="sidebar-title">Amaron Battery Hub & Service Care</div>
+          <div class="sidebar-sub">Warranty & Claims Portal</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Core Operations</div>
+        <a class="nav-item active" data-view="dashboard" onclick="navigateTo('dashboard')">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-view="tickets" onclick="navigateTo('tickets')">
+          <span class="nav-icon">📥</span>
+          <span>Receive Battery</span>
+          <span class="nav-badge" id="badge-tickets">0</span>
+        </a>
+        <a class="nav-item" data-view="lab" onclick="navigateTo('lab')">
+          <span class="nav-icon">🔬</span>
+          <span>Testing Lab</span>
+          <span class="nav-badge warning" id="badge-lab">0</span>
+        </a>
+        <a class="nav-item" data-view="claims" onclick="navigateTo('claims')">
+          <span class="nav-icon">📋</span>
+          <span>Warranty Claims</span>
+          <span class="nav-badge" id="badge-claims">0</span>
+        </a>
+        <a class="nav-item" data-view="pending-company" onclick="navigateTo('pending-company')">
+          <span class="nav-icon">🏭</span>
+          <span>Pending Dispatch</span>
+          <span class="nav-badge warning" id="badge-pending-company">0</span>
+        </a>
+        <a class="nav-item" data-view="replacement-pending" onclick="navigateTo('replacement-pending')">
+          <span class="nav-icon">⏳</span>
+          <span>Replacements Due</span>
+          <span class="nav-badge danger" id="badge-replacement-due">0</span>
+        </a>
+
+        <div class="nav-section-title" style="margin-top:14px;">Reconciliation & ERP</div>
+        <a class="nav-item" data-view="stock-tasks" onclick="navigateTo('stock-tasks')">
+          <span class="nav-icon">📦</span>
+          <span>Stock Tasks (ERP)</span>
+          <span class="nav-badge danger" id="badge-stock-tasks">0</span>
+        </a>
+        <a class="nav-item" data-view="challans" onclick="navigateTo('challans')">
+          <span class="nav-icon">🚚</span>
+          <span>Delivery Challans</span>
+        </a>
+
+        <div class="nav-section-title" style="margin-top:14px;">Governance & Master</div>
+        <a class="nav-item" data-view="reports" onclick="navigateTo('reports')">
+          <span class="nav-icon">📈</span>
+          <span>Reports & Ageing</span>
+        </a>
+        <a class="nav-item" data-view="audit" onclick="navigateTo('audit')">
+          <span class="nav-icon">🛡️</span>
+          <span>Audit Trail</span>
+        </a>
+        <a class="nav-item" data-view="settings" onclick="navigateTo('settings')">
+          <span class="nav-icon">⚙️</span>
+          <span>Settings & Master</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div>
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:6px;"></span>
+          <strong>GAS Cloud Active</strong>
+        </div>
+        <span style="color:#64748b; font-size:10px;">v2.4 Pro</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <!-- Top Application Header Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="global-search-input" class="search-input" placeholder="Universal Search: Serial No, Ticket #, Claim #, Customer, Mobile, Vehicle..." onkeydown="handleSearchKey(event)">
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button class="btn btn-primary" onclick="openIntakeModal()">
+            <span>+</span> <span>New Intake Ticket</span>
+          </button>
+          <div class="user-badge" id="current-user-badge">
+            <div class="user-avatar" id="current-user-avatar">AD</div>
+            <span id="current-user-name">Staff Operator</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dynamic Content Area -->
+      <main class="content-area" id="content-area">
+
+        <!-- 1. DASHBOARD VIEW -->
+        <section id="view-dashboard" class="app-view">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Executive Operations Hub</h1>
+              <p class="view-subtitle">Live warranty intake, lab diagnostics, manufacturer batches, and stock status</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="refreshDashboard()">🔄 Refresh Hub</button>
+          </div>
+
+          <!-- KPI Metric Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card" onclick="navigateTo('tickets')">
+              <div class="kpi-icon blue">📥</div>
+              <div>
+                <div class="kpi-val" id="kpi-total-tickets">0</div>
+                <div class="kpi-label">Active Intake Tickets</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('lab')">
+              <div class="kpi-icon amber">🔬</div>
+              <div>
+                <div class="kpi-val" id="kpi-pending-tests">0</div>
+                <div class="kpi-label">Awaiting Lab Test</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('pending-company')">
+              <div class="kpi-icon purple">🏭</div>
+              <div>
+                <div class="kpi-val" id="kpi-pending-company">0</div>
+                <div class="kpi-label">Claims Ready to Dispatch</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('replacement-pending')">
+              <div class="kpi-icon red">⏳</div>
+              <div>
+                <div class="kpi-val" id="kpi-replacement-due">0</div>
+                <div class="kpi-label">Replacements Due from Company</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('stock-tasks')">
+              <div class="kpi-icon green">📦</div>
+              <div>
+                <div class="kpi-val" id="kpi-stock-tasks">0</div>
+                <div class="kpi-label">Pending ERP Stock Update</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- "What Needs My Attention" Action Banners -->
+          <div class="attention-box">
+            <div class="attention-header">
+              <span>⚠️</span>
+              <span>What Needs My Immediate Attention?</span>
+            </div>
+            <div class="attention-grid" id="attention-grid">
+              <div class="attention-item" onclick="navigateTo('lab')">
+                <div class="attention-count" id="att-lab-count">0</div>
+                <div class="attention-desc">Batteries received but not tested yet</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('challans', { filter: 'REJECTED — RETURN PENDING' })">
+                <div class="attention-count" id="att-return-count">0</div>
+                <div class="attention-desc">Rejected batteries waiting for return challan & customer pickup</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('pending-company')">
+                <div class="attention-count" id="att-dispatch-count">0</div>
+                <div class="attention-desc">Passed warranty claims waiting to be batched to company</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('replacement-pending')">
+                <div class="attention-count" id="att-ageing-count">0</div>
+                <div class="attention-desc">Overdue company claims pending replacement (&gt;15 days)</div>
+              </div>
+              <div class="attention-item" onclick="navigateTo('stock-tasks')">
+                <div class="attention-count" id="att-stock-count">0</div>
+                <div class="attention-desc">Replacement batteries received needing ERP stock ledger update</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity & Quick Action Lists -->
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Recent Intake Tickets</div>
+              <button class="btn btn-secondary btn-sm" onclick="navigateTo('tickets')">View All Intakes</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticket #</th>
+                    <th>Source</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date Received</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-recent-tickets">
+                  <tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">Loading intake feed...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. TICKETS VIEW -->
+        <section id="view-tickets" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Battery Intake Registry</h1>
+              <p class="view-subtitle">Batteries received from retail customers or authorized dealers</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="loadTickets()">🔄 Refresh</button>
+              <button class="btn btn-primary" onclick="openIntakeModal()">+ Receive Battery</button>
+            </div>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Intake Records</div>
+              <div class="table-filter-bar">
+                <select id="filter-tickets-status" class="form-select" style="width:200px;" onchange="loadTickets()">
+                  <option value="ALL">All Statuses</option>
+                  <option value="RECEIVED">RECEIVED (Holding)</option>
+                  <option value="TESTING">TESTING</option>
+                  <option value="TEST_PASSED">TEST_PASSED</option>
+                  <option value="TEST_REJECTED">TEST_REJECTED</option>
+                  <option value="REJECTED — RETURN PENDING">REJECTED — RETURN PENDING</option>
+                  <option value="REJECTED — RETURNED">REJECTED — RETURNED</option>
+                  <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticket #</th>
+                    <th>Source</th>
+                    <th>Party Details</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date Received</th>
+                    <th>Service Loaner</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tickets-table-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading tickets...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. TESTING LAB VIEW -->
+        <section id="view-lab" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Battery Diagnostic & Testing Lab</h1>
+              <p class="view-subtitle">Conduct diagnostic tests (voltage, specific gravity, load test) and record PASS or REJECT verdict</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadLabQueue()">🔄 Refresh Queue</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Batteries Queued for Testing</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ticket #</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date Received</th>
+                    <th>Remarks / Symptoms</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="lab-queue-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading testing queue...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. WARRANTY CLAIMS VIEW -->
+        <section id="view-claims" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Manufacturer Warranty Claims</h1>
+              <p class="view-subtitle">Warranty claims created for passed batteries with auto-calculated validity</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadClaims()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Claims Registry</div>
+              <div class="table-filter-bar">
+                <select id="filter-claims-status" class="form-select" style="width:200px;" onchange="loadClaims()">
+                  <option value="ALL">All Statuses</option>
+                  <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                  <option value="SENT_TO_COMPANY">SENT_TO_COMPANY</option>
+                  <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
+                  <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Claim #</th>
+                    <th>Ticket #</th>
+                    <th>Customer / Dealer</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Date of Sale & Expiry</th>
+                    <th>Warranty</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="claims-table-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading claims...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. PENDING FOR COMPANY VIEW -->
+        <section id="view-pending-company" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Company Dispatch Staging</h1>
+              <p class="view-subtitle">Consolidate verified warranty claims into batch dispatches with Delivery Challan (DC-COM)</p>
+            </div>
+            <button class="btn btn-primary" onclick="openDispatchBatchModal()">🚚 Create Dispatch Batch</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Claims Pending Dispatch to Battery Manufacturer</div>
+              <div><small id="selected-dispatch-count" style="font-weight:600; color:var(--accent);">0 selected</small></div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width:40px;"><input type="checkbox" id="chk-select-all-dispatch" onchange="toggleSelectAllDispatch(this.checked)"></th>
+                    <th>Claim #</th>
+                    <th>Party</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Claim Date</th>
+                    <th>Docs Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="pending-dispatch-body">
+                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading dispatch queue...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. REPLACEMENT PENDING VIEW -->
+        <section id="view-replacement-pending" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Company Replacements Pending</h1>
+              <p class="view-subtitle">Track batteries currently in manufacturer possession with real-time ageing alerts</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadReplacementPending()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Open Manufacturer Requisitions</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Claim #</th>
+                    <th>Batch / Challan</th>
+                    <th>Party Details</th>
+                    <th>Battery Model</th>
+                    <th>Original Serial</th>
+                    <th>Dispatch Date</th>
+                    <th>Ageing Days</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="replacement-pending-body">
+                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading pending replacements...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. STOCK TASKS VIEW -->
+        <section id="view-stock-tasks" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">ERP Stock Reconciliation Tasks</h1>
+              <p class="view-subtitle">Replacement batteries received physically that require manual ledger entry in Busy, Tally, or Marg ERP</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadStockTasks()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Stock Ledger Entry Queue</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Claim #</th>
+                    <th>Battery Model</th>
+                    <th>Replacement Serial</th>
+                    <th>Original Serial</th>
+                    <th>Received Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="stock-tasks-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading stock tasks...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 8. DELIVERY CHALLANS VIEW -->
+        <section id="view-challans" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Delivery Challans & Physical Custody</h1>
+              <p class="view-subtitle">Return Challans (DC-RET) without rates/prices and Consolidated Company Challans (DC-COM)</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadChallans()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Challan Registry</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Challan #</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th>Recipient / Company</th>
+                    <th>Serial Numbers</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="challans-table-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading challans...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 9. REPORTS VIEW -->
+        <section id="view-reports" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Warranty Reports & Ageing Analytics</h1>
+              <p class="view-subtitle">Detailed turnaround time, failure distributions, and operational volume</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadReports()">🔄 Run Report</button>
+          </div>
+
+          <div class="kpi-grid" id="report-ageing-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon green">⚡</div>
+              <div><div class="kpi-val" id="rep-ageing-0-7">0</div><div class="kpi-label">0–7 Days (Normal)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon blue">⚡</div>
+              <div><div class="kpi-val" id="rep-ageing-8-15">0</div><div class="kpi-label">8–15 Days (Routine)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon amber">⚠️</div>
+              <div><div class="kpi-val" id="rep-ageing-16-30">0</div><div class="kpi-label">16–30 Days (Follow-up)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">🚨</div>
+              <div><div class="kpi-val" id="rep-ageing-31-60">0</div><div class="kpi-label">31–60 Days (Escalate)</div></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">🔥</div>
+              <div><div class="kpi-val" id="rep-ageing-60-plus">0</div><div class="kpi-label">60+ Days (Critical)</div></div>
+            </div>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar"><div class="table-title">Performance Summary by Battery Model</div></div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Model Code</th>
+                    <th>Model Name</th>
+                    <th>Warranty Period</th>
+                    <th>Total Received</th>
+                    <th>Passed</th>
+                    <th>Rejected</th>
+                    <th>Rejection Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-models-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Run report to view model breakdown.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 10. AUDIT TRAIL VIEW -->
+        <section id="view-audit" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">System Audit Log</h1>
+              <p class="view-subtitle">Immutable append-only chronological log of all warranty transitions and updates</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadAuditTrail()">🔄 Refresh</button>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar"><div class="table-title">Audit Log Entries</div></div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Entity ID</th>
+                    <th>User</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-table-body">
+                  <tr><td colspan="6" style="text-align:center; padding:20px;">Loading audit trail...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 11. SETTINGS VIEW -->
+        <section id="view-settings" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Settings & Master Configuration</h1>
+              <p class="view-subtitle">Company profile, battery model warranty durations, and authorized dealers</p>
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+          </div>
+
+          <div class="card-table" style="padding:24px;">
+            <h3 style="font-size:15px; margin-bottom:16px;">Distributor Profile</h3>
+            <div class="form-grid form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Distributor / Business Name</label>
+                <input type="text" id="cfg-company-name" class="form-control" value="Amaron Battery Hub & Service Care">
+              </div>
+              <div class="form-group">
+                <label class="form-label">GSTIN</label>
+                <input type="text" id="cfg-company-gst" class="form-control" placeholder="e.g. 24AAACG1234A1Z5">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label class="form-label">Complete Address</label>
+                <input type="text" id="cfg-company-address" class="form-control" placeholder="Street, Area, City, State, PIN">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contact Phone / Mobile</label>
+                <input type="text" id="cfg-company-phone" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contact Email</label>
+                <input type="text" id="cfg-company-email" class="form-control">
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
   </div>
-  <iframe src="https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec" onload="document.getElementById('loader').style.display='none'"></iframe>
+
+  <!-- ─── MODALS ────────────────────────────────────────────────────────── -->
+
+  <!-- 1. INTAKE MODAL -->
+  <div class="modal" id="modal-intake">
+    <div class="modal-backdrop" onclick="closeModal('modal-intake')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Receive Battery — New Intake Ticket</h2>
+        <button class="modal-close" onclick="closeModal('modal-intake')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-intake" onsubmit="handleIntakeSubmit(event)">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Battery Source *</label>
+              <select id="intake-source" class="form-select" onchange="toggleSourceFields()" required>
+                <option value="CUSTOMER">Customer (Direct Retail)</option>
+                <option value="DEALER">Dealer (Authorized Channel)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="group-dealer" style="display:none;">
+              <label class="form-label">Dealer Name *</label>
+              <select id="intake-dealer-name" class="form-select">
+                <option value="">-- Select Dealer --</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Customer Name *</label>
+              <input type="text" id="intake-customer-name" class="form-control" required placeholder="Full Name">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Mobile Number *</label>
+              <input type="tel" id="intake-mobile" class="form-control" required placeholder="10-digit Mobile">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Customer Address</label>
+              <input type="text" id="intake-address" class="form-control" placeholder="House/Shop, Locality, City">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Vehicle Registration Number</label>
+              <input type="text" id="intake-vehicle" class="form-control" placeholder="e.g. GJ-05-AB-1234">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Battery Model *</label>
+              <select id="intake-model" class="form-select" required>
+                <option value="">-- Select Battery Model --</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Original Battery Serial Number * (Stored exactly as text)</label>
+              <input type="text" id="intake-serial" class="form-control" required placeholder="e.g. 0094829103" style="font-family:monospace; font-weight:bold; font-size:15px;">
+              <small style="color:#64748b;">Leading zeros will be strictly preserved.</small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Date Received *</label>
+              <input type="date" id="intake-date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Service (Standby) Battery Issued?</label>
+              <select id="intake-service-issued" class="form-select" onchange="toggleServiceBatteryFields()">
+                <option value="NO">No</option>
+                <option value="YES">Yes (Standby Lent)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="group-sb-model" style="display:none;">
+              <label class="form-label">Service Battery Model</label>
+              <input type="text" id="intake-sb-model" class="form-control" placeholder="e.g. Service Pool 35R">
+            </div>
+
+            <div class="form-group" id="group-sb-serial" style="display:none;">
+              <label class="form-label">Service Battery Serial Number</label>
+              <input type="text" id="intake-sb-serial" class="form-control" placeholder="e.g. SB-00349" style="font-family:monospace;">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Problem Symptoms / Remarks</label>
+              <textarea id="intake-remarks" class="form-control" rows="2" placeholder="e.g. Morning cranking issue, voltage dropping under self-start load"></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-intake')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Generate Ticket</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. TESTING MODAL -->
+  <div class="modal" id="modal-test">
+    <div class="modal-backdrop" onclick="closeModal('modal-test')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Record Battery Test Diagnostic</h2>
+        <button class="modal-close" onclick="closeModal('modal-test')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-test" onsubmit="handleTestSubmit(event)">
+          <input type="hidden" id="test-ticket-no">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
+            <div><strong>Ticket:</strong> <span id="test-view-ticket"></span> | <strong>Model:</strong> <span id="test-view-model"></span></div>
+            <div><strong>Original Serial:</strong> <span id="test-view-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Test Result *</label>
+              <select id="test-result" class="form-select" required style="font-weight:bold;">
+                <option value="PASS" style="color:#16a34a;">PASS — Eligible for Warranty Claim</option>
+                <option value="REJECT" style="color:#dc2626;">REJECT — Return to Customer/Dealer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Test Date *</label>
+              <input type="date" id="test-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tested By *</label>
+              <input type="text" id="test-tested-by" class="form-control" required placeholder="Technician Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Open Circuit Voltage (V)</label>
+              <input type="text" id="test-voltage" class="form-control" placeholder="e.g. 10.4V (Dead Cell)">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Diagnostic Remarks *</label>
+              <textarea id="test-remarks" class="form-control" rows="3" required placeholder="e.g. Cell 3 shorted. Fails 200A load test. Physical condition intact."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-test')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Diagnostic Result</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. WARRANTY CLAIM MODAL -->
+  <div class="modal" id="modal-claim">
+    <div class="modal-backdrop" onclick="closeModal('modal-claim')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Generate Warranty Claim</h2>
+        <button class="modal-close" onclick="closeModal('modal-claim')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-claim" onsubmit="handleClaimSubmit(event)">
+          <input type="hidden" id="claim-ticket-no">
+          <input type="hidden" id="claim-model-code">
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
+            <div><strong>Ticket:</strong> <span id="claim-view-ticket"></span> | <strong>Party:</strong> <span id="claim-view-party"></span></div>
+            <div><strong>Model:</strong> <span id="claim-view-model"></span> | <strong>Serial:</strong> <span id="claim-view-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Date of Sale *</label>
+              <input type="date" id="claim-dos" class="form-control" required onchange="calculateClaimWarranty()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Warranty Status</label>
+              <div id="claim-calc-box" style="padding:8px 12px; background:#f1f5f9; border-radius:6px; font-weight:bold;">
+                Enter date of sale to calculate
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Purchase Invoice Number</label>
+              <input type="text" id="claim-invoice-no" class="form-control" placeholder="e.g. INV-9842">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vehicle Kilometers / Reading</label>
+              <input type="text" id="claim-km" class="form-control" placeholder="e.g. 42,500 km">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Claim Submission Remarks</label>
+              <textarea id="claim-remarks" class="form-control" rows="2" placeholder="e.g. Verified genuine sale bill. Battery eligible for full manufacturer replacement."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-claim')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Claim</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MARK RETURNED MODAL -->
+  <div class="modal" id="modal-mark-returned">
+    <div class="modal-backdrop" onclick="closeModal('modal-mark-returned')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Mark Battery Physically Returned</h2>
+        <button class="modal-close" onclick="closeModal('modal-mark-returned')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-mark-returned" onsubmit="handleMarkReturnedSubmit(event)">
+          <input type="hidden" id="ret-challan-no">
+          <p style="margin-bottom:14px; color:#475569;">
+            Record the physical hand-over of the rejected battery back to the customer or dealer.
+          </p>
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Receiver Name *</label>
+              <input type="text" id="ret-receiver-name" class="form-control" required placeholder="Person who collected">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Receiver Mobile Number</label>
+              <input type="tel" id="ret-receiver-mobile" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Return Date *</label>
+              <input type="date" id="ret-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Return Time</label>
+              <input type="time" id="ret-time" class="form-control">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Handover Remarks</label>
+              <textarea id="ret-remarks" class="form-control" rows="2" placeholder="e.g. Signed Delivery Challan collected in file. Standby battery recovered."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-mark-returned')">Cancel</button>
+            <button type="submit" class="btn btn-danger">Confirm Battery Handover</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. COMPANY DISPATCH BATCH MODAL -->
+  <div class="modal" id="modal-dispatch">
+    <div class="modal-backdrop" onclick="closeModal('modal-dispatch')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Create Consolidated Company Dispatch</h2>
+        <button class="modal-close" onclick="closeModal('modal-dispatch')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-dispatch" onsubmit="handleDispatchSubmit(event)">
+          <p style="margin-bottom:12px; font-weight:600;">Selected Claims to Dispatch (<span id="dispatch-batch-count">0</span>):</p>
+          <div id="dispatch-selected-claims-list" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; max-height:140px; overflow-y:auto; margin-bottom:16px; font-size:12px;"></div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Company / Factory Name *</label>
+              <input type="text" id="dsp-company-name" class="form-control" required value="Amaron Batteries Ltd.">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dispatch Date *</label>
+              <input type="date" id="dsp-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Transport / Courier *</label>
+              <input type="text" id="dsp-carrier" class="form-control" required placeholder="e.g. V-Trans Logistics / Direct Van">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Docket / LR Number</label>
+              <input type="text" id="dsp-docket" class="form-control" placeholder="e.g. VT-SUR-98124">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Dispatch Remarks</label>
+              <textarea id="dsp-remarks" class="form-control" rows="2" placeholder="e.g. Dispatched to regional service center with physical warranty claims attached."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-dispatch')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Generate Consolidated Challan & Dispatch</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. RECORD REPLACEMENT RECEIVED MODAL -->
+  <div class="modal" id="modal-replacement">
+    <div class="modal-backdrop" onclick="closeModal('modal-replacement')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Record Replacement Battery Received</h2>
+        <button class="modal-close" onclick="closeModal('modal-replacement')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-replacement" onsubmit="handleReplacementSubmit(event)">
+          <input type="hidden" id="rep-claim-no">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
+            <div><strong>Claim:</strong> <span id="rep-view-claim"></span> | <strong>Model:</strong> <span id="rep-view-model"></span></div>
+            <div><strong>Original Serial:</strong> <span id="rep-view-original-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">New Replacement Battery Serial Number * (Stored as Text)</label>
+              <input type="text" id="rep-new-serial" class="form-control" required placeholder="e.g. REP-0098412" style="font-family:monospace; font-weight:bold; font-size:15px;">
+              <small style="color:#64748b;">Must NOT match original serial number or any active serial.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date Received from Company *</label>
+              <input type="date" id="rep-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Company Invoice / Credit Note Ref</label>
+              <input type="text" id="rep-ref" class="form-control" placeholder="e.g. AM-CN-2026-991">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Receipt Remarks</label>
+              <textarea id="rep-remarks" class="form-control" rows="2" placeholder="e.g. Brand new sealed unit delivered by factory depot."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-replacement')">Cancel</button>
+            <button type="submit" class="btn btn-success">Save Replacement & Create Stock Task</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. MARK STOCK UPDATED MODAL -->
+  <div class="modal" id="modal-stock">
+    <div class="modal-backdrop" onclick="closeModal('modal-stock')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Confirm ERP Stock Ledger Update</h2>
+        <button class="modal-close" onclick="closeModal('modal-stock')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-stock" onsubmit="handleStockSubmit(event)">
+          <input type="hidden" id="stk-claim-no">
+          <p style="margin-bottom:14px; color:#475569;">
+            Enter the Busy, Tally, or Marg ERP entry voucher reference to certify that this replacement battery was reconciled in accounting inventory.
+          </p>
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">ERP Software Used *</label>
+              <select id="stk-software" class="form-select" required>
+                <option value="Busy">Busy Accounting</option>
+                <option value="TallyPrime">TallyPrime</option>
+                <option value="Marg">Marg ERP</option>
+                <option value="Manual Register">Manual Stock Register</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Voucher / Entry Ref Number *</label>
+              <input type="text" id="stk-voucher" class="form-control" required placeholder="e.g. STK-IN-2026-0842">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Reconciliation Remarks</label>
+              <textarea id="stk-remarks" class="form-control" rows="2" placeholder="e.g. Stock inward entry completed in branch warehouse ledger."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-stock')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Certify Stock Updated</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. CLOSE CLAIM MODAL -->
+  <div class="modal" id="modal-close-claim">
+    <div class="modal-backdrop" onclick="closeModal('modal-close-claim')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Close Warranty Claim</h2>
+        <button class="modal-close" onclick="closeModal('modal-close-claim')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-close-claim" onsubmit="handleCloseClaimSubmit(event)">
+          <input type="hidden" id="close-claim-no">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Customer Delivery Date *</label>
+              <input type="date" id="close-del-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Receiver Name *</label>
+              <input type="text" id="close-receiver-name" class="form-control" required placeholder="Name of party">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Closure Remarks</label>
+              <textarea id="close-remarks" class="form-control" rows="2" placeholder="e.g. Replacement battery handed over. Service loaner returned in good condition."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-close-claim')">Cancel</button>
+            <button type="submit" class="btn btn-success">Close Claim</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. UPLOAD DOCUMENT MODAL -->
+  <div class="modal" id="modal-upload">
+    <div class="modal-backdrop" onclick="closeModal('modal-upload')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Upload Claim Document to Google Drive</h2>
+        <button class="modal-close" onclick="closeModal('modal-upload')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-upload" onsubmit="handleUploadSubmit(event)">
+          <input type="hidden" id="upload-claim-no">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Document Type *</label>
+              <select id="upload-doc-type" class="form-select" required>
+                <option value="INVOICE">Sale Invoice / Bill</option>
+                <option value="WARRANTY_CARD">Warranty Card</option>
+                <option value="TEST_REPORT">Battery Diagnostic Report</option>
+                <option value="BATTERY_PHOTO">Battery Serial Photo</option>
+                <option value="TERMINAL_PHOTO">Terminal Condition Photo</option>
+                <option value="OTHER">Other Technical Document</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Select File *</label>
+              <input type="file" id="upload-file" class="form-control" required accept="image/*,application/pdf">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-upload')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-upload-submit">Upload to Drive</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. UNIVERSAL TIMELINE MODAL -->
+  <div class="modal" id="modal-timeline">
+    <div class="modal-backdrop" onclick="closeModal('modal-timeline')"></div>
+    <div class="modal-content" style="max-width:750px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Battery End-to-End Lifecycle History</h2>
+        <button class="modal-close" onclick="closeModal('modal-timeline')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="timeline-meta-box" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:20px;"></div>
+        <div class="timeline-container" id="timeline-nodes-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-timeline')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. PRINT PREVIEW MODAL -->
+  <div class="modal" id="modal-print">
+    <div class="modal-backdrop" onclick="closeModal('modal-print')"></div>
+    <div class="modal-content" style="max-width:900px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="print-modal-title">Print Document Preview</h2>
+        <button class="modal-close" onclick="closeModal('modal-print')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:10px;">
+        <iframe id="print-iframe" class="print-frame-container"></iframe>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-print')">Close</button>
+        <button class="btn btn-primary" onclick="triggerIframePrint()">🖨️ Print Document</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast">
+    <span id="toast-icon">ℹ️</span>
+    <span id="toast-message">Notification message</span>
+  </div>
+
+  <script>
+/**
+ * Battery Warranty & Claim Management System — Client Script
+ * Connects UI seamlessly to Google Apps Script Server RPC endpoints via google.script.run
+ */
+
+// Global Application State
+window.BWMS = {
+  config: {},
+  models: [],
+  dealers: [],
+  currentUser: { email: 'staff@distributor.in', role: 'OPERATOR' },
+  tickets: [],
+  claims: [],
+  selectedDispatchClaims: new Set(),
+  activeView: 'dashboard'
+};
+
+// ─── INITIALIZATION ──────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+  initApp();
+});
+
+function initApp() {
+  // Set default dates
+  var today = new Date().toISOString().split('T')[0];
+  var dateInputs = ['intake-date', 'test-date', 'claim-dos', 'ret-date', 'dsp-date', 'rep-date', 'close-del-date'];
+  dateInputs.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = today;
+  });
+
+  // Fetch initial master data & user profile
+  callServer('apiGetInitialData', [], function(res) {
+    if (res && res.success && res.data) {
+      BWMS.config = res.data.config || {};
+      BWMS.models = res.data.models || [];
+      BWMS.dealers = res.data.dealers || [];
+      BWMS.currentUser = res.data.currentUser || BWMS.currentUser;
+
+      // Update user badge
+      var userEl = document.getElementById('current-user-name');
+      var avatarEl = document.getElementById('current-user-avatar');
+      if (userEl) userEl.textContent = BWMS.currentUser.name || BWMS.currentUser.email || 'Staff Operator';
+      if (avatarEl) {
+        var initials = (BWMS.currentUser.name || 'OP').substring(0, 2).toUpperCase();
+        avatarEl.textContent = initials;
+      }
+
+      // Populate dropdowns
+      populateDropdowns();
+
+      // Load distributor profile into settings
+      populateSettings();
+    }
+    // Refresh dashboard
+    refreshDashboard();
+  }, function(err) {
+    showToast('Failed to load initial data: ' + err, 'error');
+  });
+}
+
+function populateDropdowns() {
+  // Battery Models
+  var modelSelects = ['intake-model'];
+  modelSelects.forEach(function(selId) {
+    var sel = document.getElementById(selId);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Select Battery Model --</option>';
+    BWMS.models.forEach(function(m) {
+      var opt = document.createElement('option');
+      opt.value = m.model_name || m.model_code;
+      opt.textContent = (m.model_name || m.model_code) + ' (' + (m.warranty_period_months || 24) + 'M)';
+      opt.dataset.warranty = m.warranty_period_months || 24;
+      opt.dataset.code = m.model_code;
+      sel.appendChild(opt);
+    });
+  });
+
+  // Dealers
+  var dealerSelects = ['intake-dealer-name'];
+  dealerSelects.forEach(function(selId) {
+    var sel = document.getElementById(selId);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Select Dealer --</option>';
+    BWMS.dealers.forEach(function(d) {
+      var opt = document.createElement('option');
+      opt.value = d.dealer_name;
+      opt.textContent = d.dealer_name + (d.city ? ' (' + d.city + ')' : '');
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function populateSettings() {
+  if (BWMS.config.COMPANY_NAME) document.getElementById('cfg-company-name').value = BWMS.config.COMPANY_NAME;
+  if (BWMS.config.COMPANY_GST) document.getElementById('cfg-company-gst').value = BWMS.config.COMPANY_GST;
+  if (BWMS.config.COMPANY_ADDRESS) document.getElementById('cfg-company-address').value = BWMS.config.COMPANY_ADDRESS;
+  if (BWMS.config.COMPANY_PHONE) document.getElementById('cfg-company-phone').value = BWMS.config.COMPANY_PHONE;
+  if (BWMS.config.COMPANY_EMAIL) document.getElementById('cfg-company-email').value = BWMS.config.COMPANY_EMAIL;
+}
+
+// ─── NAVIGATION & ROUTING ─────────────────────────────────────────────────────
+
+function navigateTo(viewName, params) {
+  BWMS.activeView = viewName;
+  var views = document.querySelectorAll('.app-view');
+  views.forEach(function(v) { v.style.display = 'none'; });
+
+  var targetView = document.getElementById('view-' + viewName);
+  if (targetView) targetView.style.display = 'block';
+
+  var navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+  navItems.forEach(function(item) {
+    item.classList.remove('active');
+    if (item.getAttribute('data-view') === viewName) {
+      item.classList.add('active');
+    }
+  });
+
+  // Close mobile sidebar if open
+  var sidebar = document.getElementById('sidebar');
+  if (sidebar && sidebar.classList.contains('open')) {
+    sidebar.classList.remove('open');
+  }
+
+  // Load view-specific data
+  if (viewName === 'dashboard') refreshDashboard();
+  else if (viewName === 'tickets') loadTickets(params);
+  else if (viewName === 'lab') loadLabQueue();
+  else if (viewName === 'claims') loadClaims(params);
+  else if (viewName === 'pending-company') loadPendingForCompany();
+  else if (viewName === 'replacement-pending') loadReplacementPending();
+  else if (viewName === 'stock-tasks') loadStockTasks();
+  else if (viewName === 'challans') loadChallans();
+  else if (viewName === 'reports') loadReports();
+  else if (viewName === 'audit') loadAuditTrail();
+}
+
+function toggleSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  if (sidebar) sidebar.classList.toggle('open');
+}
+
+// ─── DASHBOARD & ATTENTION METRICS ───────────────────────────────────────────
+
+function refreshDashboard() {
+  callServer('apiGetDashboard', [], function(res) {
+    if (!res || !res.success || !res.data) {
+      console.warn('apiGetDashboard returned unsuccessful response:', res);
+      return;
+    }
+    var data = res.data;
+    console.log('Live Dashboard Data:', data);
+
+    // Update KPI numbers (supporting both nested kpis object and root properties)
+    var kpis = data.kpis || {
+      total_tickets: data.totalBatteriesReceived || 0,
+      pending_tests: data.underTesting || 0,
+      total_claims: data.warrantyClaimsTotal || 0,
+      pending_company_dispatch: data.readyForCompany || 0,
+      replacements_pending: data.replacementPending || 0,
+      stock_updates_pending: data.stockUpdatePending || 0
+    };
+    document.getElementById('kpi-total-tickets').textContent = kpis.total_tickets || 0;
+    document.getElementById('kpi-pending-tests').textContent = kpis.pending_tests || 0;
+    document.getElementById('kpi-pending-company').textContent = kpis.pending_company_dispatch || 0;
+    document.getElementById('kpi-replacement-due').textContent = kpis.replacements_pending || 0;
+    document.getElementById('kpi-stock-tasks').textContent = kpis.stock_updates_pending || 0;
+
+    // Badges in sidebar
+    document.getElementById('badge-tickets').textContent = kpis.total_tickets || 0;
+    document.getElementById('badge-lab').textContent = kpis.pending_tests || 0;
+    document.getElementById('badge-claims').textContent = kpis.total_claims || 0;
+    document.getElementById('badge-pending-company').textContent = kpis.pending_company_dispatch || 0;
+    document.getElementById('badge-replacement-due').textContent = kpis.replacements_pending || 0;
+    document.getElementById('badge-stock-tasks').textContent = kpis.stock_updates_pending || 0;
+
+    // Attention Box
+    var att = data.attention || {
+      untested_batteries: data.underTesting || 0,
+      rejected_return_pending: data.rejectedReturnPending || 0,
+      passed_claims_pending_dispatch: data.readyForCompany || 0,
+      ageing_claims_over_15_days: (data.ageing ? (data.ageing.d16_30 || 0) + (data.ageing.d31_60 || 0) + (data.ageing.d60_plus || 0) : 0),
+      stock_updates_pending: data.stockUpdatePending || 0
+    };
+    document.getElementById('att-lab-count').textContent = att.untested_batteries || 0;
+    document.getElementById('att-return-count').textContent = att.rejected_return_pending || 0;
+    document.getElementById('att-dispatch-count').textContent = att.passed_claims_pending_dispatch || 0;
+    document.getElementById('att-ageing-count').textContent = att.ageing_claims_over_15_days || 0;
+    document.getElementById('att-stock-count').textContent = att.stock_updates_pending || 0;
+
+    // Recent Tickets Feed
+    var tbody = document.getElementById('dashboard-recent-tickets');
+    tbody.innerHTML = '';
+    var recents = data.recent_tickets || [];
+    if (recents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#94a3b8;">No recent tickets found.</td></tr>';
+    } else {
+      recents.forEach(function(t) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
+          '<td>' + renderSourceBadge(t.source_type) + '</td>' +
+          '<td><strong>' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + '</small></td>' +
+          '<td>' + t.battery_model + '</td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
+          '<td>' + formatDate(t.date_received) + '</td>' +
+          '<td>' + renderStatusBadge(t.status) + '</td>' +
+          '<td>' + renderTicketActions(t) + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+  });
+}
+
+// ─── TICKETS (RECEIVE BATTERY) ────────────────────────────────────────────────
+
+function loadTickets(params) {
+  var filterStatus = document.getElementById('filter-tickets-status').value;
+  var filter = (filterStatus && filterStatus !== 'ALL') ? { status: filterStatus } : {};
+
+  callServer('apiListTickets', [filter], function(res) {
+    var tbody = document.getElementById('tickets-table-body');
+    tbody.innerHTML = '';
+    if (!res || !res.success || !res.data || res.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#94a3b8;">No intake tickets found for this filter.</td></tr>';
+      return;
+    }
+    BWMS.tickets = res.data;
+    BWMS.tickets.forEach(function(t) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
+        '<td>' + renderSourceBadge(t.source_type) + '</td>' +
+        '<td><strong>' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + (t.vehicle_number ? ' • ' + t.vehicle_number : '') + '</small></td>' +
+        '<td>' + t.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
+        '<td>' + formatDate(t.date_received) + '</td>' +
+        '<td>' + (t.service_battery_issued ? '<span class="badge badge-info">Lent: ' + (t.service_battery_serial || 'Yes') + '</span>' : '<span style="color:#94a3b8;">None</span>') + '</td>' +
+        '<td>' + renderStatusBadge(t.status) + '</td>' +
+        '<td>' + renderTicketActions(t) + '</td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function openIntakeModal() {
+  document.getElementById('form-intake').reset();
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('intake-date').value = today;
+  toggleSourceFields();
+  toggleServiceBatteryFields();
+  openModal('modal-intake');
+}
+
+function toggleSourceFields() {
+  var src = document.getElementById('intake-source').value;
+  var dGroup = document.getElementById('group-dealer');
+  if (src === 'DEALER') {
+    dGroup.style.display = 'block';
+  } else {
+    dGroup.style.display = 'none';
+  }
+}
+
+function toggleServiceBatteryFields() {
+  var val = document.getElementById('intake-service-issued').value;
+  var show = (val === 'YES');
+  document.getElementById('group-sb-model').style.display = show ? 'block' : 'none';
+  document.getElementById('group-sb-serial').style.display = show ? 'block' : 'none';
+}
+
+function handleIntakeSubmit(e) {
+  e.preventDefault();
+  var ticketData = {
+    source_type: document.getElementById('intake-source').value,
+    dealer_name: document.getElementById('intake-dealer-name').value,
+    customer_name: document.getElementById('intake-customer-name').value,
+    mobile: document.getElementById('intake-mobile').value,
+    address: document.getElementById('intake-address').value,
+    vehicle_number: document.getElementById('intake-vehicle').value,
+    battery_model: document.getElementById('intake-model').value,
+    original_serial_no: document.getElementById('intake-serial').value.trim(),
+    date_received: document.getElementById('intake-date').value,
+    service_battery_issued: document.getElementById('intake-service-issued').value === 'YES',
+    service_battery_model: document.getElementById('intake-sb-model').value,
+    service_battery_serial: document.getElementById('intake-sb-serial').value,
+    remarks: document.getElementById('intake-remarks').value
+  };
+
+  callServer('apiCreateTicket', [ticketData], function(res) {
+    if (res && res.success) {
+      closeModal('modal-intake');
+      showToast(res.message || 'Ticket generated successfully!', 'success');
+      loadTickets();
+      refreshDashboard();
+      // Prompt to test immediately
+      if (confirm('Intake ticket ' + res.data.ticket_no + ' created! Would you like to enter diagnostic test results now?')) {
+        openTestModal(res.data.ticket_no, res.data.battery_model, res.data.original_serial_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to create ticket', 'error');
+    }
+  });
+}
+
+// ─── TESTING LAB ─────────────────────────────────────────────────────────────
+
+function loadLabQueue() {
+  callServer('apiListTickets', [{ status: 'RECEIVED' }], function(res) {
+    var tbody = document.getElementById('lab-queue-body');
+    tbody.innerHTML = '';
+    if (!res || !res.success || !res.data || res.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#16a34a;">🎉 Testing lab queue is completely clear! All batteries tested.</td></tr>';
+      return;
+    }
+    res.data.forEach(function(t) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong>' + t.ticket_no + '</strong></td>' +
+        '<td>' + (t.customer_name || t.dealer_name) + '</td>' +
+        '<td>' + t.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
+        '<td>' + formatDate(t.date_received) + '</td>' +
+        '<td>' + (t.remarks || 'No symptoms noted') + '</td>' +
+        '<td><button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + t.battery_model + '\', \'' + t.original_serial_no + '\')">🔬 Conduct Test</button></td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function openTestModal(ticketNo, model, serial) {
+  document.getElementById('form-test').reset();
+  document.getElementById('test-ticket-no').value = ticketNo;
+  document.getElementById('test-view-ticket').textContent = ticketNo;
+  document.getElementById('test-view-model').textContent = model || '';
+  document.getElementById('test-view-serial').textContent = serial || '';
+  document.getElementById('test-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('test-tested-by').value = BWMS.currentUser.name || 'Technician';
+  openModal('modal-test');
+}
+
+function handleTestSubmit(e) {
+  e.preventDefault();
+  var testData = {
+    ticket_no: document.getElementById('test-ticket-no').value,
+    test_result: document.getElementById('test-result').value,
+    test_date: document.getElementById('test-date').value,
+    tested_by: document.getElementById('test-tested-by').value,
+    open_circuit_voltage: document.getElementById('test-voltage').value,
+    test_remarks: document.getElementById('test-remarks').value
+  };
+
+  callServer('apiRecordBatteryTest', [testData], function(res) {
+    if (res && res.success) {
+      closeModal('modal-test');
+      showToast(res.message || 'Battery test saved.', 'success');
+      loadLabQueue();
+      refreshDashboard();
+
+      if (testData.test_result === 'PASS') {
+        if (confirm('Battery PASSED diagnostics! Would you like to generate the Warranty Claim now?')) {
+          openClaimModal(testData.ticket_no);
+        }
+      } else {
+        if (confirm('Battery REJECTED. Would you like to generate the Battery Return Delivery Challan now?')) {
+          createReturnChallan(testData.ticket_no);
+        }
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to record test', 'error');
+    }
+  });
+}
+
+// ─── WARRANTY CLAIMS ─────────────────────────────────────────────────────────
+
+function loadClaims() {
+  var filterStatus = document.getElementById('filter-claims-status').value;
+  var filter = (filterStatus && filterStatus !== 'ALL') ? { status: filterStatus } : {};
+
+  callServer('apiListClaims', [filter], function(res) {
+    var tbody = document.getElementById('claims-table-body');
+    tbody.innerHTML = '';
+    if (!res || !res.success || !res.data || res.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#94a3b8;">No warranty claims found.</td></tr>';
+      return;
+    }
+    BWMS.claims = res.data;
+    BWMS.claims.forEach(function(c) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+        '<td><small onclick="showTimeline(\'' + c.ticket_no + '\')" style="cursor:pointer; color:var(--text-muted);">' + c.ticket_no + '</small></td>' +
+        '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
+        '<td>' + c.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+        '<td>Sale: ' + formatDate(c.date_of_sale) + '<br><small>Exp: ' + formatDate(c.warranty_expiry_date) + '</small></td>' +
+        '<td>' + renderWarrantyBadge(c.warranty_status) + '</td>' +
+        '<td>' + renderStatusBadge(c.claim_status) + '</td>' +
+        '<td>' + renderClaimActions(c) + '</td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function openClaimModal(ticketNo) {
+  callServer('apiGetTicket', [ticketNo], function(res) {
+    if (!res || !res.success || !res.data) {
+      showToast('Ticket not found', 'error');
+      return;
+    }
+    var t = res.data;
+    document.getElementById('form-claim').reset();
+    document.getElementById('claim-ticket-no').value = t.ticket_no;
+    document.getElementById('claim-view-ticket').textContent = t.ticket_no;
+    document.getElementById('claim-view-party').textContent = t.customer_name || t.dealer_name;
+    document.getElementById('claim-view-model').textContent = t.battery_model;
+    document.getElementById('claim-view-serial').textContent = t.original_serial_no;
+
+    // Reset calc box
+    document.getElementById('claim-calc-box').innerHTML = 'Enter date of sale to calculate';
+    openModal('modal-claim');
+  });
+}
+
+function calculateClaimWarranty() {
+  var model = document.getElementById('claim-view-model').textContent;
+  var dos = document.getElementById('claim-dos').value;
+  if (!model || !dos) return;
+
+  callServer('apiCalculateWarranty', [model, dos], function(res) {
+    if (res && res.success && res.data) {
+      var w = res.data;
+      var box = document.getElementById('claim-calc-box');
+      if (w.status === 'IN_WARRANTY') {
+        box.innerHTML = '<span style="color:#16a34a;">✅ IN WARRANTY</span> (Expires: ' + formatDate(w.expiryDate) + ' • ' + w.monthsRemaining + ' mos left)';
+      } else if (w.status === 'OUT_OF_WARRANTY') {
+        box.innerHTML = '<span style="color:#dc2626;">❌ OUT OF WARRANTY</span> (Expired: ' + formatDate(w.expiryDate) + ')';
+      } else {
+        box.innerHTML = '<span style="color:#d97706;">⚠️ ' + w.status + '</span>';
+      }
+    }
+  });
+}
+
+function handleClaimSubmit(e) {
+  e.preventDefault();
+  var claimData = {
+    ticket_no: document.getElementById('claim-ticket-no').value,
+    date_of_sale: document.getElementById('claim-dos').value,
+    invoice_number: document.getElementById('claim-invoice-no').value,
+    km_reading: document.getElementById('claim-km').value,
+    remarks: document.getElementById('claim-remarks').value
+  };
+
+  callServer('apiCreateClaim', [claimData], function(res) {
+    if (res && res.success) {
+      closeModal('modal-claim');
+      showToast(res.message || 'Warranty claim created!', 'success');
+      loadClaims();
+      refreshDashboard();
+      if (confirm('Claim ' + res.data.claim_no + ' generated! Print official Claim Form for battery company?')) {
+        printClaimForm(res.data.claim_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to generate claim', 'error');
+    }
+  });
+}
+
+// ─── RETURN CHALLANS & ACKNOWLEDGEMENT ────────────────────────────────────────
+
+function createReturnChallan(ticketNo) {
+  callServer('apiCreateReturnChallan', [ticketNo], function(res) {
+    if (res && res.success) {
+      showToast(res.message || 'Return Delivery Challan generated.', 'success');
+      refreshDashboard();
+      if (confirm('Challan ' + res.data.challan_no + ' created! Would you like to view/print it now?')) {
+        printReturnChallan(res.data.challan_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to create return challan', 'error');
+    }
+  });
+}
+
+function openMarkReturnedModal(challanNo) {
+  document.getElementById('form-mark-returned').reset();
+  document.getElementById('ret-challan-no').value = challanNo;
+  document.getElementById('ret-date').value = new Date().toISOString().split('T')[0];
+  var now = new Date();
+  document.getElementById('ret-time').value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  openModal('modal-mark-returned');
+}
+
+function handleMarkReturnedSubmit(e) {
+  e.preventDefault();
+  var data = {
+    challan_no: document.getElementById('ret-challan-no').value,
+    receiver_name: document.getElementById('ret-receiver-name').value,
+    receiver_mobile: document.getElementById('ret-receiver-mobile').value,
+    return_date: document.getElementById('ret-date').value,
+    return_time: document.getElementById('ret-time').value,
+    remarks: document.getElementById('ret-remarks').value
+  };
+
+  callServer('apiMarkChallanReturned', [data], function(res) {
+    if (res && res.success) {
+      closeModal('modal-mark-returned');
+      showToast(res.message || 'Battery marked returned with physical acknowledgement.', 'success');
+      loadChallans();
+      refreshDashboard();
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to confirm return', 'error');
+    }
+  });
+}
+
+// ─── PENDING DISPATCH & BATCH CONSOLIDATION ───────────────────────────────────
+
+function loadPendingForCompany() {
+  BWMS.selectedDispatchClaims.clear();
+  updateSelectedDispatchCount();
+
+  callServer('apiGetPendingForCompany', [], function(res) {
+    var tbody = document.getElementById('pending-dispatch-body');
+    tbody.innerHTML = '';
+    if (!res || !res.success || !res.data || res.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#16a34a;">No claims waiting for company dispatch. All dispatched!</td></tr>';
+      return;
+    }
+    res.data.forEach(function(c) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input type="checkbox" class="chk-dispatch-item" value="' + c.claim_no + '" onchange="handleDispatchItemCheck(this)"></td>' +
+        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+        '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong></td>' +
+        '<td>' + c.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+        '<td>' + formatDate(c.created_at) + '</td>' +
+        '<td><button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs (' + (c.doc_count || 0) + ')</button></td>' +
+        '<td><button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Claim Form</button></td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function handleDispatchItemCheck(cb) {
+  if (cb.checked) BWMS.selectedDispatchClaims.add(cb.value);
+  else BWMS.selectedDispatchClaims.delete(cb.value);
+  updateSelectedDispatchCount();
+}
+
+function toggleSelectAllDispatch(checked) {
+  var cbs = document.querySelectorAll('.chk-dispatch-item');
+  cbs.forEach(function(cb) {
+    cb.checked = checked;
+    if (checked) BWMS.selectedDispatchClaims.add(cb.value);
+    else BWMS.selectedDispatchClaims.delete(cb.value);
+  });
+  updateSelectedDispatchCount();
+}
+
+function updateSelectedDispatchCount() {
+  var count = BWMS.selectedDispatchClaims.size;
+  document.getElementById('selected-dispatch-count').textContent = count + ' claims selected';
+}
+
+function openDispatchBatchModal() {
+  if (BWMS.selectedDispatchClaims.size === 0) {
+    showToast('Please select at least one claim to dispatch to the company.', 'warning');
+    return;
+  }
+  document.getElementById('form-dispatch').reset();
+  document.getElementById('dispatch-batch-count').textContent = BWMS.selectedDispatchClaims.size;
+  document.getElementById('dsp-date').value = new Date().toISOString().split('T')[0];
+
+  var list = document.getElementById('dispatch-selected-claims-list');
+  list.innerHTML = '';
+  BWMS.selectedDispatchClaims.forEach(function(claimNo) {
+    var div = document.createElement('div');
+    div.textContent = '• ' + claimNo;
+    list.appendChild(div);
+  });
+
+  openModal('modal-dispatch');
+}
+
+function handleDispatchSubmit(e) {
+  e.preventDefault();
+  var data = {
+    claim_nos: Array.from(BWMS.selectedDispatchClaims),
+    company_name: document.getElementById('dsp-company-name').value,
+    dispatch_date: document.getElementById('dsp-date').value,
+    transport_name: document.getElementById('dsp-carrier').value,
+    docket_number: document.getElementById('dsp-docket').value,
+    remarks: document.getElementById('dsp-remarks').value
+  };
+
+  callServer('apiCreateCompanyDispatch', [data], function(res) {
+    if (res && res.success) {
+      closeModal('modal-dispatch');
+      showToast(res.message || 'Company dispatch batch created!', 'success');
+      loadPendingForCompany();
+      refreshDashboard();
+      if (confirm('Dispatched! Would you like to print the Consolidated Delivery Challan (' + res.data.company_challan_no + ')?')) {
+        printCompanyChallan(res.data.company_challan_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to dispatch batch', 'error');
+    }
+  });
+}
+
+// ─── REPLACEMENT PENDING & AGEING ────────────────────────────────────────────
+
+function loadReplacementPending() {
+  callServer('apiGetReplacementPending', [], function(res) {
+    var tbody = document.getElementById('replacement-pending-body');
+    tbody.innerHTML = '';
+    if (!res || !res.success || !res.data || res.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#16a34a;">No replacement batteries pending from company.</td></tr>';
+      return;
+    }
+    res.data.forEach(function(c) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+        '<td><small>' + (c.company_challan_no || c.company_dispatch_batch || 'Batch') + '</small></td>' +
+        '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
+        '<td>' + c.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+        '<td>' + formatDate(c.company_dispatch_date) + '</td>' +
+        '<td>' + renderAgeingBadge(c.ageing_days) + '</td>' +
+        '<td><button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">📥 Receive Replacement</button></td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function openReplacementModal(claimNo, model, origSerial) {
+  document.getElementById('form-replacement').reset();
+  document.getElementById('rep-claim-no').value = claimNo;
+  document.getElementById('rep-view-claim').textContent = claimNo;
+  document.getElementById('rep-view-model').textContent = model || '';
+  document.getElementById('rep-view-original-serial').textContent = origSerial || '';
+  document.getElementById('rep-date').value = new Date().toISOString().split('T')[0];
+  openModal('modal-replacement');
+}
+
+function handleReplacementSubmit(e) {
+  e.preventDefault();
+  var origSerial = document.getElementById('rep-view-original-serial').textContent.trim();
+  var newSerial = document.getElementById('rep-new-serial').value.trim();
+
+  if (newSerial === origSerial) {
+    alert('CRITICAL ERROR: Replacement serial number CANNOT match the original battery serial number (' + origSerial + '). Please inspect the battery barcode.');
+    return;
+  }
+
+  var data = {
+    claim_no: document.getElementById('rep-claim-no').value,
+    replacement_serial_no: newSerial,
+    received_date: document.getElementById('rep-date').value,
+    company_invoice_ref: document.getElementById('rep-ref').value,
+    remarks: document.getElementById('rep-remarks').value
+  };
+
+  callServer('apiRecordReplacementReceived', [data], function(res) {
+    if (res && res.success) {
+      closeModal('modal-replacement');
+      showToast(res.message || 'Replacement received! Stock update required.', 'success');
+      loadReplacementPending();
+      refreshDashboard();
+      if (confirm('Replacement serial ' + newSerial + ' logged! Would you like to confirm the Busy/Tally ERP Stock entry now?')) {
+        openStockModal(data.claim_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to record replacement', 'error');
+    }
+  });
+}
+
+// ─── STOCK TASKS & RECONCILIATION ─────────────────────────────────────────────
+
+function loadStockTasks() {
+  callServer('apiListClaims', [{ stock_update_status: 'REQUIRED' }], function(res) {
+    var tbody = document.getElementById('stock-tasks-body');
+    tbody.innerHTML = '';
+    if (!res || !res.success || !res.data || res.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#16a34a;">✅ All replacement batteries reconciled with accounting inventory! No pending stock tasks.</td></tr>';
+      return;
+    }
+    res.data.forEach(function(c) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+        '<td>' + c.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + c.replacement_battery_serial_no + '</span></td>' +
+        '<td><span style="font-family:monospace; color:#64748b;">' + c.original_serial_no + '</span></td>' +
+        '<td>' + formatDate(c.replacement_received_date) + '</td>' +
+        '<td><span class="badge badge-danger">STOCK UPDATE REQUIRED</span></td>' +
+        '<td><button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Certify ERP Entry</button></td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function openStockModal(claimNo) {
+  document.getElementById('form-stock').reset();
+  document.getElementById('stk-claim-no').value = claimNo;
+  openModal('modal-stock');
+}
+
+function handleStockSubmit(e) {
+  e.preventDefault();
+  var data = {
+    claim_no: document.getElementById('stk-claim-no').value,
+    software: document.getElementById('stk-software').value,
+    voucher_number: document.getElementById('stk-voucher').value,
+    remarks: document.getElementById('stk-remarks').value
+  };
+
+  callServer('apiRecordStockUpdated', [data], function(res) {
+    if (res && res.success) {
+      closeModal('modal-stock');
+      showToast(res.message || 'ERP stock entry certified!', 'success');
+      loadStockTasks();
+      refreshDashboard();
+      if (confirm('Stock entry verified. Close claim and record customer handover?')) {
+        openCloseClaimModal(data.claim_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to update stock task', 'error');
+    }
+  });
+}
+
+// ─── CLOSE CLAIM ─────────────────────────────────────────────────────────────
+
+function openCloseClaimModal(claimNo) {
+  document.getElementById('form-close-claim').reset();
+  document.getElementById('close-claim-no').value = claimNo;
+  document.getElementById('close-del-date').value = new Date().toISOString().split('T')[0];
+  openModal('modal-close-claim');
+}
+
+function handleCloseClaimSubmit(e) {
+  e.preventDefault();
+  var data = {
+    claim_no: document.getElementById('close-claim-no').value,
+    delivery_date: document.getElementById('close-del-date').value,
+    receiver_name: document.getElementById('close-receiver-name').value,
+    remarks: document.getElementById('close-remarks').value
+  };
+
+  callServer('apiCloseClaim', [data], function(res) {
+    if (res && res.success) {
+      closeModal('modal-close-claim');
+      showToast(res.message || 'Claim closed successfully.', 'success');
+      loadClaims();
+      refreshDashboard();
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to close claim', 'error');
+    }
+  });
+}
+
+// ─── DOCUMENT UPLOAD TO GOOGLE DRIVE ─────────────────────────────────────────
+
+function openUploadDocModal(claimNo) {
+  document.getElementById('form-upload').reset();
+  document.getElementById('upload-claim-no').value = claimNo;
+  openModal('modal-upload');
+}
+
+function handleUploadSubmit(e) {
+  e.preventDefault();
+  var fileInput = document.getElementById('upload-file');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    showToast('Please select a file to upload.', 'warning');
+    return;
+  }
+  var file = fileInput.files[0];
+  var claimNo = document.getElementById('upload-claim-no').value;
+  var docType = document.getElementById('upload-doc-type').value;
+
+  var submitBtn = document.getElementById('btn-upload-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Uploading to Drive...';
+
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    var base64Data = evt.target.result.split(',')[1];
+    var data = {
+      claim_no: claimNo,
+      document_type: docType,
+      file_name: file.name,
+      mime_type: file.type || 'application/octet-stream',
+      file_base64: base64Data
+    };
+
+    callServer('apiUploadDocument', [data], function(res) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload to Drive';
+      if (res && res.success) {
+        closeModal('modal-upload');
+        showToast(res.message || 'File saved into claim Drive folder.', 'success');
+      } else {
+        showToast((res && res.error) ? res.error : 'Upload failed', 'error');
+      }
+    });
+  };
+  reader.onerror = function() {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Upload to Drive';
+    showToast('Error reading file for upload.', 'error');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── UNIVERSAL TIMELINE & SEARCH ─────────────────────────────────────────────
+
+function handleSearchKey(e) {
+  if (e.key === 'Enter') {
+    var val = document.getElementById('global-search-input').value.trim();
+    if (val) showTimeline(val);
+  }
+}
+
+function showTimeline(query) {
+  if (!query) return;
+  callServer('apiSearchUniversal', [query], function(res) {
+    if (!res || !res.success || !res.data) {
+      showToast('Search error: ' + (res ? res.error : 'No data'), 'error');
+      return;
+    }
+    var result = res.data;
+    var metaBox = document.getElementById('timeline-meta-box');
+    var nodesList = document.getElementById('timeline-nodes-list');
+
+    // Header info
+    var primary = result.primary_match || {};
+    metaBox.innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      '  <div><h3 style="font-size:16px; margin-bottom:4px;">Lifecycle Report for: <span style="color:var(--accent);">' + query + '</span></h3>' +
+      '  <span style="color:#64748b; font-size:12px;">Matched: ' + (primary.battery_model || '') + ' • Serial: <strong>' + (primary.original_serial_no || '-') + '</strong></span></div>' +
+      '  <div>' + renderStatusBadge(primary.status || primary.claim_status || 'FOUND') + '</div>' +
+      '</div>';
+
+    // Build timeline nodes
+    nodesList.innerHTML = '<div class="timeline-line"></div>';
+    var events = result.timeline || [];
+    if (events.length === 0) {
+      nodesList.innerHTML += '<p style="padding:20px; text-align:center; color:#94a3b8;">No chronological events recorded for this query.</p>';
+    } else {
+      events.forEach(function(ev) {
+        var node = document.createElement('div');
+        node.className = 'timeline-node';
+        node.innerHTML =
+          '<div class="timeline-dot"></div>' +
+          '<div class="timeline-header">' +
+          '  <span class="timeline-title">' + ev.title + '</span>' +
+          '  <span class="timeline-date">' + (ev.date ? formatDate(ev.date) : '') + (ev.time ? ' ' + ev.time : '') + '</span>' +
+          '</div>' +
+          '<div class="timeline-details">' + (ev.details || '') + '</div>';
+        nodesList.appendChild(node);
+      });
+    }
+
+    openModal('modal-timeline');
+  });
+}
+
+// ─── DELIVERY CHALLANS & PRINTS ──────────────────────────────────────────────
+
+function loadChallans() {
+  // Combine tickets with return challans and claims with company dispatches
+  callServer('apiListTickets', [{ status: 'REJECTED — RETURN PENDING' }], function(res1) {
+    var tbody = document.getElementById('challans-table-body');
+    tbody.innerHTML = '';
+    var list = [];
+    if (res1 && res1.data) {
+      res1.data.forEach(function(t) {
+        if (t.challan_no) {
+          list.push({
+            challan_no: t.challan_no,
+            type: 'BATTERY_RETURN',
+            date: t.updated_at || t.created_at,
+            recipient: t.customer_name || t.dealer_name,
+            serials: t.original_serial_no,
+            status: t.status,
+            ticket_no: t.ticket_no
+          });
+        }
+      });
+    }
+
+    callServer('apiListClaims', [{ status: 'SENT_TO_COMPANY' }], function(res2) {
+      if (res2 && res2.data) {
+        var batches = {};
+        res2.data.forEach(function(c) {
+          var ch = c.company_challan_no || c.company_dispatch_batch;
+          if (ch) {
+            if (!batches[ch]) batches[ch] = { challan_no: ch, type: 'COMPANY_DISPATCH', date: c.company_dispatch_date, recipient: 'Amaron Battery Factory', serials: [], status: 'DISPATCHED' };
+            batches[ch].serials.push(c.original_serial_no);
+          }
+        });
+        for (var b in batches) {
+          batches[b].serials = batches[b].serials.join(', ');
+          list.push(batches[b]);
+        }
+      }
+
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#94a3b8;">No delivery challans generated yet.</td></tr>';
+        return;
+      }
+
+      list.forEach(function(item) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong>' + item.challan_no + '</strong></td>' +
+          '<td><span class="badge ' + (item.type === 'BATTERY_RETURN' ? 'badge-danger' : 'badge-info') + '">' + item.type + '</span></td>' +
+          '<td>' + formatDate(item.date) + '</td>' +
+          '<td>' + item.recipient + '</td>' +
+          '<td><span style="font-family:monospace;">' + item.serials + '</span></td>' +
+          '<td>' + renderStatusBadge(item.status) + '</td>' +
+          '<td>' + renderChallanActions(item) + '</td>';
+        tbody.appendChild(tr);
+      });
+    });
+  });
+}
+
+function printReturnChallan(challanNo) {
+  openPrintModal('Battery Return Delivery Challan — ' + challanNo, '?page=print-return-challan&id=' + encodeURIComponent(challanNo));
+}
+
+function printCompanyChallan(challanNo) {
+  openPrintModal('Company Consolidated Delivery Challan — ' + challanNo, '?page=print-company-challan&id=' + encodeURIComponent(challanNo));
+}
+
+function printClaimForm(claimNo) {
+  openPrintModal('Battery Warranty Claim Form — ' + claimNo, '?page=print-claim-form&id=' + encodeURIComponent(claimNo));
+}
+
+function openPrintModal(title, url) {
+  document.getElementById('print-modal-title').textContent = title;
+  var iframe = document.getElementById('print-iframe');
+  iframe.src = url;
+  openModal('modal-print');
+}
+
+function triggerIframePrint() {
+  var iframe = document.getElementById('print-iframe');
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }
+}
+
+// ─── REPORTS & AUDIT TRAIL ────────────────────────────────────────────────────
+
+function loadReports() {
+  callServer('apiGetReports', [], function(res) {
+    if (!res || !res.success || !res.data) return;
+    var data = res.data;
+
+    // Ageing
+    var ageing = data.ageing || {};
+    document.getElementById('rep-ageing-0-7').textContent = ageing['0-7'] || 0;
+    document.getElementById('rep-ageing-8-15').textContent = ageing['8-15'] || 0;
+    document.getElementById('rep-ageing-16-30').textContent = ageing['16-30'] || 0;
+    document.getElementById('rep-ageing-31-60').textContent = ageing['31-60'] || 0;
+    document.getElementById('rep-ageing-60-plus').textContent = ageing['60+'] || 0;
+
+    // Models Table
+    var tbody = document.getElementById('reports-models-body');
+    tbody.innerHTML = '';
+    var models = data.model_performance || [];
+    if (models.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px; color:#94a3b8;">No model performance data available.</td></tr>';
+    } else {
+      models.forEach(function(m) {
+        var tr = document.createElement('tr');
+        var rate = (m.total_received > 0) ? Math.round((m.rejected / m.total_received) * 100) : 0;
+        tr.innerHTML =
+          '<td><strong>' + m.model_code + '</strong></td>' +
+          '<td>' + m.model_name + '</td>' +
+          '<td>' + (m.warranty_period_months || 24) + ' Months</td>' +
+          '<td>' + m.total_received + '</td>' +
+          '<td><span style="color:#16a34a; font-weight:bold;">' + m.passed + '</span></td>' +
+          '<td><span style="color:#dc2626; font-weight:bold;">' + m.rejected + '</span></td>' +
+          '<td>' + rate + '%</td>';
+        tbody.appendChild(tr);
+      });
+    }
+  });
+}
+
+function loadAuditTrail() {
+  callServer('apiGetAuditLog', [], function(res) {
+    var rows = (res && res.data) ? res.data : (Array.isArray(res) ? res : []);
+    var tbody = document.getElementById('audit-table-body');
+    tbody.innerHTML = '';
+    if (!rows || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#94a3b8;">No audit log records found.</td></tr>';
+      return;
+    }
+    // Reverse to show latest first
+    rows.slice().reverse().slice(0, 100).forEach(function(a) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><small style="color:#64748b;">' + formatDate(a.timestamp) + '</small></td>' +
+        '<td><strong>' + (a.action || '') + '</strong></td>' +
+        '<td>' + (a.entity_type || '') + '</td>' +
+        '<td><strong style="color:var(--accent);">' + (a.entity_id || '') + '</strong></td>' +
+        '<td>' + (a.performed_by || '') + '</td>' +
+        '<td><small>' + (a.details || '') + '</small></td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+
+function saveSettings() {
+  var cfg = {
+    COMPANY_NAME: document.getElementById('cfg-company-name').value,
+    COMPANY_GST: document.getElementById('cfg-company-gst').value,
+    COMPANY_ADDRESS: document.getElementById('cfg-company-address').value,
+    COMPANY_PHONE: document.getElementById('cfg-company-phone').value,
+    COMPANY_EMAIL: document.getElementById('cfg-company-email').value
+  };
+
+  callServer('apiSaveConfig', [cfg], function(res) {
+    if (res && res.success) {
+      showToast('Settings saved successfully.', 'success');
+      BWMS.config = Object.assign(BWMS.config, cfg);
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to save settings', 'error');
+    }
+  });
+}
+
+// ─── HELPERS & BADGE RENDERERS ────────────────────────────────────────────────
+
+function renderSourceBadge(source) {
+  if (source === 'DEALER') return '<span class="badge badge-purple">DEALER</span>';
+  return '<span class="badge badge-blue">CUSTOMER</span>';
+}
+
+function renderStatusBadge(status) {
+  if (!status) return '-';
+  var s = status.toUpperCase();
+  if (s.indexOf('PASS') !== -1 || s.indexOf('CLOSED') !== -1) return '<span class="badge badge-success">' + status + '</span>';
+  if (s.indexOf('REJECT') !== -1) return '<span class="badge badge-danger">' + status + '</span>';
+  if (s.indexOf('PENDING') !== -1 || s.indexOf('RECEIVED') !== -1) return '<span class="badge badge-warning">' + status + '</span>';
+  if (s.indexOf('DISPATCH') !== -1 || s.indexOf('COMPANY') !== -1) return '<span class="badge badge-info">' + status + '</span>';
+  return '<span class="badge badge-secondary">' + status + '</span>';
+}
+
+function renderWarrantyBadge(wStatus) {
+  if (wStatus === 'IN_WARRANTY') return '<span class="badge badge-success">IN WARRANTY</span>';
+  if (wStatus === 'OUT_OF_WARRANTY') return '<span class="badge badge-danger">OUT OF WARRANTY</span>';
+  return '<span class="badge badge-warning">' + (wStatus || 'UNKNOWN') + '</span>';
+}
+
+function renderAgeingBadge(days) {
+  var d = parseInt(days, 10) || 0;
+  if (d <= 7) return '<span class="badge badge-success">' + d + ' Days</span>';
+  if (d <= 15) return '<span class="badge badge-info">' + d + ' Days</span>';
+  if (d <= 30) return '<span class="badge badge-warning">' + d + ' Days</span>';
+  return '<span class="badge badge-danger" style="font-weight:bold;">🚨 ' + d + ' Days</span>';
+}
+
+function renderTicketActions(t) {
+  var html = '<div style="display:flex; gap:6px;">';
+  if (t.status === 'RECEIVED') {
+    html += '<button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + t.battery_model + '\', \'' + t.original_serial_no + '\')">Test</button>';
+  } else if (t.status === 'TEST_PASSED') {
+    html += '<button class="btn btn-success btn-sm" onclick="openClaimModal(\'' + t.ticket_no + '\')">Create Claim</button>';
+  } else if (t.status === 'TEST_REJECTED') {
+    html += '<button class="btn btn-danger btn-sm" onclick="createReturnChallan(\'' + t.ticket_no + '\')">Create Challan</button>';
+  } else if (t.status === 'REJECTED — RETURN PENDING') {
+    html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + t.challan_no + '\')">Print Challan</button>';
+    html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + t.challan_no + '\')">Mark Returned</button>';
+  }
+  html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">Timeline</button>';
+  html += '</div>';
+  return html;
+}
+
+function renderClaimActions(c) {
+  var html = '<div style="display:flex; gap:6px;">';
+  html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs</button>';
+  if (c.claim_status === 'SENT_TO_COMPANY') {
+    html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">Receive Rep</button>';
+  } else if (c.stock_update_status === 'REQUIRED') {
+    html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">Stock Task</button>';
+  } else if (c.claim_status === 'REPLACEMENT_RECEIVED') {
+    html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">Close Claim</button>';
+  }
+  html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">Timeline</button>';
+  html += '</div>';
+  return html;
+}
+
+function renderChallanActions(item) {
+  var html = '<div style="display:flex; gap:6px;">';
+  if (item.type === 'BATTERY_RETURN') {
+    html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + item.challan_no + '\')">🖨️ Print</button>';
+    if (item.status === 'REJECTED — RETURN PENDING') {
+      html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + item.challan_no + '\')">Mark Returned</button>';
+    }
+  } else {
+    html += '<button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + item.challan_no + '\')">🖨️ Print Batch Challan</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function formatDate(dStr) {
+  if (!dStr) return '-';
+  try {
+    var d = new Date(dStr);
+    if (isNaN(d.getTime())) return dStr;
+    var day = String(d.getDate()).padStart(2, '0');
+    var mon = String(d.getMonth() + 1).padStart(2, '0');
+    var yr = d.getFullYear();
+    return day + '/' + mon + '/' + yr;
+  } catch (e) {
+    return dStr;
+  }
+}
+
+// ─── MODAL CONTROLS & TOAST ───────────────────────────────────────────────────
+
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.classList.add('active');
+    el.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('active');
+    el.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+}
+
+function closeAllModals() {
+  document.querySelectorAll('.modal, .modal-overlay').forEach(function(m) {
+    m.classList.remove('active');
+    m.classList.remove('open');
+  });
+  document.body.style.overflow = '';
+}
+
+window.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeAllModals();
+  }
+});
+
+function showToast(msg, type) {
+  var toast = document.getElementById('toast');
+  if (!toast) return;
+  var msgEl = document.getElementById('toast-message');
+  var iconEl = document.getElementById('toast-icon');
+
+  if (msgEl) msgEl.textContent = msg;
+  toast.className = 'toast show ' + (type || '');
+
+  if (type === 'success') {
+    if (iconEl) iconEl.textContent = '✅';
+  } else if (type === 'error') {
+    if (iconEl) iconEl.textContent = '❌';
+  } else if (type === 'warning') {
+    if (iconEl) iconEl.textContent = '⚠️';
+  } else {
+    if (iconEl) iconEl.textContent = 'ℹ️';
+  }
+
+  setTimeout(function() {
+    toast.classList.remove('show');
+  }, 4000);
+}
+
+// ─── UNIVERSAL RPC RUNNER (APPS SCRIPT & GITHUB PAGES) ───────────────────────
+
+var PROD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec";
+
+function callServer(funcName, args, onSuccess, onError) {
+  args = args || [];
+
+  // 1. If running inside Google Apps Script iframe environment:
+  if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run[funcName] === 'function') {
+    var runner = google.script.run
+      .withSuccessHandler(function(response) {
+        if (onSuccess) onSuccess(response);
+      })
+      .withFailureHandler(function(error) {
+        var errMsg = (error && error.message) ? error.message : String(error);
+        if (onError) onError(errMsg);
+        else showToast('Server Error: ' + errMsg, 'error');
+      });
+    runner[funcName].apply(runner, args);
+    return;
+  }
+
+  // 2. If running on GitHub Pages or standalone browser — use HTTP fetch to Apps Script Web App
+  var url = PROD_WEB_APP_URL;
+  var payload = {
+    action: funcName,
+    args: args
+  };
+
+  fetch(url, {
+    method: 'POST',
+    mode: 'cors',
+    redirect: 'follow',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(function(res) {
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+    }
+    return res.json();
+  })
+  .then(function(json) {
+    if (onSuccess) onSuccess(json);
+  })
+  .catch(function(err) {
+    // If POST fails (e.g. strict third-party cookie/network filter), try GET fallback
+    var getUrl = url + '?action=' + encodeURIComponent(funcName) + '&args=' + encodeURIComponent(JSON.stringify(args));
+    fetch(getUrl, { mode: 'cors', redirect: 'follow' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (onSuccess) onSuccess(data);
+      })
+      .catch(function(getErr) {
+        console.error('Remote API Error in [' + funcName + ']:', getErr);
+        var msg = (getErr && getErr.message) ? getErr.message : String(getErr);
+        if (onError) onError(msg);
+        else showToast('Backend error: ' + msg, 'error');
+      });
+  });
+}
+</script>
+
 </body>
 </html>

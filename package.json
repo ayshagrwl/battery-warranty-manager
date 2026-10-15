@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "node scripts/run-full-system-test.js",
+    "build": "node scripts/build-github-pages.js",
     "check-connection": "node scripts/check-connection.js",
     "init-sheets": "node scripts/check-connection.js --init",
     "bundle": "node scripts/bundle-apps-script.js",

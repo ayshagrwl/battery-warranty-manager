@@ -1197,32 +1197,67 @@ function showToast(msg, type) {
   }, 4000);
 }
 
-// ─── GOOGLE APPS SCRIPT RPC RUNNER ───────────────────────────────────────────
+// ─── UNIVERSAL RPC RUNNER (APPS SCRIPT & GITHUB PAGES) ───────────────────────
+
+var PROD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec";
 
 function callServer(funcName, args, onSuccess, onError) {
-  if (typeof google === 'undefined' || !google.script || !google.script.run) {
-    console.warn('google.script.run is unavailable. Running in local simulation mode.');
-    if (onError) onError('GAS RPC unavailable in local preview. Please deploy to Apps Script.');
+  args = args || [];
+
+  // 1. If running inside Google Apps Script iframe environment:
+  if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run[funcName] === 'function') {
+    var runner = google.script.run
+      .withSuccessHandler(function(response) {
+        if (onSuccess) onSuccess(response);
+      })
+      .withFailureHandler(function(error) {
+        var errMsg = (error && error.message) ? error.message : String(error);
+        if (onError) onError(errMsg);
+        else showToast('Server Error: ' + errMsg, 'error');
+      });
+    runner[funcName].apply(runner, args);
     return;
   }
 
-  var runner = google.script.run
-    .withSuccessHandler(function(response) {
-      if (onSuccess) onSuccess(response);
-    })
-    .withFailureHandler(function(error) {
-      var errMsg = (error && error.message) ? error.message : String(error);
-      if (onError) onError(errMsg);
-      else showToast('Server Error: ' + errMsg, 'error');
-    });
+  // 2. If running on GitHub Pages or standalone browser — use HTTP fetch to Apps Script Web App
+  var url = PROD_WEB_APP_URL;
+  var payload = {
+    action: funcName,
+    args: args
+  };
 
-  // Call the function dynamically on the runner object
-  if (typeof runner[funcName] === 'function') {
-    runner[funcName].apply(runner, args || []);
-  } else {
-    var err = 'Unknown server function: ' + funcName;
-    console.error(err);
-    if (onError) onError(err);
-  }
+  fetch(url, {
+    method: 'POST',
+    mode: 'cors',
+    redirect: 'follow',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(function(res) {
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+    }
+    return res.json();
+  })
+  .then(function(json) {
+    if (onSuccess) onSuccess(json);
+  })
+  .catch(function(err) {
+    // If POST fails (e.g. strict third-party cookie/network filter), try GET fallback
+    var getUrl = url + '?action=' + encodeURIComponent(funcName) + '&args=' + encodeURIComponent(JSON.stringify(args));
+    fetch(getUrl, { mode: 'cors', redirect: 'follow' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (onSuccess) onSuccess(data);
+      })
+      .catch(function(getErr) {
+        console.error('Remote API Error in [' + funcName + ']:', getErr);
+        var msg = (getErr && getErr.message) ? getErr.message : String(getErr);
+        if (onError) onError(msg);
+        else showToast('Backend error: ' + msg, 'error');
+      });
+  });
 }
 </script>
