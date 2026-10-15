@@ -73,6 +73,15 @@ var DriveService = (function () {
    * @return {Object} Document metadata record
    */
   function uploadDocument(claimNo, docType, originalFileName, base64Data, mimeType) {
+    if (typeof claimNo === 'object' && claimNo !== null) {
+      var d = claimNo;
+      claimNo = d.claim_no || d.claimNo;
+      docType = d.document_type || d.doc_type || d.docType;
+      originalFileName = d.file_name || d.original_file_name || d.fileName || d.originalFileName;
+      base64Data = d.file_base64 || d.base64Data || d.base64;
+      mimeType = d.mime_type || d.mimeType;
+    }
+
     if (!claimNo) throw new Error('Claim number is required for document upload');
     var claim = Database.getRowById('Claims', 'claim_no', claimNo);
     if (!claim) throw new Error('Claim ' + claimNo + ' not found');

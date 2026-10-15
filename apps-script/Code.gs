@@ -288,8 +288,19 @@ function apiCloseClaim(data) {
 
 function apiUploadDocument(data) {
   try {
-    var doc = DriveService.uploadDocument(data);
-    return Utils.success(doc, 'Document ' + doc.file_name + ' uploaded to Drive.');
+    var doc;
+    if (typeof data === 'object' && data !== null) {
+      doc = DriveService.uploadDocument(
+        data.claim_no,
+        data.document_type || data.doc_type,
+        data.file_name || data.original_file_name,
+        data.file_base64 || data.base64Data,
+        data.mime_type || data.mimeType
+      );
+    } else {
+      doc = DriveService.uploadDocument.apply(DriveService, arguments);
+    }
+    return Utils.success(doc, 'Document ' + (doc ? doc.file_name : '') + ' uploaded to Drive.');
   } catch (err) {
     return Utils.error(err.message);
   }
@@ -422,7 +433,7 @@ function apiSaveModel(modelData) {
     } else {
       Database.appendRow('Battery_Models', row);
     }
-    AuditService.log('BATTERY_MODEL_SAVED', 'Battery_Models', row.model_id, 'Model: ' + row.model_name);
+    AuditService.log('BATTERY_MODEL_SAVED', 'Battery_Models', row.model_id, '', 'ACTIVE', 'Saved model: ' + row.model_name);
     return Utils.success(row, 'Battery model saved successfully.');
   } catch (err) {
     return Utils.error(err.message);
@@ -447,7 +458,7 @@ function apiSaveDealer(dealerData) {
     } else {
       Database.appendRow('Dealers', row);
     }
-    AuditService.log('DEALER_SAVED', 'Dealers', row.dealer_id, 'Dealer: ' + row.dealer_name);
+    AuditService.log('DEALER_SAVED', 'Dealers', row.dealer_id, '', 'AUTHORIZED', 'Saved dealer: ' + row.dealer_name);
     return Utils.success(row, 'Dealer saved successfully.');
   } catch (err) {
     return Utils.error(err.message);

@@ -210,7 +210,9 @@ var ReplacementService = (function () {
     var todayIso = Utils.toIsoDate(new Date());
     var nowIso = new Date().toISOString();
     var userEmail = Utils.getCurrentUserEmail();
-    var closureNotes = String(data.remarks || 'Replacement battery handed over to customer/dealer. Claim closed.').trim();
+    var receiver = String(data.receiver_name || data.received_by_name || '').trim();
+    var notePrefix = receiver ? ('Delivered to: ' + receiver + '. ') : '';
+    var closureNotes = String(notePrefix + (data.remarks || 'Replacement battery handed over to customer/dealer. Claim closed.')).trim();
 
     var oldStatus = claim.status;
     Database.updateRow('Claims', 'claim_no', claim.claim_no, {

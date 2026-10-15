@@ -77,10 +77,10 @@ var ChallanService = (function () {
     var challan = Database.getRowById('Delivery_Challans', 'challan_no', data.challan_no);
     if (!challan) throw new Error('Challan ' + data.challan_no + ' not found');
 
-    var receiverName = String(data.received_by_name || '').trim();
+    var receiverName = String(data.received_by_name || data.receiver_name || '').trim();
     if (!receiverName) throw new Error('Receiver name is required for return acknowledgement');
 
-    var returnDate = data.received_date ? Utils.toIsoDate(data.received_date) : Utils.toIsoDate(new Date());
+    var returnDate = (data.received_date || data.return_date) ? Utils.toIsoDate(data.received_date || data.return_date) : Utils.toIsoDate(new Date());
     var userEmail = Utils.getCurrentUserEmail();
 
     Database.updateRow('Delivery_Challans', 'challan_no', challan.challan_no, {

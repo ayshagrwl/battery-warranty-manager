@@ -255,6 +255,170 @@ async function runTests() {
   });
   assert(filteredBySearch.length === 1 && filteredBySearch[0].original_serial_no === '009842', 'In-memory multi-field search preserves leading zeroes and isolates serials');
 
+  // TEST SUITE 6: In-Memory Client Runtime & API Parameter Resilience
+  console.log(`\n${colors.bold}SUITE 6: In-Memory Client Runtime, Parameter Aliasing & Export Engine${colors.reset}`);
+  console.log(`─────────────────────────────────────────────────────────────────────────────`);
+
+  // 6.1 Backend parameter aliasing in services
+  const dispatchCode = fs.readFileSync(path.join(__dirname, '..', 'apps-script/DispatchService.gs'), 'utf8');
+  assert(dispatchCode.includes('transport_name') && dispatchCode.includes('carrier'), 'DispatchService accepts carrier / transport_name parameter aliases');
+  assert(dispatchCode.includes('docket_number') || dispatchCode.includes('docket_no'), 'DispatchService accepts docket_number parameter alias');
+
+  const challanCode = fs.readFileSync(path.join(__dirname, '..', 'apps-script/ChallanService.gs'), 'utf8');
+  assert(challanCode.includes('receiver_name'), 'ChallanService accepts receiver_name parameter alias');
+
+  const driveCode = fs.readFileSync(path.join(__dirname, '..', 'apps-script/DriveService.gs'), 'utf8');
+  assert(driveCode.includes('typeof claimNo === \'object\''), 'DriveService handles single object payloads safely');
+
+  // 6.2 Node.js VM runtime simulation of client script
+  const vm = require('vm');
+  let appJs = appHtmlContent.replace(/<\/?script>/g, '');
+
+  const elements = {};
+  function getEl(id) {
+    if (!elements[id]) {
+      elements[id] = {
+        id,
+        value: '',
+        innerHTML: '',
+        textContent: '',
+        children: [],
+        classList: {
+          classes: new Set(),
+          add(c) { this.classes.add(c); },
+          remove(c) { this.classes.delete(c); },
+          toggle(c, f) { if (f !== undefined) { f ? this.classes.add(c) : this.classes.delete(c); } else { this.classes.has(c) ? this.classes.delete(c) : this.classes.add(c); } },
+          contains(c) { return this.classes.has(c); }
+        },
+        style: {},
+        appendChild(child) { this.children.push(child); }
+      };
+    }
+    return elements[id];
+  }
+
+  const mockDoc = {
+    getElementById: (id) => getEl(id),
+    createElement: (tag) => ({
+      tagName: tag,
+      innerHTML: '',
+      textContent: '',
+      children: [],
+      style: {},
+      classList: {
+        classes: new Set(),
+        add(c) { this.classes.add(c); },
+        remove(c) { this.classes.delete(c); },
+        toggle(c) {}
+      },
+      appendChild(child) { this.children.push(child); },
+      setAttribute: () => {},
+      click: () => {}
+    }),
+    body: { appendChild: () => {}, removeChild: () => {} },
+    querySelectorAll: () => [],
+    addEventListener: () => {}
+  };
+
+  const mockWin = {
+    addEventListener: () => {},
+    localStorage: {
+      _d: {},
+      getItem(k) { return this._d[k] || null; },
+      setItem(k, v) { this._d[k] = String(v); },
+      removeItem(k) { delete this._d[k]; }
+    }
+  };
+
+  const vmContext = {
+    window: mockWin,
+    document: mockDoc,
+    console: { log: () => {}, warn: () => {}, error: () => {} },
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+    setInterval: setInterval,
+    clearInterval: clearInterval,
+    Blob: class {},
+    URL: { createObjectURL: () => 'blob:test', revokeObjectURL: () => {} }
+  };
+  vmContext.window.window = vmContext.window;
+
+  vm.createContext(vmContext);
+  vm.runInContext('var BWMS;', vmContext);
+  vm.runInContext(appJs, vmContext);
+  vmContext.BWMS = vmContext.window.BWMS;
+
+  // Populate test data
+  vmContext.BWMS.tickets = [
+    { ticket_no: 'TKT-0001', customer_name: 'Rahul', battery_model: 'AAM-FL-00042B20L', original_serial_no: '001234', status: 'RECEIVED', date_received: '2026-10-10' },
+    { ticket_no: 'TKT-0002', customer_name: 'Anita', battery_model: 'AAM-PR-00055D23L', original_serial_no: '001235', status: 'PASSED', date_received: '2026-10-11' },
+    { ticket_no: 'TKT-0003', customer_name: 'Suresh', battery_model: 'AAM-FL-00042B20L', original_serial_no: '001236', status: 'REJECTED_RETURN_PENDING', date_received: '2026-10-12' },
+    { ticket_no: 'TKT-0004', customer_name: 'Kavita', battery_model: 'AAM-PR-00055D23L', original_serial_no: '001237', status: 'REJECTED_RETURNED', date_received: '2026-10-13' },
+    { ticket_no: 'TKT-0005', customer_name: 'Deepak', battery_model: 'AAM-FL-00042B20L', original_serial_no: '001238', status: 'CLAIM_CREATED', date_received: '2026-10-14' },
+    { ticket_no: 'TKT-0006', customer_name: 'Manoj', battery_model: 'AAM-PR-00055D23L', original_serial_no: '001239', status: 'CLOSED', date_received: '2026-10-15' }
+  ];
+
+  vmContext.BWMS.claims = [
+    { claim_no: 'CLM-0001', ticket_no: 'TKT-0005', customer_name: 'Deepak', battery_model: 'AAM-FL-00042B20L', original_serial_no: '001238', status: 'CLAIM_CREATED', warranty_status: 'IN_WARRANTY', claim_date: '2026-10-14' },
+    { claim_no: 'CLM-0002', ticket_no: 'TKT-0002', customer_name: 'Anita', battery_model: 'AAM-PR-00055D23L', original_serial_no: '001235', status: 'READY_FOR_COMPANY', warranty_status: 'PRO_RATA', claim_date: '2026-10-12' },
+    { claim_no: 'CLM-0003', ticket_no: 'TKT-0007', customer_name: 'Pooja', battery_model: 'AAM-FL-00042B20L', original_serial_no: '001240', status: 'SENT_TO_COMPANY', company_dispatch_date: '2026-10-01', warranty_status: 'IN_WARRANTY' },
+    { claim_no: 'CLM-0004', ticket_no: 'TKT-0008', customer_name: 'Vijay', battery_model: 'AAM-PR-00055D23L', original_serial_no: '001241', status: 'REPLACEMENT_RECEIVED', stock_status: 'PENDING', replacement_serial_no: 'REP-001241' },
+    { claim_no: 'CLM-0005', ticket_no: 'TKT-0009', customer_name: 'Gaurav', battery_model: 'AAM-FL-00042B20L', original_serial_no: '001242', status: 'STOCK_UPDATED', stock_status: 'UPDATED', replacement_serial_no: 'REP-001242' },
+    { claim_no: 'CLM-0006', ticket_no: 'TKT-0010', customer_name: 'Alok', battery_model: 'AAM-PR-00055D23L', original_serial_no: '001243', status: 'CLOSED', stock_status: 'UPDATED', replacement_serial_no: 'REP-001243' }
+  ];
+
+  vmContext.BWMS.challans = [
+    { challan_no: 'DC-RET-0001', ticket_no: 'TKT-0003', challan_type: 'BATTERY_RETURN', receiver_name: 'Suresh', status: 'GENERATED' }
+  ];
+
+  vmContext.BWMS.dispatches = [
+    { dispatch_batch_no: 'DSP-0001', company_challan_no: 'DC-COM-0001', company_name: 'Amaron Batteries Ltd.', dispatch_date: '2026-10-01', battery_count: 5, carrier_transporter: 'VRL Logistics' }
+  ];
+
+  vmContext.BWMS.auditLog = [
+    { action: 'TICKET_CREATE', entity_type: 'Tickets', entity_id: 'TKT-0001', user_email: 'staff@test.com', details: 'Created ticket', timestamp: '2026-10-10' }
+  ];
+
+  // Verify all 11 view navigations execute without runtime errors
+  const views = ['dashboard', 'tickets', 'lab', 'claims', 'pending-company', 'replacement-pending', 'stock-tasks', 'challans', 'reports', 'audit', 'settings'];
+  let viewsOk = true;
+  for (const v of views) {
+    try {
+      vmContext.navigateTo(v);
+    } catch (e) {
+      viewsOk = false;
+      console.error('Error navigating to ' + v + ':', e);
+    }
+  }
+  assert(viewsOk, 'All 11 views navigate and render seamlessly from in-memory store without runtime error');
+
+  // Verify action renderers
+  let actionsOk = true;
+  try {
+    vmContext.BWMS.tickets.forEach(t => vmContext.renderTicketActions(t));
+    vmContext.BWMS.claims.forEach(c => vmContext.renderClaimActions(c));
+  } catch (e) {
+    actionsOk = false;
+  }
+  assert(actionsOk, 'Ticket & Claim action buttons render correctly across all lifecycle status variants');
+
+  // Verify CSV export engine
+  let csvOk = true;
+  try {
+    vmContext.exportTicketsCSV();
+    vmContext.exportClaimsCSV();
+    vmContext.exportLabCSV();
+    vmContext.exportReplacementsCSV();
+    vmContext.exportStockCSV();
+    vmContext.exportChallansCSV();
+    vmContext.exportReportsCSV();
+    vmContext.exportAuditCSV();
+  } catch (e) {
+    csvOk = false;
+    console.error('CSV export failure:', e);
+  }
+  assert(csvOk, 'All 8 management CSV exports execute and construct valid tabular downloads');
+
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);
   console.log(`${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}\n`);

@@ -268,11 +268,11 @@
                 <option value="ALL">All Statuses</option>
                 <option value="RECEIVED">RECEIVED (Holding)</option>
                 <option value="TESTING">TESTING</option>
-                <option value="TEST_PASSED">TEST_PASSED</option>
-                <option value="TEST_REJECTED">TEST_REJECTED</option>
-                <option value="REJECTED — RETURN PENDING">REJECTED — RETURN PENDING</option>
-                <option value="REJECTED — RETURNED">REJECTED — RETURNED</option>
+                <option value="PASSED">PASSED (Eligible for Claim)</option>
+                <option value="REJECTED_RETURN_PENDING">REJECTED (Return Pending)</option>
+                <option value="REJECTED_RETURNED">REJECTED (Returned)</option>
                 <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                <option value="CLOSED">CLOSED</option>
               </select>
               <select id="filter-tickets-source" class="form-select" style="width:150px;" onchange="renderTicketsTable()">
                 <option value="ALL">All Sources</option>
@@ -415,13 +415,16 @@
               <select id="filter-claims-status" class="form-select" style="width:190px;" onchange="renderClaimsTable()">
                 <option value="ALL">All Statuses</option>
                 <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                <option value="READY_FOR_COMPANY">READY_FOR_COMPANY</option>
                 <option value="SENT_TO_COMPANY">SENT_TO_COMPANY</option>
                 <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
-                <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
+                <option value="STOCK_UPDATED">STOCK_UPDATED</option>
+                <option value="CLOSED">CLOSED (Resolved)</option>
               </select>
               <select id="filter-claims-warranty" class="form-select" style="width:180px;" onchange="renderClaimsTable()">
                 <option value="ALL">All Warranty Types</option>
                 <option value="IN_WARRANTY">IN WARRANTY</option>
+                <option value="PRO_RATA">PRO-RATA WARRANTY</option>
                 <option value="OUT_OF_WARRANTY">OUT OF WARRANTY</option>
               </select>
               <select id="filter-claims-model" class="form-select" style="width:170px;" onchange="renderClaimsTable()">
@@ -856,15 +859,20 @@
           <div class="view-toolbar">
             <div class="view-toolbar-left">
               <input type="text" id="filter-audit-search" class="table-search-input" placeholder="🔍 Search audit by entity, ID, user, action..." oninput="renderAuditTable()">
-              <select id="filter-audit-action" class="form-select" style="width:180px;" onchange="renderAuditTable()">
+              <select id="filter-audit-action" class="form-select" style="width:200px;" onchange="renderAuditTable()">
                 <option value="ALL">All Actions</option>
-                <option value="TICKET_CREATED">TICKET_CREATED</option>
-                <option value="BATTERY_TESTED">BATTERY_TESTED</option>
-                <option value="CLAIM_CREATED">CLAIM_CREATED</option>
-                <option value="COMPANY_DISPATCH">COMPANY_DISPATCH</option>
-                <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
-                <option value="STOCK_UPDATED">STOCK_UPDATED</option>
-                <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
+                <option value="TICKET_CREATE">TICKET_CREATE</option>
+                <option value="TEST_PASS">TEST_PASS</option>
+                <option value="TEST_REJECT">TEST_REJECT</option>
+                <option value="CLAIM_CREATE">CLAIM_CREATE</option>
+                <option value="DISPATCH_COMPANY">DISPATCH_COMPANY</option>
+                <option value="REPLACEMENT_RECEIVE">REPLACEMENT_RECEIVE</option>
+                <option value="STOCK_UPDATE">STOCK_UPDATE</option>
+                <option value="CLOSE_CLAIM">CLOSE_CLAIM</option>
+                <option value="CHALLAN_GENERATE">CHALLAN_GENERATE</option>
+                <option value="CHALLAN_ACKNOWLEDGE">CHALLAN_ACKNOWLEDGE</option>
+                <option value="BATTERY_MODEL_SAVED">BATTERY_MODEL_SAVED</option>
+                <option value="DEALER_SAVED">DEALER_SAVED</option>
               </select>
             </div>
             <div class="view-toolbar-right">
@@ -1170,12 +1178,29 @@
               <input type="text" id="test-tested-by" class="form-control" required placeholder="Technician Name">
             </div>
             <div class="form-group">
-              <label class="form-label">Open Circuit Voltage (V)</label>
-              <input type="text" id="test-voltage" class="form-control" placeholder="e.g. 10.4V (Dead Cell)">
+              <label class="form-label">Open Circuit Voltage (V) *</label>
+              <input type="text" id="test-voltage" class="form-control" placeholder="e.g. 12.6V" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Specific Gravity (Hydrometer)</label>
+              <input type="text" id="test-gravity" class="form-control" placeholder="e.g. 1.24, 1.24, 1.25, 1.24, 1.24, 1.25">
+            </div>
+            <div class="form-group">
+              <label class="form-label">15s Load Test Voltage (V)</label>
+              <input type="text" id="test-load-voltage" class="form-control" placeholder="e.g. 10.2V (Pass >= 9.6V)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Physical Casing Condition</label>
+              <select id="test-physical-condition" class="form-select">
+                <option value="INTACT">Intact / Normal Wear</option>
+                <option value="BULGED">Bulged / Overcharged</option>
+                <option value="CRACKED">Cracked / Acid Leaking</option>
+                <option value="TERMINAL_DAMAGED">Terminal Burnt / Broken</option>
+              </select>
             </div>
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Diagnostic Remarks *</label>
-              <textarea id="test-remarks" class="form-control" rows="3" required placeholder="e.g. Cell 3 shorted. Fails 200A load test. Physical condition intact."></textarea>
+              <textarea id="test-remarks" class="form-control" rows="2" required placeholder="e.g. Specific gravity uniform across 6 cells. Sustains load test above 9.6V."></textarea>
             </div>
           </div>
 

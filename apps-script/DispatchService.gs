@@ -40,9 +40,9 @@ var DispatchService = (function () {
     var companyName = String(data.company_name || '').trim();
     if (!companyName) throw new Error('Battery company / manufacturer name is required');
 
-    var destination = String(data.destination || '').trim();
-    var transporter = String(data.transporter || '').trim();
-    var lrDocket = String(data.lr_docket_no || '').trim();
+    var destination = String(data.destination || data.company_name || '').trim();
+    var transporter = String(data.transporter || data.transport_name || data.carrier || '').trim();
+    var lrDocket = String(data.lr_docket_no || data.docket_number || data.docket_no || '').trim();
     var remarks = String(data.remarks || '').trim();
 
     var batchNo = Utils.getNextId('DISPATCH_PREFIX', 'DISPATCH_SEQ', 6);

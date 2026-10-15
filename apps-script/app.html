@@ -67,6 +67,7 @@ function initApp() {
 }
 
 function loadCachedState() {
+  var loaded = false;
   try {
     var raw = localStorage.getItem(CACHE_KEY);
     if (raw) {
@@ -75,10 +76,14 @@ function loadCachedState() {
         applyStateData(cached);
         updateSyncStatusBadge('Cached (Offline Ready)', 'cached');
         console.log('⚡ Loaded complete database state from instant local cache.');
+        loaded = true;
       }
     }
   } catch (err) {
     console.warn('Cache read warning:', err);
+  }
+  if (!loaded) {
+    renderCurrentView();
   }
 }
 
@@ -287,8 +292,14 @@ function renderDashboard() {
   var underTesting = tickets.filter(function(t) { return t.status === 'RECEIVED' || t.status === 'TESTING'; }).length;
   var readyForCompany = claims.filter(function(c) { return c.status === 'CLAIM_CREATED' || c.status === 'READY_FOR_COMPANY'; }).length;
   var sentToCompany = claims.filter(function(c) { return c.status === 'SENT_TO_COMPANY'; }).length;
-  var rejectedReturnPending = tickets.filter(function(t) { return t.status === 'REJECTED — RETURN PENDING'; }).length;
-  var stockTasksPending = claims.filter(function(c) { return c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED'; }).length;
+  var rejectedReturnPending = tickets.filter(function(t) {
+    var s = (t.status || '').toUpperCase();
+    return s === 'REJECTED_RETURN_PENDING' || s === 'REJECTED — RETURN PENDING' || s === 'TEST_REJECTED';
+  }).length;
+  var stockTasksPending = claims.filter(function(c) {
+    var s = (c.status || '').toUpperCase();
+    return (s === 'REPLACEMENT_RECEIVED' || s === 'STOCK_UPDATED') && c.stock_status !== 'UPDATED';
+  }).length;
 
   // Ageing > 15 days
   var overdue15Count = claims.filter(function(c) {
@@ -355,7 +366,21 @@ function renderTicketsTable() {
 
   var tickets = BWMS.tickets || [];
   var filtered = tickets.filter(function(t) {
-    if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+    if (statusFilter !== 'ALL') {
+      var ts = (t.status || '').toUpperCase();
+      var sf = statusFilter.toUpperCase();
+      if (sf === 'PASSED') {
+        if (ts !== 'PASSED' && ts !== 'TEST_PASSED') return false;
+      } else if (sf === 'REJECTED_RETURN_PENDING') {
+        if (ts !== 'REJECTED_RETURN_PENDING' && ts !== 'REJECTED — RETURN PENDING' && ts !== 'TEST_REJECTED') return false;
+      } else if (sf === 'REJECTED_RETURNED') {
+        if (ts !== 'REJECTED_RETURNED' && ts !== 'REJECTED — RETURNED') return false;
+      } else if (sf === 'CLOSED') {
+        if (ts !== 'CLOSED' && ts !== 'CLAIM_CLOSED') return false;
+      } else if (ts !== sf) {
+        return false;
+      }
+    }
     if (sourceFilter !== 'ALL' && t.source_type !== sourceFilter) return false;
     if (modelFilter !== 'ALL' && t.battery_model !== modelFilter) return false;
     if (search) {
@@ -585,15 +610,18 @@ function handleTestSubmit(e) {
     test_date: document.getElementById('test-date').value,
     tested_by: document.getElementById('test-tested-by').value,
     open_circuit_voltage: document.getElementById('test-voltage').value,
+    specific_gravity: document.getElementById('test-gravity') ? document.getElementById('test-gravity').value : '',
+    load_test_voltage: document.getElementById('test-load-voltage') ? document.getElementById('test-load-voltage').value : '',
+    physical_condition: document.getElementById('test-physical-condition') ? document.getElementById('test-physical-condition').value : 'INTACT',
     test_remarks: document.getElementById('test-remarks').value
   };
 
   closeModal('modal-test');
 
-  // Optimistic local update
+  // Optimistic local update with canonical backend status
   var tkt = BWMS.tickets.find(function(t) { return t.ticket_no === testData.ticket_no; });
   if (tkt) {
-    tkt.status = (testData.test_result === 'PASS') ? 'TEST_PASSED' : 'TEST_REJECTED';
+    tkt.status = (testData.test_result === 'PASS') ? 'PASSED' : 'REJECTED_RETURN_PENDING';
   }
   BWMS.tests.push(Object.assign({}, testData, { test_id: 'TST-' + Date.now().toString().slice(-6) }));
   renderLabTables();
@@ -630,8 +658,32 @@ function renderClaimsTable() {
 
   var claims = BWMS.claims || [];
   var filtered = claims.filter(function(c) {
-    if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
-    if (warrantyFilter !== 'ALL' && c.warranty_status !== warrantyFilter) return false;
+    if (statusFilter !== 'ALL') {
+      var cs = (c.status || '').toUpperCase();
+      var sf = statusFilter.toUpperCase();
+      if (sf === 'CLOSED' || sf === 'CLAIM_CLOSED') {
+        if (cs !== 'CLOSED' && cs !== 'CLAIM_CLOSED') return false;
+      } else if (sf === 'STOCK_UPDATED') {
+        if (cs !== 'STOCK_UPDATED' && (cs !== 'REPLACEMENT_RECEIVED' || c.stock_status !== 'UPDATED')) return false;
+      } else if (cs !== sf) {
+        return false;
+      }
+    }
+    if (warrantyFilter !== 'ALL') {
+      var ws = (c.warranty_status || '').toUpperCase();
+      var cov = (c.coverage_type || '').toUpperCase();
+      var rem = (c.remarks || '').toUpperCase();
+      var wf = warrantyFilter.toUpperCase();
+      if (wf === 'PRO_RATA') {
+        if (ws !== 'PRO_RATA' && cov !== 'PRO_RATA' && rem.indexOf('PRO-RATA') === -1) return false;
+      } else if (wf === 'IN_WARRANTY') {
+        if (ws !== 'IN_WARRANTY' && cov !== 'FULL_REPLACEMENT') return false;
+      } else if (wf === 'OUT_OF_WARRANTY') {
+        if (ws !== 'OUT_OF_WARRANTY' && ws !== 'EXPIRED' && cov !== 'EXPIRED') return false;
+      } else if (ws !== wf) {
+        return false;
+      }
+    }
     if (modelFilter !== 'ALL' && c.battery_model !== modelFilter) return false;
     if (search) {
       var blob = [
@@ -876,12 +928,18 @@ function openDispatchBatchModal() {
 
 function handleDispatchSubmit(e) {
   e.preventDefault();
+  var carrierVal = document.getElementById('dsp-carrier').value;
+  var docketVal = document.getElementById('dsp-docket').value;
+  var companyVal = document.getElementById('dsp-company-name').value;
   var data = {
     claim_nos: Array.from(BWMS.selectedDispatchClaims),
-    company_name: document.getElementById('dsp-company-name').value,
+    company_name: companyVal,
+    destination: companyVal,
     dispatch_date: document.getElementById('dsp-date').value,
-    transport_name: document.getElementById('dsp-carrier').value,
-    docket_number: document.getElementById('dsp-docket').value,
+    transporter: carrierVal,
+    transport_name: carrierVal,
+    lr_docket_no: docketVal,
+    docket_number: docketVal,
     remarks: document.getElementById('dsp-remarks').value
   };
 
@@ -966,7 +1024,8 @@ function renderReplacementsTables() {
   });
 
   var receivedClaims = (BWMS.claims || []).filter(function(c) {
-    return c.status === 'REPLACEMENT_RECEIVED' || c.status === 'CLAIM_CLOSED';
+    var s = (c.status || '').toUpperCase();
+    return s === 'REPLACEMENT_RECEIVED' || s === 'STOCK_UPDATED' || s === 'CLOSED' || s === 'CLAIM_CLOSED';
   });
 
   setElText('rep-pending-count', dueClaims.length);
@@ -1102,7 +1161,8 @@ function renderStockTasksTables() {
   var search = (document.getElementById('filter-stock-search') ? document.getElementById('filter-stock-search').value : '').toLowerCase().trim();
 
   var pendingTasks = (BWMS.claims || []).filter(function(c) {
-    return c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED';
+    var s = (c.status || '').toUpperCase();
+    return (s === 'REPLACEMENT_RECEIVED' || s === 'STOCK_UPDATED') && c.stock_status !== 'UPDATED';
   });
 
   setElText('stock-pending-count', pendingTasks.length);
@@ -1242,33 +1302,61 @@ function renderChallansTable() {
   var tab = BWMS.challansTab || 'all';
 
   var list = [];
+  var seenChallans = new Set();
 
-  // Return Challans
-  (BWMS.tickets || []).forEach(function(t) {
-    if (t.challan_no || t.status === 'REJECTED — RETURN PENDING' || t.status === 'REJECTED — RETURNED') {
+  // 1. Load actual delivery challans from master database
+  (BWMS.challans || []).forEach(function(ch) {
+    if (!ch.challan_no) return;
+    seenChallans.add(ch.challan_no);
+    var isReturn = (ch.challan_type === 'BATTERY_RETURN' || String(ch.challan_no).indexOf('RET') !== -1 || ch.recipient_type !== 'COMPANY');
+    list.push({
+      challan_no: ch.challan_no,
+      type: isReturn ? 'BATTERY_RETURN' : 'COMPANY_DISPATCH',
+      date: ch.challan_date || ch.created_at,
+      recipient: ch.recipient_name || 'Customer / Dealer',
+      serials: ch.battery_serial_no || (ch.quantity ? ch.quantity + ' Batteries' : '-'),
+      status: ch.status || 'GENERATED',
+      ticket_no: ch.ticket_no || '',
+      battery_model: ch.battery_model || ''
+    });
+  });
+
+  // 2. Load Company Dispatches if not already recorded in challans
+  (BWMS.dispatches || []).forEach(function(d) {
+    var cNo = d.company_challan_no || d.dispatch_batch_no;
+    if (cNo && !seenChallans.has(cNo)) {
+      seenChallans.add(cNo);
       list.push({
-        challan_no: t.challan_no || ('DC-RET-' + t.ticket_no.replace('TKT-', '')),
-        type: 'BATTERY_RETURN',
-        date: t.updated_at || t.date_received,
-        recipient: (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name),
-        serials: t.original_serial_no,
-        status: t.status,
-        ticket_no: t.ticket_no
+        challan_no: cNo,
+        type: 'COMPANY_DISPATCH',
+        date: d.dispatch_date,
+        recipient: d.company_name || 'Amaron Batteries Ltd.',
+        serials: (d.battery_count || d.claim_count || 1) + ' Batteries (' + (d.carrier_transporter || 'Van') + ')',
+        status: 'DISPATCHED',
+        dispatch_batch_no: d.dispatch_batch_no
       });
     }
   });
 
-  // Company Dispatches
-  (BWMS.dispatches || []).forEach(function(d) {
-    list.push({
-      challan_no: d.company_challan_no || ('DC-COM-' + d.dispatch_batch_no),
-      type: 'COMPANY_DISPATCH',
-      date: d.dispatch_date,
-      recipient: d.company_name || 'Amaron Batteries Ltd.',
-      serials: (d.battery_count || 1) + ' Batteries (' + (d.carrier_transporter || 'Van') + ')',
-      status: 'DISPATCHED',
-      dispatch_batch_no: d.dispatch_batch_no
-    });
+  // 3. Surface any rejected tickets awaiting return challan generation
+  (BWMS.tickets || []).forEach(function(t) {
+    var s = (t.status || '').toUpperCase();
+    if (s === 'REJECTED_RETURN_PENDING' || s === 'TEST_REJECTED' || (s.indexOf('REJECT') !== -1 && s !== 'REJECTED_RETURNED')) {
+      var hasChallan = list.some(function(item) { return item.ticket_no === t.ticket_no && item.type === 'BATTERY_RETURN'; });
+      if (!hasChallan) {
+        list.push({
+          challan_no: 'PENDING (' + t.ticket_no + ')',
+          type: 'BATTERY_RETURN',
+          date: t.date_received,
+          recipient: (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name),
+          serials: t.original_serial_no,
+          status: 'CHALLAN_NOT_GENERATED',
+          ticket_no: t.ticket_no,
+          battery_model: t.battery_model,
+          is_uncreated: true
+        });
+      }
+    }
   });
 
   setElText('ch-all-count', list.length);
@@ -1279,7 +1367,7 @@ function renderChallansTable() {
     if (tab === 'ret' && item.type !== 'BATTERY_RETURN') return false;
     if (tab === 'com' && item.type !== 'COMPANY_DISPATCH') return false;
     if (search) {
-      var blob = [item.challan_no, item.recipient, item.serials, item.status].join(' ').toLowerCase();
+      var blob = [item.challan_no, item.recipient, item.serials, item.status, item.ticket_no].join(' ').toLowerCase();
       if (blob.indexOf(search) === -1) return false;
     }
     return true;
@@ -1335,11 +1423,15 @@ function openMarkReturnedModal(challanNo) {
 
 function handleMarkReturnedSubmit(e) {
   e.preventDefault();
+  var recName = document.getElementById('ret-receiver-name').value;
+  var retDate = document.getElementById('ret-date').value;
   var data = {
     challan_no: document.getElementById('ret-challan-no').value,
-    receiver_name: document.getElementById('ret-receiver-name').value,
+    received_by_name: recName,
+    receiver_name: recName,
+    received_date: retDate,
+    return_date: retDate,
     receiver_mobile: document.getElementById('ret-receiver-mobile').value,
-    return_date: document.getElementById('ret-date').value,
     return_time: document.getElementById('ret-time').value,
     remarks: document.getElementById('ret-remarks').value
   };
@@ -1401,8 +1493,12 @@ function renderReportsView() {
       modelMap[key] = { code: key, name: key, warranty: 24, received: 0, passed: 0, rejected: 0 };
     }
     modelMap[key].received++;
-    if (t.status === 'TEST_PASSED' || t.status === 'CLAIM_CREATED') modelMap[key].passed++;
-    else if (t.status === 'TEST_REJECTED' || t.status.indexOf('REJECTED') !== -1) modelMap[key].rejected++;
+    var s = (t.status || '').toUpperCase();
+    if (s === 'PASSED' || s === 'TEST_PASSED' || s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY' || s === 'SENT_TO_COMPANY' || s === 'REPLACEMENT_RECEIVED' || s === 'STOCK_UPDATED' || s === 'CLOSED') {
+      modelMap[key].passed++;
+    } else if (s.indexOf('REJECT') !== -1) {
+      modelMap[key].rejected++;
+    }
   });
 
   var tbodyModels = document.getElementById('reports-models-body');
@@ -1441,8 +1537,9 @@ function renderReportsView() {
         dealerMap[c.dealer_name] = { name: c.dealer_name, total: 0, pending: 0, closed: 0 };
       }
       dealerMap[c.dealer_name].total++;
-      if (c.status === 'SENT_TO_COMPANY') dealerMap[c.dealer_name].pending++;
-      if (c.status === 'CLAIM_CLOSED') dealerMap[c.dealer_name].closed++;
+      var cs = (c.status || '').toUpperCase();
+      if (cs === 'SENT_TO_COMPANY') dealerMap[c.dealer_name].pending++;
+      if (cs === 'CLOSED' || cs === 'CLAIM_CLOSED') dealerMap[c.dealer_name].closed++;
     }
   });
 
@@ -1477,7 +1574,13 @@ function renderAuditTable() {
 
   var logs = BWMS.auditLog || [];
   var filtered = logs.filter(function(a) {
-    if (actionFilter !== 'ALL' && a.action !== actionFilter) return false;
+    if (actionFilter !== 'ALL') {
+      var act = (a.action || '').toUpperCase();
+      var af = actionFilter.toUpperCase();
+      if (act !== af && act.indexOf(af.replace('_CREATE', '').replace('_RECEIVE', '').replace('_UPDATE', '').replace('_CLAIM', '')) === -1) {
+        return false;
+      }
+    }
     if (search) {
       var blob = [a.action, a.entity_type, a.entity_id, a.user_email, a.details].join(' ').toLowerCase();
       if (blob.indexOf(search) === -1) return false;
@@ -1822,7 +1925,7 @@ function showTimeline(query) {
       });
     }
 
-    if (matchedClaim.status === 'CLAIM_CLOSED') {
+    if (matchedClaim.status === 'CLOSED' || matchedClaim.status === 'CLAIM_CLOSED') {
       events.push({
         title: 'Claim Closed & Battery Delivered to Customer',
         date: matchedClaim.closed_date || matchedClaim.updated_at,
@@ -1922,7 +2025,13 @@ function printClaimForm(claimNo) {
 function openPrintModal(title, url) {
   document.getElementById('print-modal-title').textContent = title;
   var iframe = document.getElementById('print-iframe');
-  iframe.src = url;
+  var fullUrl;
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    fullUrl = url;
+  } else {
+    fullUrl = PROD_WEB_APP_URL + (url.indexOf('?') === 0 ? url : '?' + url);
+  }
+  iframe.src = fullUrl;
   openModal('modal-print');
 }
 
@@ -2028,14 +2137,37 @@ function exportStockCSV() {
 function exportChallansCSV() {
   var headers = ['Challan #', 'Type', 'Date', 'Recipient', 'Serials', 'Status'];
   var rows = [];
-  (BWMS.tickets || []).forEach(function(t) {
-    if (t.challan_no || t.status.indexOf('REJECTED') !== -1) {
-      rows.push([t.challan_no || ('DC-RET-' + t.ticket_no), 'BATTERY_RETURN', t.date_received, (t.dealer_name || t.customer_name), t.original_serial_no, t.status]);
+  var seenChallans = new Set();
+
+  (BWMS.challans || []).forEach(function(ch) {
+    if (!ch.challan_no) return;
+    seenChallans.add(ch.challan_no);
+    var isReturn = (ch.challan_type === 'BATTERY_RETURN' || String(ch.challan_no).indexOf('RET') !== -1 || ch.recipient_type !== 'COMPANY');
+    rows.push([
+      ch.challan_no,
+      isReturn ? 'BATTERY_RETURN' : 'COMPANY_DISPATCH',
+      ch.challan_date || ch.created_at,
+      ch.recipient_name || 'Customer/Dealer',
+      ch.battery_serial_no || (ch.quantity ? ch.quantity + ' Batteries' : '-'),
+      ch.status || 'GENERATED'
+    ]);
+  });
+
+  (BWMS.dispatches || []).forEach(function(d) {
+    var cNo = d.company_challan_no || d.dispatch_batch_no;
+    if (cNo && !seenChallans.has(cNo)) {
+      seenChallans.add(cNo);
+      rows.push([
+        cNo,
+        'COMPANY_DISPATCH',
+        d.dispatch_date,
+        d.company_name || 'Amaron Batteries Ltd.',
+        (d.battery_count || d.claim_count || 1) + ' Batteries (' + (d.carrier_transporter || 'Van') + ')',
+        'DISPATCHED'
+      ]);
     }
   });
-  (BWMS.dispatches || []).forEach(function(d) {
-    rows.push([d.company_challan_no, 'COMPANY_DISPATCH', d.dispatch_date, d.company_name, d.battery_count + ' Batteries', 'DISPATCHED']);
-  });
+
   downloadCSV('delivery-challans-' + getExportDate() + '.csv', headers, rows);
 }
 
@@ -2047,8 +2179,12 @@ function exportReportsCSV() {
     var k = t.battery_model || 'Unknown';
     if (!modelMap[k]) modelMap[k] = { code: k, name: k, w: 24, recv: 0, p: 0, r: 0 };
     modelMap[k].recv++;
-    if (t.status === 'TEST_PASSED' || t.status === 'CLAIM_CREATED') modelMap[k].p++;
-    else if (t.status.indexOf('REJECT') !== -1) modelMap[k].r++;
+    var s = (t.status || '').toUpperCase();
+    if (s === 'PASSED' || s === 'TEST_PASSED' || s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY' || s === 'SENT_TO_COMPANY' || s === 'REPLACEMENT_RECEIVED' || s === 'STOCK_UPDATED' || s === 'CLOSED') {
+      modelMap[k].p++;
+    } else if (s.indexOf('REJECT') !== -1) {
+      modelMap[k].r++;
+    }
   });
   for (var k in modelMap) {
     var m = modelMap[k];
@@ -2127,49 +2263,74 @@ function renderAgeingBadge(days) {
 
 function renderTicketActions(t) {
   var html = '<div style="display:flex; gap:6px;">';
-  if (t.status === 'RECEIVED') {
-    html += '<button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + t.battery_model + '\', \'' + t.original_serial_no + '\')">Test</button>';
-  } else if (t.status === 'TEST_PASSED') {
-    html += '<button class="btn btn-success btn-sm" onclick="openClaimModal(\'' + t.ticket_no + '\')">Claim</button>';
-  } else if (t.status === 'TEST_REJECTED') {
-    html += '<button class="btn btn-danger btn-sm" onclick="createReturnChallan(\'' + t.ticket_no + '\')">Challan</button>';
-  } else if (t.status === 'REJECTED — RETURN PENDING') {
-    html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + (t.challan_no || ('DC-RET-' + t.ticket_no.replace('TKT-', ''))) + '\')">Print</button>';
-    html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + (t.challan_no || ('DC-RET-' + t.ticket_no.replace('TKT-', ''))) + '\')">Handover</button>';
+  var s = (t.status || '').toUpperCase();
+  var retChallan = (BWMS.challans || []).find(function(ch) {
+    return ch.ticket_no === t.ticket_no && (ch.challan_type === 'BATTERY_RETURN' || !ch.challan_type);
+  });
+
+  if (s === 'RECEIVED' || s === 'TESTING') {
+    html += '<button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + (t.battery_model || '') + '\', \'' + (t.original_serial_no || '') + '\')">🔬 Test</button>';
+  } else if (s === 'PASSED' || s === 'TEST_PASSED') {
+    html += '<button class="btn btn-success btn-sm" onclick="openClaimModal(\'' + t.ticket_no + '\')">📝 Claim</button>';
+  } else if (s === 'REJECTED_RETURN_PENDING' || s === 'TEST_REJECTED' || (s.indexOf('REJECT') !== -1 && s !== 'REJECTED_RETURNED')) {
+    if (!retChallan) {
+      html += '<button class="btn btn-danger btn-sm" onclick="createReturnChallan(\'' + t.ticket_no + '\')">📄 Challan</button>';
+    } else {
+      html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + retChallan.challan_no + '\')">🖨️ Print</button>';
+      if (retChallan.status !== 'ACKNOWLEDGED') {
+        html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + retChallan.challan_no + '\')">🤝 Handover</button>';
+      }
+    }
+  } else if (s === 'REJECTED_RETURNED' || s === 'REJECTED — RETURNED') {
+    if (retChallan) {
+      html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + retChallan.challan_no + '\')">🖨️ Challan</button>';
+    }
   }
-  html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">Timeline</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">👁️ Timeline</button>';
   html += '</div>';
   return html;
 }
 
 function renderClaimActions(c) {
   var html = '<div style="display:flex; gap:6px;">';
+  var s = (c.status || '').toUpperCase();
   html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
   html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs</button>';
-  if (c.status === 'SENT_TO_COMPANY') {
-    html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">Receive Rep</button>';
-  } else if (c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
-    html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">Stock Task</button>';
-  } else if (c.status === 'REPLACEMENT_RECEIVED') {
-    html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">Close Claim</button>';
+
+  if (s === 'SENT_TO_COMPANY') {
+    html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + (c.battery_model || '') + '\', \'' + (c.original_serial_no || '') + '\')">📥 Receive Rep</button>';
+  } else if (s === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
+    html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>';
+  } else if (s === 'STOCK_UPDATED' || (s === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED')) {
+    html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">🤝 Close Claim</button>';
   }
-  html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">Timeline</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">👁️ Timeline</button>';
   html += '</div>';
   return html;
 }
 
 function renderChallanActions(item) {
   var html = '<div style="display:flex; gap:6px;">';
-  if (item.type === 'BATTERY_RETURN') {
+  if (item.is_uncreated) {
+    html += '<button class="btn btn-primary btn-sm" onclick="createReturnChallan(\'' + item.ticket_no + '\')">+ Generate Challan</button>';
+  } else if (item.type === 'BATTERY_RETURN') {
     html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + item.challan_no + '\')">🖨️ Print</button>';
-    if (item.status === 'REJECTED — RETURN PENDING') {
-      html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + item.challan_no + '\')">Handover</button>';
+    if (item.status !== 'ACKNOWLEDGED' && item.status !== 'REJECTED_RETURNED') {
+      html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + item.challan_no + '\')">🤝 Handover</button>';
     }
   } else {
     html += '<button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + item.challan_no + '\')">🖨️ Print Batch</button>';
-    if (item.dispatch_batch_no) {
-      html += '<button class="btn btn-secondary btn-sm" onclick="openBatchItemsModal(\'' + item.dispatch_batch_no + '\')">👁️ Items</button>';
+    var batchNo = item.dispatch_batch_no;
+    if (!batchNo) {
+      var d = (BWMS.dispatches || []).find(function(dsp) { return dsp.company_challan_no === item.challan_no; });
+      if (d) batchNo = d.dispatch_batch_no;
     }
+    if (batchNo) {
+      html += '<button class="btn btn-secondary btn-sm" onclick="openBatchItemsModal(\'' + batchNo + '\')">👁️ Items</button>';
+    }
+  }
+  if (item.ticket_no) {
+    html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + item.ticket_no + '\')">👁️ Timeline</button>';
   }
   html += '</div>';
   return html;
