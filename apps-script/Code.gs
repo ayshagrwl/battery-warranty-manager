@@ -26,6 +26,10 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify(apiGetInitialData(), null, 2))
       .setMimeType(ContentService.MimeType.JSON);
   }
+  if (params.api === 'bulk' || params.bulk === 'true') {
+    return ContentService.createTextOutput(JSON.stringify(apiGetBulkState(), null, 2))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 
   // Cross-Domain REST API dispatcher for GitHub Pages (GET)
   if (params.action) {
@@ -348,6 +352,108 @@ function apiCheckConnection() {
   }
 }
 
+function apiGetBulkState() {
+  try {
+    var ss = Database.getSpreadsheet();
+    if (ss && !ss.getSheetByName('Config')) {
+      Database.setupDatabase();
+    }
+    var sheetNames = [
+      'Config',
+      'Users',
+      'Battery_Models',
+      'Dealers',
+      'Tickets',
+      'Battery_Tests',
+      'Claims',
+      'Claim_Documents',
+      'Delivery_Challans',
+      'Company_Dispatches',
+      'Company_Dispatch_Items',
+      'Stock_Update_Log',
+      'Audit_Log'
+    ];
+    var tables = Database.getBulkTables(sheetNames);
+    var config = Config.getAll();
+    var currentUser = AuthService.getCurrentUser();
+    var dashboard = ReportService.getDashboardSummary();
+    var reports = ReportService.getDetailedReports();
+
+    return Utils.success({
+      tables: tables,
+      config: config,
+      models: tables['Battery_Models'] || [],
+      dealers: tables['Dealers'] || [],
+      tickets: tables['Tickets'] || [],
+      claims: tables['Claims'] || [],
+      tests: tables['Battery_Tests'] || [],
+      challans: tables['Delivery_Challans'] || [],
+      dispatches: tables['Company_Dispatches'] || [],
+      dispatchItems: tables['Company_Dispatch_Items'] || [],
+      stockUpdates: tables['Stock_Update_Log'] || [],
+      auditLog: tables['Audit_Log'] || [],
+      currentUser: currentUser,
+      dashboard: dashboard,
+      reports: reports,
+      syncedAt: new Date().toISOString()
+    }, 'Complete database state preloaded.');
+  } catch (err) {
+    return Utils.error('Failed to load bulk state: ' + err.message);
+  }
+}
+
+function apiSaveModel(modelData) {
+  try {
+    if (!modelData || !modelData.model_name) return Utils.error('Model name is required.');
+    var modelCode = modelData.model_code || modelData.model_name.replace(/[^A-Za-z0-9]/g, '-').toUpperCase();
+    var existing = Database.getRowById('Battery_Models', 'model_name', modelData.model_name);
+    var row = {
+      model_id: existing ? existing.model_id : ('MOD-' + Utils.generateId(6)),
+      brand: modelData.brand || 'Amaron',
+      model_name: modelData.model_name,
+      capacity_ah: modelData.capacity_ah || 35,
+      warranty_months: parseInt(modelData.warranty_months, 10) || 24,
+      guarantee_months: parseInt(modelData.guarantee_months, 10) || 12,
+      pro_rata_months: parseInt(modelData.pro_rata_months, 10) || 12,
+      is_active: modelData.is_active !== undefined ? modelData.is_active : true
+    };
+    if (existing) {
+      Database.updateRow('Battery_Models', 'model_id', existing.model_id, row);
+    } else {
+      Database.appendRow('Battery_Models', row);
+    }
+    AuditService.log('BATTERY_MODEL_SAVED', 'Battery_Models', row.model_id, 'Model: ' + row.model_name);
+    return Utils.success(row, 'Battery model saved successfully.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiSaveDealer(dealerData) {
+  try {
+    if (!dealerData || !dealerData.dealer_name) return Utils.error('Dealer name is required.');
+    var existing = Database.getRowById('Dealers', 'dealer_name', dealerData.dealer_name);
+    var row = {
+      dealer_id: existing ? existing.dealer_id : ('DLR-' + Utils.generateId(6)),
+      dealer_name: dealerData.dealer_name,
+      contact_person: dealerData.contact_person || '',
+      mobile: dealerData.mobile || '',
+      address: dealerData.address || '',
+      gstin: dealerData.gstin || '',
+      is_active: dealerData.is_active !== undefined ? dealerData.is_active : true
+    };
+    if (existing) {
+      Database.updateRow('Dealers', 'dealer_id', existing.dealer_id, row);
+    } else {
+      Database.appendRow('Dealers', row);
+    }
+    AuditService.log('DEALER_SAVED', 'Dealers', row.dealer_id, 'Dealer: ' + row.dealer_name);
+    return Utils.success(row, 'Dealer saved successfully.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
 // ─── CROSS-ORIGIN REST DISPATCHER & DOPOST (FOR GITHUB PAGES) ─────────────────
 
 function executeApiAction(action, args) {
@@ -356,6 +462,7 @@ function executeApiAction(action, args) {
 
   var apiMap = {
     'apiGetInitialData': function() { return apiGetInitialData(); },
+    'apiGetBulkState': function() { return apiGetBulkState(); },
     'apiGetDashboard': function() { return apiGetDashboard(); },
     'apiCreateTicket': function(a) { return apiCreateTicket(a[0]); },
     'apiRecordBatteryTest': function(a) { return apiRecordBatteryTest(a[0]); },
@@ -378,6 +485,8 @@ function executeApiAction(action, args) {
     'apiGetReports': function() { return apiGetReports(); },
     'apiCalculateWarranty': function(a) { return apiCalculateWarranty(a[0], a[1], a[2]); },
     'apiSaveConfig': function(a) { return apiSaveConfig(a[0]); },
+    'apiSaveModel': function(a) { return apiSaveModel(a[0]); },
+    'apiSaveDealer': function(a) { return apiSaveDealer(a[0]); },
     'apiCheckConnection': function() { return apiCheckConnection(); },
     'apiGetAuditLog': function() { return apiGetAuditLog(); }
   };

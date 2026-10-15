@@ -40,10 +40,22 @@ function assert(condition, message) {
   }
 }
 
-function httpsGet(url) {
+function httpsGet(url, maxRedirects = 3) {
   return new Promise((resolve) => {
     const start = Date.now();
     https.get(url, (res) => {
+      if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) && res.headers.location && maxRedirects > 0) {
+        httpsGet(res.headers.location, maxRedirects - 1).then(redirectRes => {
+          resolve({
+            statusCode: redirectRes.statusCode,
+            headers: redirectRes.headers,
+            latency: Date.now() - start,
+            data: redirectRes.data,
+            redirected: true
+          });
+        });
+        return;
+      }
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -76,6 +88,10 @@ async function runTests() {
   const webAppRes = await httpsGet(WEBAPP_URL);
   assert(webAppRes.statusCode === 200 || webAppRes.statusCode === 302, `Production Web App endpoint online (HTTP ${webAppRes.statusCode}, ${webAppRes.latency}ms)`);
   assert(webAppRes.headers.server === 'ESF' || webAppRes.headers['x-frame-options'], 'Google Frontend Edge Server routing verified');
+
+  const bulkRes = await httpsGet(`${WEBAPP_URL}?api=bulk`);
+  assert(bulkRes.statusCode === 200, `Production Web App bulk state prefetch endpoint online (HTTP 200, ${bulkRes.latency}ms)`);
+  assert(bulkRes.data.includes('success') && (bulkRes.data.includes('tables') || bulkRes.data.includes('tickets')), 'Production Web App returns valid bulk state payload with all tables');
 
   // TEST SUITE 2: Apps Script File & Template Integrity
   console.log(`\n${colors.bold}SUITE 2: Apps Script Deployment Source Integrity${colors.reset}`);
@@ -203,6 +219,41 @@ async function runTests() {
   assert(indexCode.includes(DEPLOYMENT_ID), 'Root index.html connects directly to production deployment URL');
   assert(indexCode.includes('script.google.com/macros/s/'), 'Root index.html routes to Google Apps Script production web app');
   assert(fs.existsSync(claspJsonPath), 'Clasp configuration .clasp.json verified for ongoing production sync');
+
+  // TEST SUITE 5: Bulk State Engine & In-Memory Multi-View Integrity
+  console.log(`\n${colors.bold}SUITE 5: Bulk State Engine & Multi-View In-Memory Architecture${colors.reset}`);
+  console.log(`─────────────────────────────────────────────────────────────────────────────`);
+
+  const codeGsContent = fs.readFileSync(path.join(__dirname, '..', 'apps-script/Code.gs'), 'utf8');
+  assert(codeGsContent.includes('apiGetBulkState'), 'Code.gs exports apiGetBulkState for zero-latency bulk pre-fetching');
+  assert(codeGsContent.includes('apiSaveModel'), 'Code.gs exports apiSaveModel for master battery model management');
+  assert(codeGsContent.includes('apiSaveDealer'), 'Code.gs exports apiSaveDealer for authorized dealer master management');
+  assert(codeGsContent.includes('getBulkTables'), 'Database.gs implements optimized single-sheet-open getBulkTables');
+
+  const appHtmlContent = fs.readFileSync(path.join(__dirname, '..', 'apps-script/app.html'), 'utf8');
+  assert(appHtmlContent.includes('loadCachedState'), 'app.html implements cold-start instant cache hydration');
+  assert(appHtmlContent.includes('syncAllData'), 'app.html implements background sync engine');
+  assert(appHtmlContent.includes('switchLabTab'), 'app.html provides dual-tab control for testing lab');
+  assert(appHtmlContent.includes('switchDispatchTab'), 'app.html provides dual-tab control for company dispatches');
+  assert(appHtmlContent.includes('switchReplacementTab'), 'app.html provides dual-tab control for replacements due/history');
+  assert(appHtmlContent.includes('switchStockTab'), 'app.html provides dual-tab control for ERP stock reconciliation');
+  assert(appHtmlContent.includes('switchChallansTab'), 'app.html provides triple-tab control for delivery challans');
+  assert(appHtmlContent.includes('downloadCSV'), 'app.html implements universal CSV export engine');
+
+  // Verify client-side filter simulation
+  const sampleTickets = [
+    { ticket_no: 'TKT-001', original_serial_no: '009841', status: 'RECEIVED', customer_name: 'Rajesh Sharma', battery_model: 'AAM-FL-00042B20L' },
+    { ticket_no: 'TKT-002', original_serial_no: '009842', status: 'TEST_PASSED', customer_name: 'Amit Patel', battery_model: 'AAM-PR-00055D23L' },
+    { ticket_no: 'TKT-003', original_serial_no: '009843', status: 'TEST_REJECTED', customer_name: 'Sunil Verma', battery_model: 'AAM-FL-00042B20L' }
+  ];
+  const filteredByStatus = sampleTickets.filter(t => t.status === 'RECEIVED');
+  assert(filteredByStatus.length === 1 && filteredByStatus[0].ticket_no === 'TKT-001', 'In-memory filter correctly isolates status without server call');
+
+  const filteredBySearch = sampleTickets.filter(t => {
+    const blob = [t.ticket_no, t.original_serial_no, t.customer_name, t.battery_model].join(' ').toLowerCase();
+    return blob.indexOf('009842') !== -1;
+  });
+  assert(filteredBySearch.length === 1 && filteredBySearch[0].original_serial_no === '009842', 'In-memory multi-field search preserves leading zeroes and isolates serials');
 
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);

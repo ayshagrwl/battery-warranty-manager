@@ -1,20 +1,39 @@
 <script>
 /**
  * Battery Warranty & Claim Management System — Client Script
- * Connects UI seamlessly to Google Apps Script Server RPC endpoints via google.script.run
+ * Ultra-Responsive Single-Page Architecture with In-Memory Bulk State Cache,
+ * Real-time Instant Filtering, Multi-Tab Views, and Background Sync.
  */
 
-// Global Application State
+// ─── GLOBAL IN-MEMORY STORE ──────────────────────────────────────────────────
 window.BWMS = {
   config: {},
   models: [],
   dealers: [],
-  currentUser: { email: 'staff@distributor.in', role: 'OPERATOR' },
+  currentUser: { email: 'staff@distributor.in', name: 'Staff Operator', role: 'OPERATOR' },
   tickets: [],
   claims: [],
+  tests: [],
+  challans: [],
+  dispatches: [],
+  dispatchItems: [],
+  stockUpdates: [],
+  auditLog: [],
+  dashboard: {},
+  reports: {},
   selectedDispatchClaims: new Set(),
-  activeView: 'dashboard'
+  activeView: 'dashboard',
+  labTab: 'queue',
+  dispatchTab: 'queue',
+  repTab: 'pending',
+  stockTab: 'pending',
+  challansTab: 'all',
+  settingsTab: 'profile',
+  isSyncing: false,
+  lastSyncedAt: null
 };
+
+var CACHE_KEY = 'BWMS_STATE_CACHE_V2';
 
 // ─── INITIALIZATION ──────────────────────────────────────────────────────────
 
@@ -23,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initApp() {
-  // Set default dates
+  // Set default dates across all form inputs
   var today = new Date().toISOString().split('T')[0];
   var dateInputs = ['intake-date', 'test-date', 'claim-dos', 'ret-date', 'dsp-date', 'rep-date', 'close-del-date'];
   dateInputs.forEach(function(id) {
@@ -31,58 +50,162 @@ function initApp() {
     if (el) el.value = today;
   });
 
-  // Fetch initial master data & user profile
-  callServer('apiGetInitialData', [], function(res) {
-    if (res && res.success && res.data) {
-      BWMS.config = res.data.config || {};
-      BWMS.models = res.data.models || [];
-      BWMS.dealers = res.data.dealers || [];
-      BWMS.currentUser = res.data.currentUser || BWMS.currentUser;
-
-      // Update user badge
-      var userEl = document.getElementById('current-user-name');
-      var avatarEl = document.getElementById('current-user-avatar');
-      if (userEl) userEl.textContent = BWMS.currentUser.name || BWMS.currentUser.email || 'Staff Operator';
-      if (avatarEl) {
-        var initials = (BWMS.currentUser.name || 'OP').substring(0, 2).toUpperCase();
-        avatarEl.textContent = initials;
-      }
-
-      // Populate dropdowns
-      populateDropdowns();
-
-      // Load distributor profile into settings
-      populateSettings();
+  // Setup click outside listener for search suggestions dropdown
+  document.addEventListener('click', function(e) {
+    var searchBox = document.querySelector('.search-wrapper');
+    var dropdown = document.getElementById('search-suggestions-dropdown');
+    if (dropdown && searchBox && !searchBox.contains(e.target)) {
+      dropdown.style.display = 'none';
     }
-    // Refresh dashboard
-    refreshDashboard();
+  });
+
+  // 1. Instant Cold Start from local cache (0ms perceived latency!)
+  loadCachedState();
+
+  // 2. Fetch fresh bulk database state in the background
+  syncAllData(false);
+}
+
+function loadCachedState() {
+  try {
+    var raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      var cached = JSON.parse(raw);
+      if (cached && cached.tables) {
+        applyStateData(cached);
+        updateSyncStatusBadge('Cached (Offline Ready)', 'cached');
+        console.log('⚡ Loaded complete database state from instant local cache.');
+      }
+    }
+  } catch (err) {
+    console.warn('Cache read warning:', err);
+  }
+}
+
+function syncAllData(isManual) {
+  if (BWMS.isSyncing) return;
+  BWMS.isSyncing = true;
+  updateSyncStatusBadge('Syncing cloud...', 'syncing');
+
+  callServer('apiGetBulkState', [], function(res) {
+    BWMS.isSyncing = false;
+    if (res && res.success && res.data) {
+      applyStateData(res.data);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(res.data));
+      } catch (storageErr) {
+        console.warn('Failed to cache state to localStorage:', storageErr);
+      }
+      BWMS.lastSyncedAt = new Date();
+      updateSyncStatusBadge('Synced just now', 'online');
+
+      if (isManual) {
+        var totalRecords = (BWMS.tickets.length + BWMS.claims.length + BWMS.tests.length);
+        showToast('✅ Cloud Sync Complete: ' + totalRecords + ' records updated in memory.', 'success');
+      }
+    } else {
+      updateSyncStatusBadge('Cloud offline', 'offline');
+      if (isManual) {
+        showToast('Sync warning: ' + ((res && res.error) ? res.error : 'Network error'), 'warning');
+      }
+    }
   }, function(err) {
-    showToast('Failed to load initial data: ' + err, 'error');
+    BWMS.isSyncing = false;
+    updateSyncStatusBadge('Cloud offline', 'offline');
+    console.warn('Bulk sync error:', err);
+    if (isManual) {
+      showToast('Backend connection error: ' + err, 'error');
+    }
   });
 }
 
+function applyStateData(data) {
+  var t = data.tables || {};
+  BWMS.config = data.config || t.Config || BWMS.config;
+  BWMS.models = data.models || t.Battery_Models || BWMS.models;
+  BWMS.dealers = data.dealers || t.Dealers || BWMS.dealers;
+  BWMS.tickets = data.tickets || t.Tickets || [];
+  BWMS.claims = data.claims || t.Claims || [];
+  BWMS.tests = data.tests || t.Battery_Tests || [];
+  BWMS.challans = data.challans || t.Delivery_Challans || [];
+  BWMS.dispatches = data.dispatches || t.Company_Dispatches || [];
+  BWMS.dispatchItems = data.dispatchItems || t.Company_Dispatch_Items || [];
+  BWMS.stockUpdates = data.stockUpdates || t.Stock_Update_Log || [];
+  BWMS.auditLog = data.auditLog || t.Audit_Log || [];
+  BWMS.currentUser = data.currentUser || BWMS.currentUser;
+  BWMS.dashboard = data.dashboard || {};
+  BWMS.reports = data.reports || {};
+
+  // Update User Profile Badge
+  var userEl = document.getElementById('current-user-name');
+  var avatarEl = document.getElementById('current-user-avatar');
+  if (userEl) userEl.textContent = BWMS.currentUser.name || BWMS.currentUser.email || 'Staff Operator';
+  if (avatarEl) {
+    var initials = (BWMS.currentUser.name || 'OP').substring(0, 2).toUpperCase();
+    avatarEl.textContent = initials;
+  }
+
+  // Populate Dropdowns
+  populateDropdowns();
+
+  // Update Settings Form fields
+  populateSettingsForm();
+
+  // Re-render currently active view
+  renderCurrentView();
+}
+
+function updateSyncStatusBadge(text, state) {
+  var badge = document.getElementById('sync-status-badge');
+  var dot = document.getElementById('sync-dot');
+  var label = document.getElementById('sync-status-text');
+  var refreshIcon = document.getElementById('sync-refresh-icon');
+
+  if (label) label.textContent = text;
+  if (dot) {
+    dot.className = 'sync-dot';
+    if (state === 'syncing') dot.classList.add('syncing');
+    else if (state === 'offline') dot.classList.add('offline');
+  }
+  if (refreshIcon) {
+    if (state === 'syncing') refreshIcon.classList.add('spin');
+    else refreshIcon.classList.remove('spin');
+  }
+  if (badge) {
+    badge.title = 'In-Memory fast store: ' + (BWMS.tickets.length || 0) + ' tickets, ' + (BWMS.claims.length || 0) + ' claims. Click to sync with Google Cloud.';
+  }
+
+  // Update cloud settings info tab
+  var storeStats = document.getElementById('cloud-store-stats');
+  if (storeStats) {
+    storeStats.textContent = 'Active • ' + (BWMS.tickets.length + BWMS.claims.length + BWMS.tests.length) + ' items in memory';
+  }
+}
+
 function populateDropdowns() {
-  // Battery Models
-  var modelSelects = ['intake-model'];
+  // Model Selects
+  var modelSelects = ['intake-model', 'filter-tickets-model', 'filter-claims-model'];
   modelSelects.forEach(function(selId) {
     var sel = document.getElementById(selId);
     if (!sel) return;
-    sel.innerHTML = '<option value="">-- Select Battery Model --</option>';
+    var currentVal = sel.value;
+    var defaultText = selId.startsWith('filter') ? 'All Battery Models' : '-- Select Battery Model --';
+    sel.innerHTML = '<option value="' + (selId.startsWith('filter') ? 'ALL' : '') + '">' + defaultText + '</option>';
     BWMS.models.forEach(function(m) {
       var opt = document.createElement('option');
       opt.value = m.model_name || m.model_code;
-      opt.textContent = (m.model_name || m.model_code) + ' (' + (m.warranty_period_months || 24) + 'M)';
-      opt.dataset.warranty = m.warranty_period_months || 24;
-      opt.dataset.code = m.model_code;
+      opt.textContent = (m.model_name || m.model_code) + ' (' + (m.warranty_months || m.warranty_period_months || 24) + 'M)';
       sel.appendChild(opt);
     });
+    if (currentVal) sel.value = currentVal;
   });
 
-  // Dealers
+  // Dealer Selects
   var dealerSelects = ['intake-dealer-name'];
   dealerSelects.forEach(function(selId) {
     var sel = document.getElementById(selId);
     if (!sel) return;
+    var currentVal = sel.value;
     sel.innerHTML = '<option value="">-- Select Dealer --</option>';
     BWMS.dealers.forEach(function(d) {
       var opt = document.createElement('option');
@@ -90,18 +213,23 @@ function populateDropdowns() {
       opt.textContent = d.dealer_name + (d.city ? ' (' + d.city + ')' : '');
       sel.appendChild(opt);
     });
+    if (currentVal) sel.value = currentVal;
   });
 }
 
-function populateSettings() {
+function populateSettingsForm() {
   if (BWMS.config.COMPANY_NAME) document.getElementById('cfg-company-name').value = BWMS.config.COMPANY_NAME;
   if (BWMS.config.COMPANY_GST) document.getElementById('cfg-company-gst').value = BWMS.config.COMPANY_GST;
   if (BWMS.config.COMPANY_ADDRESS) document.getElementById('cfg-company-address').value = BWMS.config.COMPANY_ADDRESS;
   if (BWMS.config.COMPANY_PHONE) document.getElementById('cfg-company-phone').value = BWMS.config.COMPANY_PHONE;
   if (BWMS.config.COMPANY_EMAIL) document.getElementById('cfg-company-email').value = BWMS.config.COMPANY_EMAIL;
+  if (BWMS.config.COMPANY_TERMS) {
+    var termsEl = document.getElementById('cfg-company-terms');
+    if (termsEl) termsEl.value = BWMS.config.COMPANY_TERMS;
+  }
 }
 
-// ─── NAVIGATION & ROUTING ─────────────────────────────────────────────────────
+// ─── INSTANT NAVIGATION & ROUTING ─────────────────────────────────────────────
 
 function navigateTo(viewName, params) {
   BWMS.activeView = viewName;
@@ -125,17 +253,8 @@ function navigateTo(viewName, params) {
     sidebar.classList.remove('open');
   }
 
-  // Load view-specific data
-  if (viewName === 'dashboard') refreshDashboard();
-  else if (viewName === 'tickets') loadTickets(params);
-  else if (viewName === 'lab') loadLabQueue();
-  else if (viewName === 'claims') loadClaims(params);
-  else if (viewName === 'pending-company') loadPendingForCompany();
-  else if (viewName === 'replacement-pending') loadReplacementPending();
-  else if (viewName === 'stock-tasks') loadStockTasks();
-  else if (viewName === 'challans') loadChallans();
-  else if (viewName === 'reports') loadReports();
-  else if (viewName === 'audit') loadAuditTrail();
+  // Render view instantly from local memory
+  renderCurrentView(params);
 }
 
 function toggleSidebar() {
@@ -143,106 +262,145 @@ function toggleSidebar() {
   if (sidebar) sidebar.classList.toggle('open');
 }
 
-// ─── DASHBOARD & ATTENTION METRICS ───────────────────────────────────────────
+function renderCurrentView(params) {
+  var v = BWMS.activeView;
+  if (v === 'dashboard') renderDashboard();
+  else if (v === 'tickets') renderTicketsTable();
+  else if (v === 'lab') renderLabTables();
+  else if (v === 'claims') renderClaimsTable();
+  else if (v === 'pending-company') renderDispatchTables();
+  else if (v === 'replacement-pending') renderReplacementsTables();
+  else if (v === 'stock-tasks') renderStockTasksTables();
+  else if (v === 'challans') renderChallansTable();
+  else if (v === 'reports') renderReportsView();
+  else if (v === 'audit') renderAuditTable();
+  else if (v === 'settings') renderSettingsView();
+}
 
-function refreshDashboard() {
-  callServer('apiGetDashboard', [], function(res) {
-    if (!res || !res.success || !res.data) {
-      console.warn('apiGetDashboard returned unsuccessful response:', res);
-      return;
-    }
-    var data = res.data;
-    console.log('Live Dashboard Data:', data);
+// ─── DASHBOARD VIEW RENDERER ──────────────────────────────────────────────────
 
-    // Update KPI numbers (supporting both nested kpis object and root properties)
-    var kpis = data.kpis || {
-      total_tickets: data.totalBatteriesReceived || 0,
-      pending_tests: data.underTesting || 0,
-      total_claims: data.warrantyClaimsTotal || 0,
-      pending_company_dispatch: data.readyForCompany || 0,
-      replacements_pending: data.replacementPending || 0,
-      stock_updates_pending: data.stockUpdatePending || 0
-    };
-    document.getElementById('kpi-total-tickets').textContent = kpis.total_tickets || 0;
-    document.getElementById('kpi-pending-tests').textContent = kpis.pending_tests || 0;
-    document.getElementById('kpi-pending-company').textContent = kpis.pending_company_dispatch || 0;
-    document.getElementById('kpi-replacement-due').textContent = kpis.replacements_pending || 0;
-    document.getElementById('kpi-stock-tasks').textContent = kpis.stock_updates_pending || 0;
+function renderDashboard() {
+  var tickets = BWMS.tickets || [];
+  var claims = BWMS.claims || [];
 
-    // Badges in sidebar
-    document.getElementById('badge-tickets').textContent = kpis.total_tickets || 0;
-    document.getElementById('badge-lab').textContent = kpis.pending_tests || 0;
-    document.getElementById('badge-claims').textContent = kpis.total_claims || 0;
-    document.getElementById('badge-pending-company').textContent = kpis.pending_company_dispatch || 0;
-    document.getElementById('badge-replacement-due').textContent = kpis.replacements_pending || 0;
-    document.getElementById('badge-stock-tasks').textContent = kpis.stock_updates_pending || 0;
+  // Calculate live counts
+  var underTesting = tickets.filter(function(t) { return t.status === 'RECEIVED' || t.status === 'TESTING'; }).length;
+  var readyForCompany = claims.filter(function(c) { return c.status === 'CLAIM_CREATED' || c.status === 'READY_FOR_COMPANY'; }).length;
+  var sentToCompany = claims.filter(function(c) { return c.status === 'SENT_TO_COMPANY'; }).length;
+  var rejectedReturnPending = tickets.filter(function(t) { return t.status === 'REJECTED — RETURN PENDING'; }).length;
+  var stockTasksPending = claims.filter(function(c) { return c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED'; }).length;
 
-    // Attention Box
-    var att = data.attention || {
-      untested_batteries: data.underTesting || 0,
-      rejected_return_pending: data.rejectedReturnPending || 0,
-      passed_claims_pending_dispatch: data.readyForCompany || 0,
-      ageing_claims_over_15_days: (data.ageing ? (data.ageing.d16_30 || 0) + (data.ageing.d31_60 || 0) + (data.ageing.d60_plus || 0) : 0),
-      stock_updates_pending: data.stockUpdatePending || 0
-    };
-    document.getElementById('att-lab-count').textContent = att.untested_batteries || 0;
-    document.getElementById('att-return-count').textContent = att.rejected_return_pending || 0;
-    document.getElementById('att-dispatch-count').textContent = att.passed_claims_pending_dispatch || 0;
-    document.getElementById('att-ageing-count').textContent = att.ageing_claims_over_15_days || 0;
-    document.getElementById('att-stock-count').textContent = att.stock_updates_pending || 0;
+  // Ageing > 15 days
+  var overdue15Count = claims.filter(function(c) {
+    if (c.status !== 'SENT_TO_COMPANY') return false;
+    var d = calcDaysElapsed(c.company_dispatch_date);
+    return d > 15;
+  }).length;
 
-    // Recent Tickets Feed
-    var tbody = document.getElementById('dashboard-recent-tickets');
-    tbody.innerHTML = '';
-    var recents = data.recent_tickets || [];
-    if (recents.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#94a3b8;">No recent tickets found.</td></tr>';
-    } else {
-      recents.forEach(function(t) {
-        var tr = document.createElement('tr');
-        tr.innerHTML =
-          '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
-          '<td>' + renderSourceBadge(t.source_type) + '</td>' +
-          '<td><strong>' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + '</small></td>' +
-          '<td>' + t.battery_model + '</td>' +
-          '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
-          '<td>' + formatDate(t.date_received) + '</td>' +
-          '<td>' + renderStatusBadge(t.status) + '</td>' +
-          '<td>' + renderTicketActions(t) + '</td>';
-        tbody.appendChild(tr);
-      });
-    }
+  // KPI Elements
+  setElText('kpi-total-tickets', tickets.length);
+  setElText('kpi-pending-tests', underTesting);
+  setElText('kpi-pending-company', readyForCompany);
+  setElText('kpi-replacement-due', sentToCompany);
+  setElText('kpi-stock-tasks', stockTasksPending);
+
+  // Sidebar Badges
+  setElText('badge-tickets', tickets.length);
+  setElText('badge-lab', underTesting);
+  setElText('badge-claims', claims.length);
+  setElText('badge-pending-company', readyForCompany);
+  setElText('badge-replacement-due', sentToCompany);
+  setElText('badge-stock-tasks', stockTasksPending);
+
+  // Attention Counts
+  setElText('att-lab-count', underTesting);
+  setElText('att-return-count', rejectedReturnPending);
+  setElText('att-dispatch-count', readyForCompany);
+  setElText('att-ageing-count', overdue15Count);
+  setElText('att-stock-count', stockTasksPending);
+
+  // Recent Tickets Feed (newest 12)
+  var tbody = document.getElementById('dashboard-recent-tickets');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  var recents = tickets.slice().reverse().slice(0, 12);
+
+  if (recents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#94a3b8;">No intake tickets recorded yet. Click "+ Receive Battery" to begin.</td></tr>';
+    return;
+  }
+
+  recents.forEach(function(t) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
+      '<td>' + renderSourceBadge(t.source_type) + '</td>' +
+      '<td><strong>' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + '</small></td>' +
+      '<td>' + t.battery_model + '</td>' +
+      '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
+      '<td>' + formatDate(t.date_received) + '</td>' +
+      '<td>' + renderStatusBadge(t.status) + '</td>' +
+      '<td>' + renderTicketActions(t) + '</td>';
+    tbody.appendChild(tr);
   });
 }
 
-// ─── TICKETS (RECEIVE BATTERY) ────────────────────────────────────────────────
+// ─── TICKETS (RECEIVE BATTERY) RENDERER ────────────────────────────────────────
 
-function loadTickets(params) {
-  var filterStatus = document.getElementById('filter-tickets-status').value;
-  var filter = (filterStatus && filterStatus !== 'ALL') ? { status: filterStatus } : {};
+function renderTicketsTable() {
+  var search = (document.getElementById('filter-tickets-search') ? document.getElementById('filter-tickets-search').value : '').toLowerCase().trim();
+  var statusFilter = document.getElementById('filter-tickets-status') ? document.getElementById('filter-tickets-status').value : 'ALL';
+  var sourceFilter = document.getElementById('filter-tickets-source') ? document.getElementById('filter-tickets-source').value : 'ALL';
+  var modelFilter = document.getElementById('filter-tickets-model') ? document.getElementById('filter-tickets-model').value : 'ALL';
 
-  callServer('apiListTickets', [filter], function(res) {
-    var tbody = document.getElementById('tickets-table-body');
-    tbody.innerHTML = '';
-    if (!res || !res.success || !res.data || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#94a3b8;">No intake tickets found for this filter.</td></tr>';
-      return;
+  var tickets = BWMS.tickets || [];
+  var filtered = tickets.filter(function(t) {
+    if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+    if (sourceFilter !== 'ALL' && t.source_type !== sourceFilter) return false;
+    if (modelFilter !== 'ALL' && t.battery_model !== modelFilter) return false;
+    if (search) {
+      var blob = [
+        t.ticket_no,
+        t.customer_name,
+        t.dealer_name,
+        t.mobile,
+        t.vehicle_number,
+        t.battery_model,
+        t.original_serial_no,
+        t.remarks
+      ].join(' ').toLowerCase();
+      if (blob.indexOf(search) === -1) return false;
     }
-    BWMS.tickets = res.data;
-    BWMS.tickets.forEach(function(t) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
-        '<td>' + renderSourceBadge(t.source_type) + '</td>' +
-        '<td><strong>' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + (t.vehicle_number ? ' • ' + t.vehicle_number : '') + '</small></td>' +
-        '<td>' + t.battery_model + '</td>' +
-        '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
-        '<td>' + formatDate(t.date_received) + '</td>' +
-        '<td>' + (t.service_battery_issued ? '<span class="badge badge-info">Lent: ' + (t.service_battery_serial || 'Yes') + '</span>' : '<span style="color:#94a3b8;">None</span>') + '</td>' +
-        '<td>' + renderStatusBadge(t.status) + '</td>' +
-        '<td>' + renderTicketActions(t) + '</td>';
-      tbody.appendChild(tr);
-    });
+    return true;
+  });
+
+  // Update counter badge
+  var countBadge = document.getElementById('tickets-count-badge');
+  if (countBadge) countBadge.textContent = filtered.length + ' of ' + tickets.length + ' records';
+
+  var tbody = document.getElementById('tickets-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No matching intake tickets found.</td></tr>';
+    return;
+  }
+
+  // Reverse to show latest first
+  filtered.slice().reverse().forEach(function(t) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
+      '<td>' + renderSourceBadge(t.source_type) + '</td>' +
+      '<td><strong>' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + (t.vehicle_number ? ' • ' + t.vehicle_number : '') + '</small></td>' +
+      '<td>' + t.battery_model + '</td>' +
+      '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
+      '<td>' + formatDate(t.date_received) + '</td>' +
+      '<td>' + (t.service_battery_issued ? '<span class="badge badge-blue">Lent: ' + (t.service_battery_serial || 'Yes') + '</span>' : '<span style="color:#94a3b8;">None</span>') + '</td>' +
+      '<td>' + renderStatusBadge(t.status) + '</td>' +
+      '<td>' + renderTicketActions(t) + '</td>';
+    tbody.appendChild(tr);
   });
 }
 
@@ -258,18 +416,16 @@ function openIntakeModal() {
 function toggleSourceFields() {
   var src = document.getElementById('intake-source').value;
   var dGroup = document.getElementById('group-dealer');
-  if (src === 'DEALER') {
-    dGroup.style.display = 'block';
-  } else {
-    dGroup.style.display = 'none';
-  }
+  if (dGroup) dGroup.style.display = (src === 'DEALER') ? 'block' : 'none';
 }
 
 function toggleServiceBatteryFields() {
   var val = document.getElementById('intake-service-issued').value;
   var show = (val === 'YES');
-  document.getElementById('group-sb-model').style.display = show ? 'block' : 'none';
-  document.getElementById('group-sb-serial').style.display = show ? 'block' : 'none';
+  var mGroup = document.getElementById('group-sb-model');
+  var sGroup = document.getElementById('group-sb-serial');
+  if (mGroup) mGroup.style.display = show ? 'block' : 'none';
+  if (sGroup) sGroup.style.display = show ? 'block' : 'none';
 }
 
 function handleIntakeSubmit(e) {
@@ -290,45 +446,124 @@ function handleIntakeSubmit(e) {
     remarks: document.getElementById('intake-remarks').value
   };
 
+  closeModal('modal-intake');
+
+  // Optimistic local update
+  var tempTicketNo = 'TKT-TEMP-' + Math.floor(Math.random() * 9000 + 1000);
+  var optimisticTicket = Object.assign({}, ticketData, {
+    ticket_no: tempTicketNo,
+    status: 'RECEIVED',
+    created_at: new Date().toISOString().split('T')[0]
+  });
+  BWMS.tickets.push(optimisticTicket);
+  renderTicketsTable();
+  renderDashboard();
+  showToast('Creating ticket in cloud...', 'info');
+
   callServer('apiCreateTicket', [ticketData], function(res) {
     if (res && res.success) {
-      closeModal('modal-intake');
       showToast(res.message || 'Ticket generated successfully!', 'success');
-      loadTickets();
-      refreshDashboard();
-      // Prompt to test immediately
-      if (confirm('Intake ticket ' + res.data.ticket_no + ' created! Would you like to enter diagnostic test results now?')) {
+      syncAllData(false);
+
+      if (confirm('Intake ticket ' + res.data.ticket_no + ' generated! Would you like to conduct the Diagnostic Bench Test now?')) {
         openTestModal(res.data.ticket_no, res.data.battery_model, res.data.original_serial_no);
       }
     } else {
       showToast((res && res.error) ? res.error : 'Failed to create ticket', 'error');
+      syncAllData(false);
     }
   });
 }
 
-// ─── TESTING LAB ─────────────────────────────────────────────────────────────
+// ─── TESTING LAB VIEW RENDERER ────────────────────────────────────────────────
 
-function loadLabQueue() {
-  callServer('apiListTickets', [{ status: 'RECEIVED' }], function(res) {
-    var tbody = document.getElementById('lab-queue-body');
-    tbody.innerHTML = '';
-    if (!res || !res.success || !res.data || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#16a34a;">🎉 Testing lab queue is completely clear! All batteries tested.</td></tr>';
-      return;
-    }
-    res.data.forEach(function(t) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><strong>' + t.ticket_no + '</strong></td>' +
-        '<td>' + (t.customer_name || t.dealer_name) + '</td>' +
-        '<td>' + t.battery_model + '</td>' +
-        '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
-        '<td>' + formatDate(t.date_received) + '</td>' +
-        '<td>' + (t.remarks || 'No symptoms noted') + '</td>' +
-        '<td><button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + t.battery_model + '\', \'' + t.original_serial_no + '\')">🔬 Conduct Test</button></td>';
-      tbody.appendChild(tr);
-    });
+function switchLabTab(tab) {
+  BWMS.labTab = tab;
+  var btnQueue = document.getElementById('tab-btn-lab-queue');
+  var btnHistory = document.getElementById('tab-btn-lab-history');
+  var containerQueue = document.getElementById('container-lab-queue');
+  var containerHistory = document.getElementById('container-lab-history');
+
+  if (btnQueue) btnQueue.classList.toggle('active', tab === 'queue');
+  if (btnHistory) btnHistory.classList.toggle('active', tab === 'history');
+  if (containerQueue) containerQueue.style.display = (tab === 'queue') ? 'block' : 'none';
+  if (containerHistory) containerHistory.style.display = (tab === 'history') ? 'block' : 'none';
+
+  renderLabTables();
+}
+
+function renderLabTables() {
+  var search = (document.getElementById('filter-lab-search') ? document.getElementById('filter-lab-search').value : '').toLowerCase().trim();
+  var verdictFilter = document.getElementById('filter-lab-verdict') ? document.getElementById('filter-lab-verdict').value : 'ALL';
+
+  var queueItems = (BWMS.tickets || []).filter(function(t) {
+    return t.status === 'RECEIVED' || t.status === 'TESTING';
   });
+
+  setElText('lab-queue-tab-count', queueItems.length);
+  setElText('lab-history-tab-count', (BWMS.tests || []).length);
+
+  // Render Queue Table
+  var tbodyQueue = document.getElementById('lab-queue-body');
+  if (tbodyQueue) {
+    tbodyQueue.innerHTML = '';
+    var filteredQueue = queueItems.filter(function(t) {
+      if (!search) return true;
+      var blob = [t.ticket_no, t.customer_name, t.dealer_name, t.battery_model, t.original_serial_no, t.remarks].join(' ').toLowerCase();
+      return blob.indexOf(search) !== -1;
+    });
+
+    if (filteredQueue.length === 0) {
+      tbodyQueue.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#16a34a;">🎉 Testing lab queue is clear! All batteries tested.</td></tr>';
+    } else {
+      filteredQueue.forEach(function(t) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong>' + t.ticket_no + '</strong></td>' +
+          '<td><strong>' + (t.customer_name || t.dealer_name) + '</strong><br><small style="color:#64748b;">' + (t.mobile || '') + '</small></td>' +
+          '<td>' + t.battery_model + '</td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
+          '<td>' + formatDate(t.date_received) + '</td>' +
+          '<td>' + (t.remarks || 'No symptoms noted') + '</td>' +
+          '<td><button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + t.battery_model + '\', \'' + t.original_serial_no + '\')">🔬 Conduct Test</button></td>';
+        tbodyQueue.appendChild(tr);
+      });
+    }
+  }
+
+  // Render Completed History Table
+  var tbodyHistory = document.getElementById('lab-history-body');
+  if (tbodyHistory) {
+    tbodyHistory.innerHTML = '';
+    var tests = BWMS.tests || [];
+    var filteredHistory = tests.filter(function(tst) {
+      if (verdictFilter !== 'ALL' && tst.test_result !== verdictFilter) return false;
+      if (search) {
+        var blob = [tst.test_id, tst.ticket_no, tst.original_serial_no, tst.tested_by, tst.test_remarks].join(' ').toLowerCase();
+        if (blob.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+
+    if (filteredHistory.length === 0) {
+      tbodyHistory.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No completed diagnostic tests found.</td></tr>';
+    } else {
+      filteredHistory.slice().reverse().forEach(function(tst) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent);">' + (tst.test_id || 'TST-') + '</strong></td>' +
+          '<td><small onclick="showTimeline(\'' + tst.ticket_no + '\')" style="cursor:pointer; color:var(--text-muted);">' + tst.ticket_no + '</small></td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + tst.original_serial_no + '</span></td>' +
+          '<td>' + formatDate(tst.test_date) + '</td>' +
+          '<td><strong>' + (tst.open_circuit_voltage ? tst.open_circuit_voltage + 'V' : '-') + '</strong></td>' +
+          '<td>' + renderTestVerdictBadge(tst.test_result) + '</td>' +
+          '<td>' + (tst.tested_by || '-') + '</td>' +
+          '<td><small>' + (tst.test_remarks || '-') + '</small></td>' +
+          '<td><button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + tst.ticket_no + '\')">Timeline</button></td>';
+        tbodyHistory.appendChild(tr);
+      });
+    }
+  }
 }
 
 function openTestModal(ticketNo, model, serial) {
@@ -353,77 +588,109 @@ function handleTestSubmit(e) {
     test_remarks: document.getElementById('test-remarks').value
   };
 
+  closeModal('modal-test');
+
+  // Optimistic local update
+  var tkt = BWMS.tickets.find(function(t) { return t.ticket_no === testData.ticket_no; });
+  if (tkt) {
+    tkt.status = (testData.test_result === 'PASS') ? 'TEST_PASSED' : 'TEST_REJECTED';
+  }
+  BWMS.tests.push(Object.assign({}, testData, { test_id: 'TST-' + Date.now().toString().slice(-6) }));
+  renderLabTables();
+  renderDashboard();
+
   callServer('apiRecordBatteryTest', [testData], function(res) {
     if (res && res.success) {
-      closeModal('modal-test');
       showToast(res.message || 'Battery test saved.', 'success');
-      loadLabQueue();
-      refreshDashboard();
+      syncAllData(false);
 
       if (testData.test_result === 'PASS') {
         if (confirm('Battery PASSED diagnostics! Would you like to generate the Warranty Claim now?')) {
           openClaimModal(testData.ticket_no);
         }
       } else {
-        if (confirm('Battery REJECTED. Would you like to generate the Battery Return Delivery Challan now?')) {
+        if (confirm('Battery REJECTED. Would you like to generate the Customer Return Delivery Challan now?')) {
           createReturnChallan(testData.ticket_no);
         }
       }
     } else {
       showToast((res && res.error) ? res.error : 'Failed to record test', 'error');
+      syncAllData(false);
     }
   });
 }
 
-// ─── WARRANTY CLAIMS ─────────────────────────────────────────────────────────
+// ─── WARRANTY CLAIMS VIEW RENDERER ───────────────────────────────────────────
 
-function loadClaims() {
-  var filterStatus = document.getElementById('filter-claims-status').value;
-  var filter = (filterStatus && filterStatus !== 'ALL') ? { status: filterStatus } : {};
+function renderClaimsTable() {
+  var search = (document.getElementById('filter-claims-search') ? document.getElementById('filter-claims-search').value : '').toLowerCase().trim();
+  var statusFilter = document.getElementById('filter-claims-status') ? document.getElementById('filter-claims-status').value : 'ALL';
+  var warrantyFilter = document.getElementById('filter-claims-warranty') ? document.getElementById('filter-claims-warranty').value : 'ALL';
+  var modelFilter = document.getElementById('filter-claims-model') ? document.getElementById('filter-claims-model').value : 'ALL';
 
-  callServer('apiListClaims', [filter], function(res) {
-    var tbody = document.getElementById('claims-table-body');
-    tbody.innerHTML = '';
-    if (!res || !res.success || !res.data || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#94a3b8;">No warranty claims found.</td></tr>';
-      return;
+  var claims = BWMS.claims || [];
+  var filtered = claims.filter(function(c) {
+    if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
+    if (warrantyFilter !== 'ALL' && c.warranty_status !== warrantyFilter) return false;
+    if (modelFilter !== 'ALL' && c.battery_model !== modelFilter) return false;
+    if (search) {
+      var blob = [
+        c.claim_no,
+        c.ticket_no,
+        c.customer_name,
+        c.dealer_name,
+        c.mobile,
+        c.battery_model,
+        c.original_serial_no,
+        c.replacement_serial_no
+      ].join(' ').toLowerCase();
+      if (blob.indexOf(search) === -1) return false;
     }
-    BWMS.claims = res.data;
-    BWMS.claims.forEach(function(c) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-        '<td><small onclick="showTimeline(\'' + c.ticket_no + '\')" style="cursor:pointer; color:var(--text-muted);">' + c.ticket_no + '</small></td>' +
-        '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
-        '<td>' + c.battery_model + '</td>' +
-        '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
-        '<td>Sale: ' + formatDate(c.date_of_sale) + '<br><small>Exp: ' + formatDate(c.warranty_expiry_date) + '</small></td>' +
-        '<td>' + renderWarrantyBadge(c.warranty_status) + '</td>' +
-        '<td>' + renderStatusBadge(c.claim_status) + '</td>' +
-        '<td>' + renderClaimActions(c) + '</td>';
-      tbody.appendChild(tr);
-    });
+    return true;
+  });
+
+  setElText('claims-count-badge', filtered.length + ' of ' + claims.length + ' claims');
+
+  var tbody = document.getElementById('claims-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No matching claims found.</td></tr>';
+    return;
+  }
+
+  filtered.slice().reverse().forEach(function(c) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+      '<td><small onclick="showTimeline(\'' + c.ticket_no + '\')" style="cursor:pointer; color:var(--text-muted);">' + c.ticket_no + '</small></td>' +
+      '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
+      '<td>' + c.battery_model + '</td>' +
+      '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+      '<td>Sale: ' + formatDate(c.date_of_sale) + '<br><small>Exp: ' + formatDate(c.warranty_expiry_date) + '</small></td>' +
+      '<td>' + renderWarrantyBadge(c.warranty_status) + '</td>' +
+      '<td>' + renderStatusBadge(c.status) + '</td>' +
+      '<td>' + renderClaimActions(c) + '</td>';
+    tbody.appendChild(tr);
   });
 }
 
 function openClaimModal(ticketNo) {
-  callServer('apiGetTicket', [ticketNo], function(res) {
-    if (!res || !res.success || !res.data) {
-      showToast('Ticket not found', 'error');
-      return;
-    }
-    var t = res.data;
-    document.getElementById('form-claim').reset();
-    document.getElementById('claim-ticket-no').value = t.ticket_no;
-    document.getElementById('claim-view-ticket').textContent = t.ticket_no;
-    document.getElementById('claim-view-party').textContent = t.customer_name || t.dealer_name;
-    document.getElementById('claim-view-model').textContent = t.battery_model;
-    document.getElementById('claim-view-serial').textContent = t.original_serial_no;
+  var t = (BWMS.tickets || []).find(function(item) { return item.ticket_no === ticketNo; });
+  if (!t) {
+    showToast('Ticket not found in local memory', 'error');
+    return;
+  }
 
-    // Reset calc box
-    document.getElementById('claim-calc-box').innerHTML = 'Enter date of sale to calculate';
-    openModal('modal-claim');
-  });
+  document.getElementById('form-claim').reset();
+  document.getElementById('claim-ticket-no').value = t.ticket_no;
+  document.getElementById('claim-view-ticket').textContent = t.ticket_no;
+  document.getElementById('claim-view-party').textContent = t.customer_name || t.dealer_name;
+  document.getElementById('claim-view-model').textContent = t.battery_model;
+  document.getElementById('claim-view-serial').textContent = t.original_serial_no;
+  document.getElementById('claim-calc-box').innerHTML = 'Enter date of sale to calculate';
+  openModal('modal-claim');
 }
 
 function calculateClaimWarranty() {
@@ -431,19 +698,28 @@ function calculateClaimWarranty() {
   var dos = document.getElementById('claim-dos').value;
   if (!model || !dos) return;
 
-  callServer('apiCalculateWarranty', [model, dos], function(res) {
-    if (res && res.success && res.data) {
-      var w = res.data;
-      var box = document.getElementById('claim-calc-box');
-      if (w.status === 'IN_WARRANTY') {
-        box.innerHTML = '<span style="color:#16a34a;">✅ IN WARRANTY</span> (Expires: ' + formatDate(w.expiryDate) + ' • ' + w.monthsRemaining + ' mos left)';
-      } else if (w.status === 'OUT_OF_WARRANTY') {
-        box.innerHTML = '<span style="color:#dc2626;">❌ OUT OF WARRANTY</span> (Expired: ' + formatDate(w.expiryDate) + ')';
-      } else {
-        box.innerHTML = '<span style="color:#d97706;">⚠️ ' + w.status + '</span>';
-      }
-    }
+  var m = (BWMS.models || []).find(function(item) {
+    return (item.model_name === model || item.model_code === model);
   });
+
+  var totalMonths = m ? (parseInt(m.warranty_months, 10) || 24) : 24;
+  var guaranteeMonths = m ? (parseInt(m.guarantee_months, 10) || 12) : 12;
+
+  var saleDate = new Date(dos);
+  var now = new Date();
+  var diffMonths = (now.getFullYear() - saleDate.getFullYear()) * 12 + (now.getMonth() - saleDate.getMonth());
+
+  var box = document.getElementById('claim-calc-box');
+  if (diffMonths <= guaranteeMonths) {
+    box.innerHTML = '<span style="color:#16a34a;">✅ FULL GUARANTEE (100% Free Replacement)</span> (' + (guaranteeMonths - diffMonths) + ' mos guarantee left)';
+  } else if (diffMonths <= totalMonths) {
+    var proMonths = totalMonths - guaranteeMonths;
+    var used = diffMonths - guaranteeMonths;
+    var disc = Math.max(0, Math.round(100 - (used / proMonths) * 100));
+    box.innerHTML = '<span style="color:#0284c7;">⚖️ PRO-RATA WARRANTY (' + disc + '% Discount)</span>';
+  } else {
+    box.innerHTML = '<span style="color:#dc2626;">❌ OUT OF WARRANTY (Expired ' + (diffMonths - totalMonths) + ' mos ago)</span>';
+  }
 }
 
 function handleClaimSubmit(e) {
@@ -456,12 +732,12 @@ function handleClaimSubmit(e) {
     remarks: document.getElementById('claim-remarks').value
   };
 
+  closeModal('modal-claim');
+
   callServer('apiCreateClaim', [claimData], function(res) {
     if (res && res.success) {
-      closeModal('modal-claim');
       showToast(res.message || 'Warranty claim created!', 'success');
-      loadClaims();
-      refreshDashboard();
+      syncAllData(false);
       if (confirm('Claim ' + res.data.claim_no + ' generated! Print official Claim Form for battery company?')) {
         printClaimForm(res.data.claim_no);
       }
@@ -471,13 +747,574 @@ function handleClaimSubmit(e) {
   });
 }
 
-// ─── RETURN CHALLANS & ACKNOWLEDGEMENT ────────────────────────────────────────
+// ─── COMPANY DISPATCH STAGING & BATCHES ───────────────────────────────────────
+
+function switchDispatchTab(tab) {
+  BWMS.dispatchTab = tab;
+  var btnQueue = document.getElementById('tab-btn-dsp-queue');
+  var btnBatches = document.getElementById('tab-btn-dsp-batches');
+  var containerQueue = document.getElementById('container-dsp-queue');
+  var containerBatches = document.getElementById('container-dsp-batches');
+
+  if (btnQueue) btnQueue.classList.toggle('active', tab === 'queue');
+  if (btnBatches) btnBatches.classList.toggle('active', tab === 'batches');
+  if (containerQueue) containerQueue.style.display = (tab === 'queue') ? 'block' : 'none';
+  if (containerBatches) containerBatches.style.display = (tab === 'batches') ? 'block' : 'none';
+
+  renderDispatchTables();
+}
+
+function renderDispatchTables() {
+  var search = (document.getElementById('filter-dispatch-search') ? document.getElementById('filter-dispatch-search').value : '').toLowerCase().trim();
+
+  // Pending Queue
+  var pendingClaims = (BWMS.claims || []).filter(function(c) {
+    return c.status === 'CLAIM_CREATED' || c.status === 'READY_FOR_COMPANY';
+  });
+
+  setElText('dsp-queue-count', pendingClaims.length);
+  setElText('dsp-batches-count', (BWMS.dispatches || []).length);
+
+  var tbodyQueue = document.getElementById('pending-dispatch-body');
+  if (tbodyQueue) {
+    tbodyQueue.innerHTML = '';
+    var filtered = pendingClaims.filter(function(c) {
+      if (!search) return true;
+      var blob = [c.claim_no, c.customer_name, c.dealer_name, c.battery_model, c.original_serial_no].join(' ').toLowerCase();
+      return blob.indexOf(search) !== -1;
+    });
+
+    if (filtered.length === 0) {
+      tbodyQueue.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#16a34a;">No claims waiting for company dispatch. All dispatched!</td></tr>';
+    } else {
+      filtered.forEach(function(c) {
+        var isChecked = BWMS.selectedDispatchClaims.has(c.claim_no);
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><input type="checkbox" class="chk-dispatch-item" value="' + c.claim_no + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleDispatchItemCheck(this)"></td>' +
+          '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+          '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong></td>' +
+          '<td>' + c.battery_model + '</td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+          '<td>' + formatDate(c.created_at || c.claim_date) + '</td>' +
+          '<td><button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs (' + (c.doc_count || 0) + ')</button></td>' +
+          '<td><button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Claim Form</button></td>';
+        tbodyQueue.appendChild(tr);
+      });
+    }
+  }
+
+  // Batches History Table
+  var tbodyBatches = document.getElementById('dispatch-batches-body');
+  if (tbodyBatches) {
+    tbodyBatches.innerHTML = '';
+    var dispatches = BWMS.dispatches || [];
+    if (dispatches.length === 0) {
+      tbodyBatches.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No dispatch batches recorded yet.</td></tr>';
+    } else {
+      dispatches.slice().reverse().forEach(function(b) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent);">' + b.dispatch_batch_no + '</strong></td>' +
+          '<td><strong style="font-family:monospace;">' + b.company_challan_no + '</strong></td>' +
+          '<td>' + (b.company_name || 'Factory') + '</td>' +
+          '<td>' + (b.carrier_transporter || '-') + '</td>' +
+          '<td>' + (b.lr_docket_no || '-') + '</td>' +
+          '<td><span class="badge badge-purple">' + (b.battery_count || b.claim_count || 1) + ' Batteries</span></td>' +
+          '<td>' + formatDate(b.dispatch_date) + '</td>' +
+          '<td>' + (b.created_by || 'Staff') + '</td>' +
+          '<td><div style="display:flex; gap:6px;">' +
+          '  <button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + b.company_challan_no + '\')">🖨️ Challan</button>' +
+          '  <button class="btn btn-secondary btn-sm" onclick="openBatchItemsModal(\'' + b.dispatch_batch_no + '\')">👁️ Items</button>' +
+          '</div></td>';
+        tbodyBatches.appendChild(tr);
+      });
+    }
+  }
+}
+
+function handleDispatchItemCheck(cb) {
+  if (cb.checked) BWMS.selectedDispatchClaims.add(cb.value);
+  else BWMS.selectedDispatchClaims.delete(cb.value);
+  updateSelectedDispatchCount();
+}
+
+function toggleSelectAllDispatch(checked) {
+  var cbs = document.querySelectorAll('.chk-dispatch-item');
+  cbs.forEach(function(cb) {
+    cb.checked = checked;
+    if (checked) BWMS.selectedDispatchClaims.add(cb.value);
+    else BWMS.selectedDispatchClaims.delete(cb.value);
+  });
+  updateSelectedDispatchCount();
+}
+
+function updateSelectedDispatchCount() {
+  var count = BWMS.selectedDispatchClaims.size;
+  setElText('selected-dispatch-count', count + ' claims selected');
+}
+
+function openDispatchBatchModal() {
+  if (BWMS.selectedDispatchClaims.size === 0) {
+    showToast('Please select at least one claim to dispatch to the company.', 'warning');
+    return;
+  }
+  document.getElementById('form-dispatch').reset();
+  setElText('dispatch-batch-count', BWMS.selectedDispatchClaims.size);
+  document.getElementById('dsp-date').value = new Date().toISOString().split('T')[0];
+
+  var list = document.getElementById('dispatch-selected-claims-list');
+  list.innerHTML = '';
+  BWMS.selectedDispatchClaims.forEach(function(claimNo) {
+    var div = document.createElement('div');
+    div.textContent = '• ' + claimNo;
+    list.appendChild(div);
+  });
+
+  openModal('modal-dispatch');
+}
+
+function handleDispatchSubmit(e) {
+  e.preventDefault();
+  var data = {
+    claim_nos: Array.from(BWMS.selectedDispatchClaims),
+    company_name: document.getElementById('dsp-company-name').value,
+    dispatch_date: document.getElementById('dsp-date').value,
+    transport_name: document.getElementById('dsp-carrier').value,
+    docket_number: document.getElementById('dsp-docket').value,
+    remarks: document.getElementById('dsp-remarks').value
+  };
+
+  closeModal('modal-dispatch');
+
+  callServer('apiCreateCompanyDispatch', [data], function(res) {
+    if (res && res.success) {
+      BWMS.selectedDispatchClaims.clear();
+      showToast(res.message || 'Company dispatch batch created!', 'success');
+      syncAllData(false);
+      if (confirm('Dispatched! Would you like to print the Consolidated Delivery Challan (' + res.data.company_challan_no + ')?')) {
+        printCompanyChallan(res.data.company_challan_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to dispatch batch', 'error');
+    }
+  });
+}
+
+function openBatchItemsModal(batchNo) {
+  var modal = document.getElementById('modal-batch-items');
+  var title = document.getElementById('batch-items-title');
+  var summary = document.getElementById('batch-items-summary');
+  var tbody = document.getElementById('batch-items-table-body');
+
+  title.textContent = 'Batch Items — ' + batchNo;
+  var b = (BWMS.dispatches || []).find(function(item) { return item.dispatch_batch_no === batchNo; });
+  summary.innerHTML =
+    '<strong>Batch:</strong> ' + batchNo + ' | ' +
+    '<strong>Challan:</strong> ' + (b ? b.company_challan_no : '-') + ' | ' +
+    '<strong>Transporter:</strong> ' + (b ? b.carrier_transporter : '-') + ' | ' +
+    '<strong>Date:</strong> ' + (b ? formatDate(b.dispatch_date) : '-');
+
+  var items = (BWMS.dispatchItems || []).filter(function(item) { return item.dispatch_batch_no === batchNo; });
+  if (items.length === 0) {
+    items = (BWMS.claims || []).filter(function(c) { return c.dispatch_batch_no === batchNo; });
+  }
+
+  tbody.innerHTML = '';
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:15px; color:#94a3b8;">No items listed in batch cache.</td></tr>';
+  } else {
+    items.forEach(function(it, idx) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + (idx + 1) + '</td>' +
+        '<td><strong style="color:var(--accent);">' + it.claim_no + '</strong></td>' +
+        '<td>' + (it.customer_name || it.dealer_name || '-') + '</td>' +
+        '<td>' + it.battery_model + '</td>' +
+        '<td><span style="font-family:monospace; font-weight:bold;">' + it.original_serial_no + '</span></td>' +
+        '<td><button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + it.claim_no + '\')">Timeline</button></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  openModal('modal-batch-items');
+}
+
+// ─── REPLACEMENTS DUE & AGEING RENDERER ───────────────────────────────────────
+
+function switchReplacementTab(tab) {
+  BWMS.repTab = tab;
+  var btnPending = document.getElementById('tab-btn-rep-pending');
+  var btnHistory = document.getElementById('tab-btn-rep-history');
+  var containerPending = document.getElementById('container-rep-pending');
+  var containerHistory = document.getElementById('container-rep-history');
+
+  if (btnPending) btnPending.classList.toggle('active', tab === 'pending');
+  if (btnHistory) btnHistory.classList.toggle('active', tab === 'history');
+  if (containerPending) containerPending.style.display = (tab === 'pending') ? 'block' : 'none';
+  if (containerHistory) containerHistory.style.display = (tab === 'history') ? 'block' : 'none';
+
+  renderReplacementsTables();
+}
+
+function renderReplacementsTables() {
+  var search = (document.getElementById('filter-rep-search') ? document.getElementById('filter-rep-search').value : '').toLowerCase().trim();
+  var ageingFilter = document.getElementById('filter-rep-ageing') ? document.getElementById('filter-rep-ageing').value : 'ALL';
+
+  var dueClaims = (BWMS.claims || []).filter(function(c) {
+    return c.status === 'SENT_TO_COMPANY';
+  });
+
+  var receivedClaims = (BWMS.claims || []).filter(function(c) {
+    return c.status === 'REPLACEMENT_RECEIVED' || c.status === 'CLAIM_CLOSED';
+  });
+
+  setElText('rep-pending-count', dueClaims.length);
+  setElText('rep-history-count', receivedClaims.length);
+  setElText('rep-count-badge', dueClaims.length + ' pending');
+
+  // Pending Requisitions Table
+  var tbodyPending = document.getElementById('replacement-pending-body');
+  if (tbodyPending) {
+    tbodyPending.innerHTML = '';
+    var filtered = dueClaims.filter(function(c) {
+      var days = calcDaysElapsed(c.company_dispatch_date);
+      if (ageingFilter === '0-7' && days > 7) return false;
+      if (ageingFilter === '8-15' && (days < 8 || days > 15)) return false;
+      if (ageingFilter === '16-30' && (days < 16 || days > 30)) return false;
+      if (ageingFilter === '31+' && days < 31) return false;
+
+      if (search) {
+        var blob = [c.claim_no, c.company_challan_no, c.customer_name, c.dealer_name, c.battery_model, c.original_serial_no].join(' ').toLowerCase();
+        if (blob.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      tbodyPending.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#16a34a;">No replacement batteries pending from company.</td></tr>';
+    } else {
+      filtered.forEach(function(c) {
+        var days = calcDaysElapsed(c.company_dispatch_date);
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+          '<td><small>' + (c.company_challan_no || c.dispatch_batch_no || 'Batch') + '</small></td>' +
+          '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
+          '<td>' + c.battery_model + '</td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+          '<td>' + formatDate(c.company_dispatch_date) + '</td>' +
+          '<td>' + renderAgeingBadge(days) + '</td>' +
+          '<td><button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">📥 Receive Replacement</button></td>';
+        tbodyPending.appendChild(tr);
+      });
+    }
+  }
+
+  // Received History Table
+  var tbodyHistory = document.getElementById('replacement-history-body');
+  if (tbodyHistory) {
+    tbodyHistory.innerHTML = '';
+    if (receivedClaims.length === 0) {
+      tbodyHistory.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#94a3b8;">No replacement batteries logged yet.</td></tr>';
+    } else {
+      receivedClaims.slice().reverse().forEach(function(c) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+          '<td>' + c.battery_model + '</td>' +
+          '<td><span style="font-family:monospace; color:#64748b;">' + c.original_serial_no + '</span></td>' +
+          '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + (c.replacement_serial_no || c.replacement_battery_serial_no || '-') + '</span></td>' +
+          '<td>' + formatDate(c.replacement_received_date) + '</td>' +
+          '<td>' + (c.stock_ref_no || '-') + '</td>' +
+          '<td>' + (c.stock_status === 'UPDATED' ? '<span class="badge badge-green">ERP RECONCILED</span>' : '<span class="badge badge-danger">STOCK PENDING</span>') + '</td>' +
+          '<td><div style="display:flex; gap:6px;">' +
+          (c.stock_status !== 'UPDATED' ? '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">Stock Task</button>' : '') +
+          '  <button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">Timeline</button>' +
+          '</div></td>';
+        tbodyHistory.appendChild(tr);
+      });
+    }
+  }
+}
+
+function openReplacementModal(claimNo, model, origSerial) {
+  document.getElementById('form-replacement').reset();
+  document.getElementById('rep-claim-no').value = claimNo;
+  document.getElementById('rep-view-claim').textContent = claimNo;
+  document.getElementById('rep-view-model').textContent = model || '';
+  document.getElementById('rep-view-original-serial').textContent = origSerial || '';
+  document.getElementById('rep-date').value = new Date().toISOString().split('T')[0];
+  openModal('modal-replacement');
+}
+
+function handleReplacementSubmit(e) {
+  e.preventDefault();
+  var origSerial = document.getElementById('rep-view-original-serial').textContent.trim();
+  var newSerial = document.getElementById('rep-new-serial').value.trim();
+
+  if (newSerial === origSerial) {
+    alert('CRITICAL BARCODE REJECT: Replacement serial number cannot match the defective original serial (' + origSerial + ').');
+    return;
+  }
+
+  var data = {
+    claim_no: document.getElementById('rep-claim-no').value,
+    replacement_serial_no: newSerial,
+    received_date: document.getElementById('rep-date').value,
+    company_invoice_ref: document.getElementById('rep-ref').value,
+    remarks: document.getElementById('rep-remarks').value
+  };
+
+  closeModal('modal-replacement');
+
+  callServer('apiRecordReplacementReceived', [data], function(res) {
+    if (res && res.success) {
+      showToast(res.message || 'Replacement received! Stock update task generated.', 'success');
+      syncAllData(false);
+      if (confirm('Replacement serial ' + newSerial + ' logged! Would you like to confirm the Busy/Tally ERP inventory entry now?')) {
+        openStockModal(data.claim_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to record replacement', 'error');
+    }
+  });
+}
+
+// ─── ERP STOCK TASKS & RECONCILIATION RENDERER ────────────────────────────────
+
+function switchStockTab(tab) {
+  BWMS.stockTab = tab;
+  var btnPending = document.getElementById('tab-btn-stock-pending');
+  var btnHistory = document.getElementById('tab-btn-stock-history');
+  var containerPending = document.getElementById('container-stock-pending');
+  var containerHistory = document.getElementById('container-stock-history');
+
+  if (btnPending) btnPending.classList.toggle('active', tab === 'pending');
+  if (btnHistory) btnHistory.classList.toggle('active', tab === 'history');
+  if (containerPending) containerPending.style.display = (tab === 'pending') ? 'block' : 'none';
+  if (containerHistory) containerHistory.style.display = (tab === 'history') ? 'block' : 'none';
+
+  renderStockTasksTables();
+}
+
+function renderStockTasksTables() {
+  var search = (document.getElementById('filter-stock-search') ? document.getElementById('filter-stock-search').value : '').toLowerCase().trim();
+
+  var pendingTasks = (BWMS.claims || []).filter(function(c) {
+    return c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED';
+  });
+
+  setElText('stock-pending-count', pendingTasks.length);
+  setElText('stock-history-count', (BWMS.stockUpdates || []).length);
+  setElText('stock-count-badge', pendingTasks.length + ' pending');
+
+  // Pending Tasks Table
+  var tbodyPending = document.getElementById('stock-tasks-body');
+  if (tbodyPending) {
+    tbodyPending.innerHTML = '';
+    var filtered = pendingTasks.filter(function(c) {
+      if (!search) return true;
+      var blob = [c.claim_no, c.battery_model, c.replacement_serial_no, c.original_serial_no].join(' ').toLowerCase();
+      return blob.indexOf(search) !== -1;
+    });
+
+    if (filtered.length === 0) {
+      tbodyPending.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#16a34a;">✅ All replacement batteries reconciled with accounting inventory! No pending stock tasks.</td></tr>';
+    } else {
+      filtered.forEach(function(c) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
+          '<td>' + c.battery_model + '</td>' +
+          '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + (c.replacement_serial_no || c.replacement_battery_serial_no || '-') + '</span></td>' +
+          '<td><span style="font-family:monospace; color:#64748b;">' + c.original_serial_no + '</span></td>' +
+          '<td>' + formatDate(c.replacement_received_date) + '</td>' +
+          '<td><span class="badge badge-danger">STOCK UPDATE REQUIRED</span></td>' +
+          '<td><button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Certify ERP Entry</button></td>';
+        tbodyPending.appendChild(tr);
+      });
+    }
+  }
+
+  // Reconciled Log Table
+  var tbodyHistory = document.getElementById('stock-history-body');
+  if (tbodyHistory) {
+    tbodyHistory.innerHTML = '';
+    var logs = BWMS.stockUpdates || [];
+    if (logs.length === 0) {
+      tbodyHistory.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#94a3b8;">No inventory stock reconciliation logs found.</td></tr>';
+    } else {
+      logs.slice().reverse().forEach(function(l) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="color:var(--accent);">' + (l.stock_task_id || 'STK-') + '</strong></td>' +
+          '<td><small onclick="showTimeline(\'' + l.claim_no + '\')" style="cursor:pointer; color:var(--text-muted);">' + l.claim_no + '</small></td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + l.replacement_serial_no + '</span></td>' +
+          '<td>' + (l.remarks && l.remarks.indexOf('ERP:') !== -1 ? l.remarks.split('ERP:')[1].split(';')[0] : 'Busy/Tally') + '</td>' +
+          '<td><strong style="font-family:monospace;">' + (l.accounting_ref_no || '-') + '</strong></td>' +
+          '<td>' + (l.updated_by || 'Staff') + '</td>' +
+          '<td>' + formatDate(l.updated_at) + '</td>' +
+          '<td><small>' + (l.remarks || '-') + '</small></td>';
+        tbodyHistory.appendChild(tr);
+      });
+    }
+  }
+}
+
+function openStockModal(claimNo) {
+  document.getElementById('form-stock').reset();
+  document.getElementById('stk-claim-no').value = claimNo;
+  openModal('modal-stock');
+}
+
+function handleStockSubmit(e) {
+  e.preventDefault();
+  var data = {
+    claim_no: document.getElementById('stk-claim-no').value,
+    software: document.getElementById('stk-software').value,
+    voucher_number: document.getElementById('stk-voucher').value,
+    remarks: document.getElementById('stk-remarks').value
+  };
+
+  closeModal('modal-stock');
+
+  callServer('apiRecordStockUpdated', [data], function(res) {
+    if (res && res.success) {
+      showToast(res.message || 'ERP stock entry certified!', 'success');
+      syncAllData(false);
+      if (confirm('Stock entry verified. Close claim and record customer handover?')) {
+        openCloseClaimModal(data.claim_no);
+      }
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to update stock task', 'error');
+    }
+  });
+}
+
+// ─── CLOSE CLAIM MODAL ────────────────────────────────────────────────────────
+
+function openCloseClaimModal(claimNo) {
+  document.getElementById('form-close-claim').reset();
+  document.getElementById('close-claim-no').value = claimNo;
+  document.getElementById('close-del-date').value = new Date().toISOString().split('T')[0];
+  openModal('modal-close-claim');
+}
+
+function handleCloseClaimSubmit(e) {
+  e.preventDefault();
+  var data = {
+    claim_no: document.getElementById('close-claim-no').value,
+    delivery_date: document.getElementById('close-del-date').value,
+    receiver_name: document.getElementById('close-receiver-name').value,
+    remarks: document.getElementById('close-remarks').value
+  };
+
+  closeModal('modal-close-claim');
+
+  callServer('apiCloseClaim', [data], function(res) {
+    if (res && res.success) {
+      showToast(res.message || 'Claim closed successfully.', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to close claim', 'error');
+    }
+  });
+}
+
+// ─── DELIVERY CHALLANS RENDERER ───────────────────────────────────────────────
+
+function switchChallansTab(tab) {
+  BWMS.challansTab = tab;
+  var btnAll = document.getElementById('tab-btn-ch-all');
+  var btnRet = document.getElementById('tab-btn-ch-ret');
+  var btnCom = document.getElementById('tab-btn-ch-com');
+
+  if (btnAll) btnAll.classList.toggle('active', tab === 'all');
+  if (btnRet) btnRet.classList.toggle('active', tab === 'ret');
+  if (btnCom) btnCom.classList.toggle('active', tab === 'com');
+
+  renderChallansTable();
+}
+
+function renderChallansTable() {
+  var search = (document.getElementById('filter-challans-search') ? document.getElementById('filter-challans-search').value : '').toLowerCase().trim();
+  var tab = BWMS.challansTab || 'all';
+
+  var list = [];
+
+  // Return Challans
+  (BWMS.tickets || []).forEach(function(t) {
+    if (t.challan_no || t.status === 'REJECTED — RETURN PENDING' || t.status === 'REJECTED — RETURNED') {
+      list.push({
+        challan_no: t.challan_no || ('DC-RET-' + t.ticket_no.replace('TKT-', '')),
+        type: 'BATTERY_RETURN',
+        date: t.updated_at || t.date_received,
+        recipient: (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name),
+        serials: t.original_serial_no,
+        status: t.status,
+        ticket_no: t.ticket_no
+      });
+    }
+  });
+
+  // Company Dispatches
+  (BWMS.dispatches || []).forEach(function(d) {
+    list.push({
+      challan_no: d.company_challan_no || ('DC-COM-' + d.dispatch_batch_no),
+      type: 'COMPANY_DISPATCH',
+      date: d.dispatch_date,
+      recipient: d.company_name || 'Amaron Batteries Ltd.',
+      serials: (d.battery_count || 1) + ' Batteries (' + (d.carrier_transporter || 'Van') + ')',
+      status: 'DISPATCHED',
+      dispatch_batch_no: d.dispatch_batch_no
+    });
+  });
+
+  setElText('ch-all-count', list.length);
+  setElText('ch-ret-count', list.filter(function(i) { return i.type === 'BATTERY_RETURN'; }).length);
+  setElText('ch-com-count', list.filter(function(i) { return i.type === 'COMPANY_DISPATCH'; }).length);
+
+  var filtered = list.filter(function(item) {
+    if (tab === 'ret' && item.type !== 'BATTERY_RETURN') return false;
+    if (tab === 'com' && item.type !== 'COMPANY_DISPATCH') return false;
+    if (search) {
+      var blob = [item.challan_no, item.recipient, item.serials, item.status].join(' ').toLowerCase();
+      if (blob.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+
+  setElText('challans-count-badge', filtered.length + ' challans');
+
+  var tbody = document.getElementById('challans-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#94a3b8;">No delivery challans recorded yet.</td></tr>';
+    return;
+  }
+
+  filtered.slice().reverse().forEach(function(item) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong style="color:var(--accent); font-family:monospace;">' + item.challan_no + '</strong></td>' +
+      '<td><span class="badge ' + (item.type === 'BATTERY_RETURN' ? 'badge-amber' : 'badge-purple') + '">' + item.type + '</span></td>' +
+      '<td>' + formatDate(item.date) + '</td>' +
+      '<td><strong>' + item.recipient + '</strong></td>' +
+      '<td><span style="font-family:monospace;">' + item.serials + '</span></td>' +
+      '<td>' + renderStatusBadge(item.status) + '</td>' +
+      '<td>' + renderChallanActions(item) + '</td>';
+    tbody.appendChild(tr);
+  });
+}
 
 function createReturnChallan(ticketNo) {
   callServer('apiCreateReturnChallan', [ticketNo], function(res) {
     if (res && res.success) {
       showToast(res.message || 'Return Delivery Challan generated.', 'success');
-      refreshDashboard();
+      syncAllData(false);
       if (confirm('Challan ' + res.data.challan_no + ' created! Would you like to view/print it now?')) {
         printReturnChallan(res.data.challan_no);
       }
@@ -507,269 +1344,514 @@ function handleMarkReturnedSubmit(e) {
     remarks: document.getElementById('ret-remarks').value
   };
 
+  closeModal('modal-mark-returned');
+
   callServer('apiMarkChallanReturned', [data], function(res) {
     if (res && res.success) {
-      closeModal('modal-mark-returned');
       showToast(res.message || 'Battery marked returned with physical acknowledgement.', 'success');
-      loadChallans();
-      refreshDashboard();
+      syncAllData(false);
     } else {
       showToast((res && res.error) ? res.error : 'Failed to confirm return', 'error');
     }
   });
 }
 
-// ─── PENDING DISPATCH & BATCH CONSOLIDATION ───────────────────────────────────
+// ─── REPORTS & ANALYTICS RENDERER ─────────────────────────────────────────────
 
-function loadPendingForCompany() {
-  BWMS.selectedDispatchClaims.clear();
-  updateSelectedDispatchCount();
+function renderReportsView() {
+  var claims = BWMS.claims || [];
+  var tickets = BWMS.tickets || [];
 
-  callServer('apiGetPendingForCompany', [], function(res) {
-    var tbody = document.getElementById('pending-dispatch-body');
-    tbody.innerHTML = '';
-    if (!res || !res.success || !res.data || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#16a34a;">No claims waiting for company dispatch. All dispatched!</td></tr>';
-      return;
+  // Ageing Distribution
+  var a07 = 0, a815 = 0, a1630 = 0, a3160 = 0, a60p = 0;
+  claims.forEach(function(c) {
+    if (c.status === 'SENT_TO_COMPANY') {
+      var d = calcDaysElapsed(c.company_dispatch_date);
+      if (d <= 7) a07++;
+      else if (d <= 15) a815++;
+      else if (d <= 30) a1630++;
+      else if (d <= 60) a3160++;
+      else a60p++;
     }
-    res.data.forEach(function(c) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><input type="checkbox" class="chk-dispatch-item" value="' + c.claim_no + '" onchange="handleDispatchItemCheck(this)"></td>' +
-        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-        '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong></td>' +
-        '<td>' + c.battery_model + '</td>' +
-        '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
-        '<td>' + formatDate(c.created_at) + '</td>' +
-        '<td><button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs (' + (c.doc_count || 0) + ')</button></td>' +
-        '<td><button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Claim Form</button></td>';
-      tbody.appendChild(tr);
-    });
   });
-}
 
-function handleDispatchItemCheck(cb) {
-  if (cb.checked) BWMS.selectedDispatchClaims.add(cb.value);
-  else BWMS.selectedDispatchClaims.delete(cb.value);
-  updateSelectedDispatchCount();
-}
+  setElText('rep-ageing-0-7', a07);
+  setElText('rep-ageing-8-15', a815);
+  setElText('rep-ageing-16-30', a1630);
+  setElText('rep-ageing-31-60', a3160);
+  setElText('rep-ageing-60-plus', a60p);
 
-function toggleSelectAllDispatch(checked) {
-  var cbs = document.querySelectorAll('.chk-dispatch-item');
-  cbs.forEach(function(cb) {
-    cb.checked = checked;
-    if (checked) BWMS.selectedDispatchClaims.add(cb.value);
-    else BWMS.selectedDispatchClaims.delete(cb.value);
+  // Model Breakdown Table
+  var modelMap = {};
+  BWMS.models.forEach(function(m) {
+    var key = m.model_name || m.model_code;
+    modelMap[key] = {
+      code: m.model_code || key,
+      name: m.model_name || key,
+      warranty: (m.warranty_months || 24),
+      received: 0,
+      passed: 0,
+      rejected: 0
+    };
   });
-  updateSelectedDispatchCount();
+
+  tickets.forEach(function(t) {
+    var key = t.battery_model || 'Unknown';
+    if (!modelMap[key]) {
+      modelMap[key] = { code: key, name: key, warranty: 24, received: 0, passed: 0, rejected: 0 };
+    }
+    modelMap[key].received++;
+    if (t.status === 'TEST_PASSED' || t.status === 'CLAIM_CREATED') modelMap[key].passed++;
+    else if (t.status === 'TEST_REJECTED' || t.status.indexOf('REJECTED') !== -1) modelMap[key].rejected++;
+  });
+
+  var tbodyModels = document.getElementById('reports-models-body');
+  if (tbodyModels) {
+    tbodyModels.innerHTML = '';
+    var modelKeys = Object.keys(modelMap);
+    if (modelKeys.length === 0) {
+      tbodyModels.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px; color:#94a3b8;">No model performance data available.</td></tr>';
+    } else {
+      modelKeys.forEach(function(k) {
+        var m = modelMap[k];
+        var rate = (m.received > 0) ? Math.round((m.rejected / m.received) * 100) : 0;
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong>' + m.code + '</strong></td>' +
+          '<td>' + m.name + '</td>' +
+          '<td>' + m.warranty + ' Months</td>' +
+          '<td><strong>' + m.received + '</strong></td>' +
+          '<td><span style="color:#16a34a; font-weight:bold;">' + m.passed + '</span></td>' +
+          '<td><span style="color:#dc2626; font-weight:bold;">' + m.rejected + '</span></td>' +
+          '<td>' + rate + '%</td>';
+        tbodyModels.appendChild(tr);
+      });
+    }
+  }
+
+  // Dealer Breakdown Table
+  var dealerMap = {};
+  BWMS.dealers.forEach(function(d) {
+    dealerMap[d.dealer_name] = { name: d.dealer_name, total: 0, pending: 0, closed: 0 };
+  });
+
+  claims.forEach(function(c) {
+    if (c.dealer_name) {
+      if (!dealerMap[c.dealer_name]) {
+        dealerMap[c.dealer_name] = { name: c.dealer_name, total: 0, pending: 0, closed: 0 };
+      }
+      dealerMap[c.dealer_name].total++;
+      if (c.status === 'SENT_TO_COMPANY') dealerMap[c.dealer_name].pending++;
+      if (c.status === 'CLAIM_CLOSED') dealerMap[c.dealer_name].closed++;
+    }
+  });
+
+  var tbodyDealers = document.getElementById('reports-dealers-body');
+  if (tbodyDealers) {
+    tbodyDealers.innerHTML = '';
+    var dKeys = Object.keys(dealerMap);
+    if (dKeys.length === 0) {
+      tbodyDealers.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:15px; color:#94a3b8;">No dealer warranty records found.</td></tr>';
+    } else {
+      dKeys.forEach(function(dk) {
+        var d = dealerMap[dk];
+        var resRate = (d.total > 0) ? Math.round((d.closed / d.total) * 100) : 0;
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong>' + d.name + '</strong></td>' +
+          '<td><strong>' + d.total + '</strong></td>' +
+          '<td><span class="badge badge-amber">' + d.pending + '</span></td>' +
+          '<td><span class="badge badge-green">' + d.closed + '</span></td>' +
+          '<td>' + resRate + '%</td>';
+        tbodyDealers.appendChild(tr);
+      });
+    }
+  }
 }
 
-function updateSelectedDispatchCount() {
-  var count = BWMS.selectedDispatchClaims.size;
-  document.getElementById('selected-dispatch-count').textContent = count + ' claims selected';
-}
+// ─── AUDIT TRAIL RENDERER ─────────────────────────────────────────────────────
 
-function openDispatchBatchModal() {
-  if (BWMS.selectedDispatchClaims.size === 0) {
-    showToast('Please select at least one claim to dispatch to the company.', 'warning');
+function renderAuditTable() {
+  var search = (document.getElementById('filter-audit-search') ? document.getElementById('filter-audit-search').value : '').toLowerCase().trim();
+  var actionFilter = document.getElementById('filter-audit-action') ? document.getElementById('filter-audit-action').value : 'ALL';
+
+  var logs = BWMS.auditLog || [];
+  var filtered = logs.filter(function(a) {
+    if (actionFilter !== 'ALL' && a.action !== actionFilter) return false;
+    if (search) {
+      var blob = [a.action, a.entity_type, a.entity_id, a.user_email, a.details].join(' ').toLowerCase();
+      if (blob.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+
+  setElText('audit-count-badge', filtered.length + ' events');
+
+  var tbody = document.getElementById('audit-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:25px; color:#94a3b8;">No audit trail events found.</td></tr>';
     return;
   }
-  document.getElementById('form-dispatch').reset();
-  document.getElementById('dispatch-batch-count').textContent = BWMS.selectedDispatchClaims.size;
-  document.getElementById('dsp-date').value = new Date().toISOString().split('T')[0];
 
-  var list = document.getElementById('dispatch-selected-claims-list');
-  list.innerHTML = '';
-  BWMS.selectedDispatchClaims.forEach(function(claimNo) {
+  filtered.slice().reverse().slice(0, 100).forEach(function(a) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><small style="color:#64748b;">' + formatDate(a.timestamp) + '</small></td>' +
+      '<td><strong>' + (a.action || '') + '</strong></td>' +
+      '<td>' + (a.entity_type || a.record_type || '-') + '</td>' +
+      '<td><strong style="color:var(--accent);">' + (a.entity_id || a.record_id || '-') + '</strong></td>' +
+      '<td>' + (a.user_email || a.performed_by || 'system') + '</td>' +
+      '<td><small>' + (a.details || '-') + '</small></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+// ─── SETTINGS & MASTER CONFIGURATION ──────────────────────────────────────────
+
+function switchSettingsTab(tab) {
+  BWMS.settingsTab = tab;
+  var tabs = ['profile', 'models', 'dealers', 'cloud'];
+  tabs.forEach(function(t) {
+    var btn = document.getElementById('tab-btn-cfg-' + t);
+    var container = document.getElementById('container-cfg-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (container) container.style.display = (t === tab) ? 'block' : 'none';
+  });
+
+  renderSettingsView();
+}
+
+function renderSettingsView() {
+  setElText('cfg-models-count', (BWMS.models || []).length);
+  setElText('cfg-dealers-count', (BWMS.dealers || []).length);
+
+  // Render Models Master Table
+  var tbodyModels = document.getElementById('cfg-models-body');
+  if (tbodyModels) {
+    tbodyModels.innerHTML = '';
+    (BWMS.models || []).forEach(function(m) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong style="font-family:monospace;">' + (m.model_code || m.model_id || '-') + '</strong></td>' +
+        '<td>' + (m.brand || 'Amaron') + '</td>' +
+        '<td><strong>' + (m.model_name || '-') + '</strong></td>' +
+        '<td>' + (m.capacity_ah ? m.capacity_ah + ' Ah' : '-') + '</td>' +
+        '<td>' + (m.warranty_months || 24) + ' M</td>' +
+        '<td>' + (m.guarantee_months || 12) + ' M</td>' +
+        '<td>' + (m.pro_rata_months || 12) + ' M</td>' +
+        '<td><span class="badge badge-green">ACTIVE</span></td>';
+      tbodyModels.appendChild(tr);
+    });
+  }
+
+  // Render Dealers Master Table
+  var tbodyDealers = document.getElementById('cfg-dealers-body');
+  if (tbodyDealers) {
+    tbodyDealers.innerHTML = '';
+    (BWMS.dealers || []).forEach(function(d) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><small style="color:var(--accent); font-family:monospace;">' + (d.dealer_id || '-') + '</small></td>' +
+        '<td><strong>' + (d.dealer_name || '-') + '</strong></td>' +
+        '<td>' + (d.contact_person || '-') + '</td>' +
+        '<td>' + (d.mobile || '-') + '</td>' +
+        '<td><small style="font-family:monospace;">' + (d.gstin || '-') + '</small></td>' +
+        '<td>' + (d.address || '-') + '</td>' +
+        '<td><span class="badge badge-green">AUTHORIZED</span></td>';
+      tbodyDealers.appendChild(tr);
+    });
+  }
+}
+
+function saveSettings() {
+  var cfg = {
+    COMPANY_NAME: document.getElementById('cfg-company-name').value,
+    COMPANY_GST: document.getElementById('cfg-company-gst').value,
+    COMPANY_ADDRESS: document.getElementById('cfg-company-address').value,
+    COMPANY_PHONE: document.getElementById('cfg-company-phone').value,
+    COMPANY_EMAIL: document.getElementById('cfg-company-email').value,
+    COMPANY_TERMS: document.getElementById('cfg-company-terms') ? document.getElementById('cfg-company-terms').value : ''
+  };
+
+  callServer('apiSaveConfig', [cfg], function(res) {
+    if (res && res.success) {
+      showToast('Profile configuration saved to Google Cloud.', 'success');
+      BWMS.config = Object.assign(BWMS.config, cfg);
+      syncAllData(false);
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to save settings', 'error');
+    }
+  });
+}
+
+function openAddModelModal() {
+  document.getElementById('form-add-model').reset();
+  openModal('modal-add-model');
+}
+
+function handleAddModelSubmit(e) {
+  e.preventDefault();
+  var modelData = {
+    brand: document.getElementById('new-model-brand').value,
+    model_name: document.getElementById('new-model-name').value,
+    capacity_ah: document.getElementById('new-model-ah').value,
+    warranty_months: document.getElementById('new-model-warranty').value,
+    guarantee_months: document.getElementById('new-model-guarantee').value,
+    pro_rata_months: document.getElementById('new-model-prorata').value
+  };
+
+  closeModal('modal-add-model');
+
+  callServer('apiSaveModel', [modelData], function(res) {
+    if (res && res.success) {
+      showToast('New battery model added to master!', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to add model', 'error');
+    }
+  });
+}
+
+function openAddDealerModal() {
+  document.getElementById('form-add-dealer').reset();
+  openModal('modal-add-dealer');
+}
+
+function handleAddDealerSubmit(e) {
+  e.preventDefault();
+  var dealerData = {
+    dealer_name: document.getElementById('new-dealer-name').value,
+    contact_person: document.getElementById('new-dealer-contact').value,
+    mobile: document.getElementById('new-dealer-mobile').value,
+    gstin: document.getElementById('new-dealer-gst').value,
+    address: document.getElementById('new-dealer-address').value
+  };
+
+  closeModal('modal-add-dealer');
+
+  callServer('apiSaveDealer', [dealerData], function(res) {
+    if (res && res.success) {
+      showToast('Authorized dealer registered!', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to add dealer', 'error');
+    }
+  });
+}
+
+function runLatencyProbe() {
+  var probeEl = document.getElementById('cloud-latency-val');
+  if (probeEl) probeEl.textContent = 'Probing round-trip latency...';
+  var start = Date.now();
+
+  callServer('apiCheckConnection', [], function(res) {
+    var elapsed = Date.now() - start;
+    if (probeEl) {
+      probeEl.innerHTML = '<span style="color:#16a34a;">⚡ ' + elapsed + ' ms</span> (HTTP OK)';
+    }
+    showToast('Cloud connection verified in ' + elapsed + ' ms', 'success');
+  }, function(err) {
+    if (probeEl) probeEl.innerHTML = '<span style="color:#dc2626;">Error</span>';
+    showToast('Connection test failed: ' + err, 'error');
+  });
+}
+
+// ─── UNIVERSAL TIMELINE & INSTANT SEARCH ─────────────────────────────────────
+
+function handleUniversalSearchInput(val) {
+  val = (val || '').trim();
+  var dropdown = document.getElementById('search-suggestions-dropdown');
+  if (!dropdown) return;
+
+  if (val.length < 2) {
+    dropdown.style.display = 'none';
+    return;
+  }
+
+  var lower = val.toLowerCase();
+  var matches = [];
+
+  // Search Tickets
+  (BWMS.tickets || []).forEach(function(t) {
+    if (t.original_serial_no && t.original_serial_no.toLowerCase().indexOf(lower) !== -1) {
+      matches.push({ type: 'SERIAL', title: 'Serial: ' + t.original_serial_no, sub: t.ticket_no + ' • ' + (t.customer_name || t.dealer_name), id: t.original_serial_no });
+    } else if (t.ticket_no && t.ticket_no.toLowerCase().indexOf(lower) !== -1) {
+      matches.push({ type: 'TICKET', title: t.ticket_no, sub: (t.customer_name || t.dealer_name) + ' • ' + t.battery_model, id: t.ticket_no });
+    } else if (t.customer_name && t.customer_name.toLowerCase().indexOf(lower) !== -1) {
+      matches.push({ type: 'CUSTOMER', title: t.customer_name, sub: t.ticket_no + ' • ' + (t.mobile || ''), id: t.ticket_no });
+    } else if (t.mobile && t.mobile.indexOf(lower) !== -1) {
+      matches.push({ type: 'MOBILE', title: 'Mobile: ' + t.mobile, sub: t.customer_name + ' • ' + t.ticket_no, id: t.ticket_no });
+    }
+  });
+
+  // Search Claims
+  (BWMS.claims || []).forEach(function(c) {
+    if (c.claim_no && c.claim_no.toLowerCase().indexOf(lower) !== -1) {
+      matches.push({ type: 'CLAIM', title: c.claim_no, sub: c.battery_model + ' • ' + c.original_serial_no, id: c.claim_no });
+    } else if (c.replacement_serial_no && c.replacement_serial_no.toLowerCase().indexOf(lower) !== -1) {
+      matches.push({ type: 'REP_SERIAL', title: 'Replacement: ' + c.replacement_serial_no, sub: c.claim_no + ' • ' + c.battery_model, id: c.claim_no });
+    }
+  });
+
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div style="padding:12px; text-align:center; color:#94a3b8; font-size:12px;">No matching records found. Press Enter to full search.</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  // Deduplicate and take top 8
+  var unique = [];
+  var seen = new Set();
+  matches.forEach(function(m) {
+    var key = m.type + ':' + m.id;
+    if (!seen.has(key) && unique.length < 8) {
+      seen.add(key);
+      unique.push(m);
+    }
+  });
+
+  dropdown.innerHTML = '';
+  unique.forEach(function(m) {
     var div = document.createElement('div');
-    div.textContent = '• ' + claimNo;
-    list.appendChild(div);
+    div.className = 'search-dropdown-item';
+    div.innerHTML =
+      '<div>' +
+      '  <div style="font-weight:600; font-size:13px;">' + m.title + '</div>' +
+      '  <div style="font-size:11px; color:#64748b;">' + m.sub + '</div>' +
+      '</div>' +
+      '<div><span class="badge badge-gray">' + m.type + '</span></div>';
+    div.onclick = function() {
+      dropdown.style.display = 'none';
+      showTimeline(m.id);
+    };
+    dropdown.appendChild(div);
   });
 
-  openModal('modal-dispatch');
+  dropdown.style.display = 'block';
 }
 
-function handleDispatchSubmit(e) {
-  e.preventDefault();
-  var data = {
-    claim_nos: Array.from(BWMS.selectedDispatchClaims),
-    company_name: document.getElementById('dsp-company-name').value,
-    dispatch_date: document.getElementById('dsp-date').value,
-    transport_name: document.getElementById('dsp-carrier').value,
-    docket_number: document.getElementById('dsp-docket').value,
-    remarks: document.getElementById('dsp-remarks').value
-  };
+function handleSearchKey(e) {
+  if (e.key === 'Enter') {
+    var dropdown = document.getElementById('search-suggestions-dropdown');
+    if (dropdown) dropdown.style.display = 'none';
+    var val = document.getElementById('global-search-input').value.trim();
+    if (val) showTimeline(val);
+  }
+}
 
-  callServer('apiCreateCompanyDispatch', [data], function(res) {
-    if (res && res.success) {
-      closeModal('modal-dispatch');
-      showToast(res.message || 'Company dispatch batch created!', 'success');
-      loadPendingForCompany();
-      refreshDashboard();
-      if (confirm('Dispatched! Would you like to print the Consolidated Delivery Challan (' + res.data.company_challan_no + ')?')) {
-        printCompanyChallan(res.data.company_challan_no);
-      }
-    } else {
-      showToast((res && res.error) ? res.error : 'Failed to dispatch batch', 'error');
-    }
+function showTimeline(query) {
+  if (!query) return;
+
+  // Search local in-memory store for instant zero-latency timeline rendering
+  var lower = query.toLowerCase().trim();
+  var matchedTicket = (BWMS.tickets || []).find(function(t) {
+    return t.ticket_no.toLowerCase() === lower || (t.original_serial_no && t.original_serial_no.toLowerCase() === lower);
   });
-}
 
-// ─── REPLACEMENT PENDING & AGEING ────────────────────────────────────────────
+  var matchedClaim = (BWMS.claims || []).find(function(c) {
+    return c.claim_no.toLowerCase() === lower || (c.ticket_no && c.ticket_no.toLowerCase() === lower) || (c.original_serial_no && c.original_serial_no.toLowerCase() === lower);
+  });
 
-function loadReplacementPending() {
-  callServer('apiGetReplacementPending', [], function(res) {
-    var tbody = document.getElementById('replacement-pending-body');
-    tbody.innerHTML = '';
-    if (!res || !res.success || !res.data || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#16a34a;">No replacement batteries pending from company.</td></tr>';
-      return;
-    }
-    res.data.forEach(function(c) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-        '<td><small>' + (c.company_challan_no || c.company_dispatch_batch || 'Batch') + '</small></td>' +
-        '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
-        '<td>' + c.battery_model + '</td>' +
-        '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
-        '<td>' + formatDate(c.company_dispatch_date) + '</td>' +
-        '<td>' + renderAgeingBadge(c.ageing_days) + '</td>' +
-        '<td><button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">📥 Receive Replacement</button></td>';
-      tbody.appendChild(tr);
+  var metaBox = document.getElementById('timeline-meta-box');
+  var nodesList = document.getElementById('timeline-nodes-list');
+
+  var primary = matchedClaim || matchedTicket || { ticket_no: query };
+  metaBox.innerHTML =
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+    '  <div><h3 style="font-size:16px; margin-bottom:4px;">Lifecycle Report for: <span style="color:var(--accent);">' + query + '</span></h3>' +
+    '  <span style="color:#64748b; font-size:12px;">Matched: ' + (primary.battery_model || '-') + ' • Serial: <strong>' + (primary.original_serial_no || '-') + '</strong></span></div>' +
+    '  <div>' + renderStatusBadge(primary.status || 'FOUND') + '</div>' +
+    '</div>';
+
+  nodesList.innerHTML = '<div class="timeline-line"></div>';
+
+  // Construct events locally
+  var events = [];
+  if (matchedTicket) {
+    events.push({
+      title: 'Battery Received at Service Center',
+      date: matchedTicket.date_received,
+      details: 'Intake ticket ' + matchedTicket.ticket_no + ' created for party: ' + (matchedTicket.customer_name || matchedTicket.dealer_name) + ' (' + (matchedTicket.mobile || '') + ').'
     });
-  });
-}
-
-function openReplacementModal(claimNo, model, origSerial) {
-  document.getElementById('form-replacement').reset();
-  document.getElementById('rep-claim-no').value = claimNo;
-  document.getElementById('rep-view-claim').textContent = claimNo;
-  document.getElementById('rep-view-model').textContent = model || '';
-  document.getElementById('rep-view-original-serial').textContent = origSerial || '';
-  document.getElementById('rep-date').value = new Date().toISOString().split('T')[0];
-  openModal('modal-replacement');
-}
-
-function handleReplacementSubmit(e) {
-  e.preventDefault();
-  var origSerial = document.getElementById('rep-view-original-serial').textContent.trim();
-  var newSerial = document.getElementById('rep-new-serial').value.trim();
-
-  if (newSerial === origSerial) {
-    alert('CRITICAL ERROR: Replacement serial number CANNOT match the original battery serial number (' + origSerial + '). Please inspect the battery barcode.');
-    return;
   }
 
-  var data = {
-    claim_no: document.getElementById('rep-claim-no').value,
-    replacement_serial_no: newSerial,
-    received_date: document.getElementById('rep-date').value,
-    company_invoice_ref: document.getElementById('rep-ref').value,
-    remarks: document.getElementById('rep-remarks').value
-  };
-
-  callServer('apiRecordReplacementReceived', [data], function(res) {
-    if (res && res.success) {
-      closeModal('modal-replacement');
-      showToast(res.message || 'Replacement received! Stock update required.', 'success');
-      loadReplacementPending();
-      refreshDashboard();
-      if (confirm('Replacement serial ' + newSerial + ' logged! Would you like to confirm the Busy/Tally ERP Stock entry now?')) {
-        openStockModal(data.claim_no);
-      }
-    } else {
-      showToast((res && res.error) ? res.error : 'Failed to record replacement', 'error');
-    }
+  // Diagnostic Test
+  var tests = (BWMS.tests || []).filter(function(tst) {
+    return (matchedTicket && tst.ticket_no === matchedTicket.ticket_no) || (tst.original_serial_no && tst.original_serial_no.toLowerCase() === lower);
   });
-}
-
-// ─── STOCK TASKS & RECONCILIATION ─────────────────────────────────────────────
-
-function loadStockTasks() {
-  callServer('apiListClaims', [{ stock_update_status: 'REQUIRED' }], function(res) {
-    var tbody = document.getElementById('stock-tasks-body');
-    tbody.innerHTML = '';
-    if (!res || !res.success || !res.data || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#16a34a;">✅ All replacement batteries reconciled with accounting inventory! No pending stock tasks.</td></tr>';
-      return;
-    }
-    res.data.forEach(function(c) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-        '<td>' + c.battery_model + '</td>' +
-        '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + c.replacement_battery_serial_no + '</span></td>' +
-        '<td><span style="font-family:monospace; color:#64748b;">' + c.original_serial_no + '</span></td>' +
-        '<td>' + formatDate(c.replacement_received_date) + '</td>' +
-        '<td><span class="badge badge-danger">STOCK UPDATE REQUIRED</span></td>' +
-        '<td><button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Certify ERP Entry</button></td>';
-      tbody.appendChild(tr);
+  tests.forEach(function(tst) {
+    events.push({
+      title: 'Diagnostic Test Conducted: ' + tst.test_result,
+      date: tst.test_date,
+      details: 'Voltage: ' + (tst.open_circuit_voltage || '-') + 'V • Result: ' + tst.test_result + ' • Remarks: ' + (tst.test_remarks || 'N/A')
     });
   });
-}
 
-function openStockModal(claimNo) {
-  document.getElementById('form-stock').reset();
-  document.getElementById('stk-claim-no').value = claimNo;
-  openModal('modal-stock');
-}
+  // Claim
+  if (matchedClaim) {
+    events.push({
+      title: 'Warranty Claim Generated (' + matchedClaim.claim_no + ')',
+      date: matchedClaim.created_at || matchedClaim.claim_date,
+      details: 'Warranty classification: ' + (matchedClaim.warranty_status || 'IN_WARRANTY') + ' • Date of Sale: ' + formatDate(matchedClaim.date_of_sale)
+    });
 
-function handleStockSubmit(e) {
-  e.preventDefault();
-  var data = {
-    claim_no: document.getElementById('stk-claim-no').value,
-    software: document.getElementById('stk-software').value,
-    voucher_number: document.getElementById('stk-voucher').value,
-    remarks: document.getElementById('stk-remarks').value
-  };
-
-  callServer('apiRecordStockUpdated', [data], function(res) {
-    if (res && res.success) {
-      closeModal('modal-stock');
-      showToast(res.message || 'ERP stock entry certified!', 'success');
-      loadStockTasks();
-      refreshDashboard();
-      if (confirm('Stock entry verified. Close claim and record customer handover?')) {
-        openCloseClaimModal(data.claim_no);
-      }
-    } else {
-      showToast((res && res.error) ? res.error : 'Failed to update stock task', 'error');
+    if (matchedClaim.company_dispatch_date) {
+      events.push({
+        title: 'Dispatched to Battery Manufacturer Factory',
+        date: matchedClaim.company_dispatch_date,
+        details: 'Batch Challan: ' + (matchedClaim.company_challan_no || matchedClaim.dispatch_batch_no || 'DC-COM')
+      });
     }
-  });
-}
 
-// ─── CLOSE CLAIM ─────────────────────────────────────────────────────────────
-
-function openCloseClaimModal(claimNo) {
-  document.getElementById('form-close-claim').reset();
-  document.getElementById('close-claim-no').value = claimNo;
-  document.getElementById('close-del-date').value = new Date().toISOString().split('T')[0];
-  openModal('modal-close-claim');
-}
-
-function handleCloseClaimSubmit(e) {
-  e.preventDefault();
-  var data = {
-    claim_no: document.getElementById('close-claim-no').value,
-    delivery_date: document.getElementById('close-del-date').value,
-    receiver_name: document.getElementById('close-receiver-name').value,
-    remarks: document.getElementById('close-remarks').value
-  };
-
-  callServer('apiCloseClaim', [data], function(res) {
-    if (res && res.success) {
-      closeModal('modal-close-claim');
-      showToast(res.message || 'Claim closed successfully.', 'success');
-      loadClaims();
-      refreshDashboard();
-    } else {
-      showToast((res && res.error) ? res.error : 'Failed to close claim', 'error');
+    if (matchedClaim.replacement_received_date) {
+      events.push({
+        title: 'Factory Replacement Received',
+        date: matchedClaim.replacement_received_date,
+        details: 'Replacement Serial: ' + (matchedClaim.replacement_serial_no || '-') + ' • Invoice/CN Ref: ' + (matchedClaim.stock_ref_no || '-')
+      });
     }
-  });
+
+    if (matchedClaim.stock_status === 'UPDATED') {
+      events.push({
+        title: 'ERP Accounting Stock Inward Reconciled',
+        date: matchedClaim.stock_updated_date || matchedClaim.updated_at,
+        details: 'Accounting reference: ' + (matchedClaim.stock_ref_no || 'STK-IN') + ' by ' + (matchedClaim.stock_updated_by || 'Staff')
+      });
+    }
+
+    if (matchedClaim.status === 'CLAIM_CLOSED') {
+      events.push({
+        title: 'Claim Closed & Battery Delivered to Customer',
+        date: matchedClaim.closed_date || matchedClaim.updated_at,
+        details: 'Handover complete. Replacement battery delivered.'
+      });
+    }
+  }
+
+  if (events.length === 0) {
+    nodesList.innerHTML += '<p style="padding:20px; text-align:center; color:#94a3b8;">No chronological events recorded for this query.</p>';
+  } else {
+    events.forEach(function(ev) {
+      var node = document.createElement('div');
+      node.className = 'timeline-node';
+      node.innerHTML =
+        '<div class="timeline-dot"></div>' +
+        '<div class="timeline-header">' +
+        '  <span class="timeline-title">' + ev.title + '</span>' +
+        '  <span class="timeline-date">' + (ev.date ? formatDate(ev.date) : '') + '</span>' +
+        '</div>' +
+        '<div class="timeline-details">' + (ev.details || '') + '</div>';
+      nodesList.appendChild(node);
+    });
+  }
+
+  openModal('modal-timeline');
 }
 
-// ─── DOCUMENT UPLOAD TO GOOGLE DRIVE ─────────────────────────────────────────
+// ─── DOCUMENT UPLOADS ─────────────────────────────────────────────────────────
 
 function openUploadDocModal(claimNo) {
   document.getElementById('form-upload').reset();
@@ -809,6 +1891,7 @@ function handleUploadSubmit(e) {
       if (res && res.success) {
         closeModal('modal-upload');
         showToast(res.message || 'File saved into claim Drive folder.', 'success');
+        syncAllData(false);
       } else {
         showToast((res && res.error) ? res.error : 'Upload failed', 'error');
       }
@@ -822,119 +1905,7 @@ function handleUploadSubmit(e) {
   reader.readAsDataURL(file);
 }
 
-// ─── UNIVERSAL TIMELINE & SEARCH ─────────────────────────────────────────────
-
-function handleSearchKey(e) {
-  if (e.key === 'Enter') {
-    var val = document.getElementById('global-search-input').value.trim();
-    if (val) showTimeline(val);
-  }
-}
-
-function showTimeline(query) {
-  if (!query) return;
-  callServer('apiSearchUniversal', [query], function(res) {
-    if (!res || !res.success || !res.data) {
-      showToast('Search error: ' + (res ? res.error : 'No data'), 'error');
-      return;
-    }
-    var result = res.data;
-    var metaBox = document.getElementById('timeline-meta-box');
-    var nodesList = document.getElementById('timeline-nodes-list');
-
-    // Header info
-    var primary = result.primary_match || {};
-    metaBox.innerHTML =
-      '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      '  <div><h3 style="font-size:16px; margin-bottom:4px;">Lifecycle Report for: <span style="color:var(--accent);">' + query + '</span></h3>' +
-      '  <span style="color:#64748b; font-size:12px;">Matched: ' + (primary.battery_model || '') + ' • Serial: <strong>' + (primary.original_serial_no || '-') + '</strong></span></div>' +
-      '  <div>' + renderStatusBadge(primary.status || primary.claim_status || 'FOUND') + '</div>' +
-      '</div>';
-
-    // Build timeline nodes
-    nodesList.innerHTML = '<div class="timeline-line"></div>';
-    var events = result.timeline || [];
-    if (events.length === 0) {
-      nodesList.innerHTML += '<p style="padding:20px; text-align:center; color:#94a3b8;">No chronological events recorded for this query.</p>';
-    } else {
-      events.forEach(function(ev) {
-        var node = document.createElement('div');
-        node.className = 'timeline-node';
-        node.innerHTML =
-          '<div class="timeline-dot"></div>' +
-          '<div class="timeline-header">' +
-          '  <span class="timeline-title">' + ev.title + '</span>' +
-          '  <span class="timeline-date">' + (ev.date ? formatDate(ev.date) : '') + (ev.time ? ' ' + ev.time : '') + '</span>' +
-          '</div>' +
-          '<div class="timeline-details">' + (ev.details || '') + '</div>';
-        nodesList.appendChild(node);
-      });
-    }
-
-    openModal('modal-timeline');
-  });
-}
-
-// ─── DELIVERY CHALLANS & PRINTS ──────────────────────────────────────────────
-
-function loadChallans() {
-  // Combine tickets with return challans and claims with company dispatches
-  callServer('apiListTickets', [{ status: 'REJECTED — RETURN PENDING' }], function(res1) {
-    var tbody = document.getElementById('challans-table-body');
-    tbody.innerHTML = '';
-    var list = [];
-    if (res1 && res1.data) {
-      res1.data.forEach(function(t) {
-        if (t.challan_no) {
-          list.push({
-            challan_no: t.challan_no,
-            type: 'BATTERY_RETURN',
-            date: t.updated_at || t.created_at,
-            recipient: t.customer_name || t.dealer_name,
-            serials: t.original_serial_no,
-            status: t.status,
-            ticket_no: t.ticket_no
-          });
-        }
-      });
-    }
-
-    callServer('apiListClaims', [{ status: 'SENT_TO_COMPANY' }], function(res2) {
-      if (res2 && res2.data) {
-        var batches = {};
-        res2.data.forEach(function(c) {
-          var ch = c.company_challan_no || c.company_dispatch_batch;
-          if (ch) {
-            if (!batches[ch]) batches[ch] = { challan_no: ch, type: 'COMPANY_DISPATCH', date: c.company_dispatch_date, recipient: 'Amaron Battery Factory', serials: [], status: 'DISPATCHED' };
-            batches[ch].serials.push(c.original_serial_no);
-          }
-        });
-        for (var b in batches) {
-          batches[b].serials = batches[b].serials.join(', ');
-          list.push(batches[b]);
-        }
-      }
-
-      if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#94a3b8;">No delivery challans generated yet.</td></tr>';
-        return;
-      }
-
-      list.forEach(function(item) {
-        var tr = document.createElement('tr');
-        tr.innerHTML =
-          '<td><strong>' + item.challan_no + '</strong></td>' +
-          '<td><span class="badge ' + (item.type === 'BATTERY_RETURN' ? 'badge-danger' : 'badge-info') + '">' + item.type + '</span></td>' +
-          '<td>' + formatDate(item.date) + '</td>' +
-          '<td>' + item.recipient + '</td>' +
-          '<td><span style="font-family:monospace;">' + item.serials + '</span></td>' +
-          '<td>' + renderStatusBadge(item.status) + '</td>' +
-          '<td>' + renderChallanActions(item) + '</td>';
-        tbody.appendChild(tr);
-      });
-    });
-  });
-}
+// ─── PRINT PREVIEWS & CHALLAN PRINTS ─────────────────────────────────────────
 
 function printReturnChallan(challanNo) {
   openPrintModal('Battery Return Delivery Challan — ' + challanNo, '?page=print-return-challan&id=' + encodeURIComponent(challanNo));
@@ -963,91 +1934,161 @@ function triggerIframePrint() {
   }
 }
 
-// ─── REPORTS & AUDIT TRAIL ────────────────────────────────────────────────────
+// ─── CSV EXPORT UTILITIES ─────────────────────────────────────────────────────
 
-function loadReports() {
-  callServer('apiGetReports', [], function(res) {
-    if (!res || !res.success || !res.data) return;
-    var data = res.data;
+function downloadCSV(filename, headers, rows) {
+  var csvContent = '\uFEFF';
+  csvContent += headers.map(escapeCSVField).join(',') + '\r\n';
 
-    // Ageing
-    var ageing = data.ageing || {};
-    document.getElementById('rep-ageing-0-7').textContent = ageing['0-7'] || 0;
-    document.getElementById('rep-ageing-8-15').textContent = ageing['8-15'] || 0;
-    document.getElementById('rep-ageing-16-30').textContent = ageing['16-30'] || 0;
-    document.getElementById('rep-ageing-31-60').textContent = ageing['31-60'] || 0;
-    document.getElementById('rep-ageing-60-plus').textContent = ageing['60+'] || 0;
-
-    // Models Table
-    var tbody = document.getElementById('reports-models-body');
-    tbody.innerHTML = '';
-    var models = data.model_performance || [];
-    if (models.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px; color:#94a3b8;">No model performance data available.</td></tr>';
-    } else {
-      models.forEach(function(m) {
-        var tr = document.createElement('tr');
-        var rate = (m.total_received > 0) ? Math.round((m.rejected / m.total_received) * 100) : 0;
-        tr.innerHTML =
-          '<td><strong>' + m.model_code + '</strong></td>' +
-          '<td>' + m.model_name + '</td>' +
-          '<td>' + (m.warranty_period_months || 24) + ' Months</td>' +
-          '<td>' + m.total_received + '</td>' +
-          '<td><span style="color:#16a34a; font-weight:bold;">' + m.passed + '</span></td>' +
-          '<td><span style="color:#dc2626; font-weight:bold;">' + m.rejected + '</span></td>' +
-          '<td>' + rate + '%</td>';
-        tbody.appendChild(tr);
-      });
-    }
+  rows.forEach(function(row) {
+    var line = row.map(escapeCSVField).join(',');
+    csvContent += line + '\r\n';
   });
+
+  var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
-function loadAuditTrail() {
-  callServer('apiGetAuditLog', [], function(res) {
-    var rows = (res && res.data) ? res.data : (Array.isArray(res) ? res : []);
-    var tbody = document.getElementById('audit-table-body');
-    tbody.innerHTML = '';
-    if (!rows || rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#94a3b8;">No audit log records found.</td></tr>';
-      return;
-    }
-    // Reverse to show latest first
-    rows.slice().reverse().slice(0, 100).forEach(function(a) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><small style="color:#64748b;">' + formatDate(a.timestamp) + '</small></td>' +
-        '<td><strong>' + (a.action || '') + '</strong></td>' +
-        '<td>' + (a.entity_type || '') + '</td>' +
-        '<td><strong style="color:var(--accent);">' + (a.entity_id || '') + '</strong></td>' +
-        '<td>' + (a.performed_by || '') + '</td>' +
-        '<td><small>' + (a.details || '') + '</small></td>';
-      tbody.appendChild(tr);
-    });
-  });
+function escapeCSVField(val) {
+  if (val === null || val === undefined) return '""';
+  var str = String(val).replace(/"/g, '""');
+  return '"' + str + '"';
 }
 
-// ─── SETTINGS ────────────────────────────────────────────────────────────────
-
-function saveSettings() {
-  var cfg = {
-    COMPANY_NAME: document.getElementById('cfg-company-name').value,
-    COMPANY_GST: document.getElementById('cfg-company-gst').value,
-    COMPANY_ADDRESS: document.getElementById('cfg-company-address').value,
-    COMPANY_PHONE: document.getElementById('cfg-company-phone').value,
-    COMPANY_EMAIL: document.getElementById('cfg-company-email').value
-  };
-
-  callServer('apiSaveConfig', [cfg], function(res) {
-    if (res && res.success) {
-      showToast('Settings saved successfully.', 'success');
-      BWMS.config = Object.assign(BWMS.config, cfg);
-    } else {
-      showToast((res && res.error) ? res.error : 'Failed to save settings', 'error');
-    }
+function exportTicketsCSV() {
+  var headers = ['Ticket #', 'Source', 'Customer / Dealer', 'Mobile', 'Vehicle', 'Model', 'Serial #', 'Date Received', 'Status', 'Remarks'];
+  var rows = (BWMS.tickets || []).map(function(t) {
+    return [
+      t.ticket_no,
+      t.source_type,
+      (t.source_type === 'DEALER' ? t.dealer_name : t.customer_name),
+      t.mobile,
+      t.vehicle_number,
+      t.battery_model,
+      t.original_serial_no,
+      t.date_received,
+      t.status,
+      t.remarks
+    ];
   });
+  downloadCSV('battery-intake-tickets-' + getExportDate() + '.csv', headers, rows);
 }
 
-// ─── HELPERS & BADGE RENDERERS ────────────────────────────────────────────────
+function exportLabCSV() {
+  var headers = ['Test ID', 'Ticket #', 'Serial #', 'Date', 'Voltage (V)', 'Result', 'Tested By', 'Remarks'];
+  var rows = (BWMS.tests || []).map(function(t) {
+    return [t.test_id, t.ticket_no, t.original_serial_no, t.test_date, t.open_circuit_voltage, t.test_result, t.tested_by, t.test_remarks];
+  });
+  downloadCSV('diagnostic-tests-' + getExportDate() + '.csv', headers, rows);
+}
+
+function exportClaimsCSV() {
+  var headers = ['Claim #', 'Ticket #', 'Customer / Dealer', 'Mobile', 'Model', 'Serial #', 'Date of Sale', 'Expiry', 'Warranty Status', 'Claim Status', 'Dispatch Batch', 'Replacement Serial'];
+  var rows = (BWMS.claims || []).map(function(c) {
+    return [
+      c.claim_no,
+      c.ticket_no,
+      (c.customer_name || c.dealer_name),
+      c.mobile,
+      c.battery_model,
+      c.original_serial_no,
+      c.date_of_sale,
+      c.warranty_expiry_date,
+      c.warranty_status,
+      c.status,
+      c.dispatch_batch_no,
+      c.replacement_serial_no
+    ];
+  });
+  downloadCSV('warranty-claims-' + getExportDate() + '.csv', headers, rows);
+}
+
+function exportReplacementsCSV() {
+  var headers = ['Claim #', 'Battery Model', 'Original Serial', 'Replacement Serial', 'Received Date', 'Invoice CN Ref', 'ERP Stock Status'];
+  var rows = (BWMS.claims || []).filter(function(c) { return c.status === 'REPLACEMENT_RECEIVED' || c.status === 'CLAIM_CLOSED'; }).map(function(c) {
+    return [c.claim_no, c.battery_model, c.original_serial_no, c.replacement_serial_no, c.replacement_received_date, c.stock_ref_no, c.stock_status];
+  });
+  downloadCSV('received-replacements-' + getExportDate() + '.csv', headers, rows);
+}
+
+function exportStockCSV() {
+  var headers = ['Task ID', 'Claim #', 'Replacement Serial', 'ERP Software', 'Voucher Ref', 'Reconciled Date', 'Reconciled By', 'Remarks'];
+  var rows = (BWMS.stockUpdates || []).map(function(s) {
+    return [s.stock_task_id, s.claim_no, s.replacement_serial_no, 'Busy/Tally', s.accounting_ref_no, s.updated_at, s.updated_by, s.remarks];
+  });
+  downloadCSV('erp-stock-log-' + getExportDate() + '.csv', headers, rows);
+}
+
+function exportChallansCSV() {
+  var headers = ['Challan #', 'Type', 'Date', 'Recipient', 'Serials', 'Status'];
+  var rows = [];
+  (BWMS.tickets || []).forEach(function(t) {
+    if (t.challan_no || t.status.indexOf('REJECTED') !== -1) {
+      rows.push([t.challan_no || ('DC-RET-' + t.ticket_no), 'BATTERY_RETURN', t.date_received, (t.dealer_name || t.customer_name), t.original_serial_no, t.status]);
+    }
+  });
+  (BWMS.dispatches || []).forEach(function(d) {
+    rows.push([d.company_challan_no, 'COMPANY_DISPATCH', d.dispatch_date, d.company_name, d.battery_count + ' Batteries', 'DISPATCHED']);
+  });
+  downloadCSV('delivery-challans-' + getExportDate() + '.csv', headers, rows);
+}
+
+function exportReportsCSV() {
+  var headers = ['Model Code', 'Model Name', 'Warranty (M)', 'Total Received', 'Passed', 'Rejected', 'Rejection Rate %'];
+  var rows = [];
+  var modelMap = {};
+  (BWMS.tickets || []).forEach(function(t) {
+    var k = t.battery_model || 'Unknown';
+    if (!modelMap[k]) modelMap[k] = { code: k, name: k, w: 24, recv: 0, p: 0, r: 0 };
+    modelMap[k].recv++;
+    if (t.status === 'TEST_PASSED' || t.status === 'CLAIM_CREATED') modelMap[k].p++;
+    else if (t.status.indexOf('REJECT') !== -1) modelMap[k].r++;
+  });
+  for (var k in modelMap) {
+    var m = modelMap[k];
+    var rate = m.recv > 0 ? Math.round((m.r / m.recv) * 100) : 0;
+    rows.push([m.code, m.name, m.w, m.recv, m.p, m.r, rate]);
+  }
+  downloadCSV('model-performance-report-' + getExportDate() + '.csv', headers, rows);
+}
+
+function exportAuditCSV() {
+  var headers = ['Timestamp', 'Action', 'Entity Type', 'Entity ID', 'User', 'Details'];
+  var rows = (BWMS.auditLog || []).map(function(a) {
+    return [a.timestamp, a.action, a.entity_type || a.record_type, a.entity_id || a.record_id, a.user_email, a.details];
+  });
+  downloadCSV('system-audit-log-' + getExportDate() + '.csv', headers, rows);
+}
+
+function getExportDate() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ─── HELPERS & RENDERERS ──────────────────────────────────────────────────────
+
+function setElText(id, text) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function calcDaysElapsed(dateStr) {
+  if (!dateStr) return 0;
+  try {
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 0;
+    var now = new Date();
+    var diffTime = Math.abs(now - d);
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  } catch (e) {
+    return 0;
+  }
+}
 
 function renderSourceBadge(source) {
   if (source === 'DEALER') return '<span class="badge badge-purple">DEALER</span>';
@@ -1057,25 +2098,31 @@ function renderSourceBadge(source) {
 function renderStatusBadge(status) {
   if (!status) return '-';
   var s = status.toUpperCase();
-  if (s.indexOf('PASS') !== -1 || s.indexOf('CLOSED') !== -1) return '<span class="badge badge-success">' + status + '</span>';
-  if (s.indexOf('REJECT') !== -1) return '<span class="badge badge-danger">' + status + '</span>';
-  if (s.indexOf('PENDING') !== -1 || s.indexOf('RECEIVED') !== -1) return '<span class="badge badge-warning">' + status + '</span>';
-  if (s.indexOf('DISPATCH') !== -1 || s.indexOf('COMPANY') !== -1) return '<span class="badge badge-info">' + status + '</span>';
-  return '<span class="badge badge-secondary">' + status + '</span>';
+  if (s.indexOf('PASS') !== -1 || s.indexOf('CLOSED') !== -1) return '<span class="badge badge-green">' + status + '</span>';
+  if (s.indexOf('REJECT') !== -1) return '<span class="badge badge-red">' + status + '</span>';
+  if (s.indexOf('PENDING') !== -1 || s.indexOf('RECEIVED') !== -1) return '<span class="badge badge-amber">' + status + '</span>';
+  if (s.indexOf('DISPATCH') !== -1 || s.indexOf('COMPANY') !== -1) return '<span class="badge badge-purple">' + status + '</span>';
+  return '<span class="badge badge-gray">' + status + '</span>';
+}
+
+function renderTestVerdictBadge(verdict) {
+  if (verdict === 'PASS') return '<span class="badge badge-green">PASS (Eligible)</span>';
+  if (verdict === 'REJECT') return '<span class="badge badge-red">REJECT (Faulty)</span>';
+  return '<span class="badge badge-gray">' + (verdict || '-') + '</span>';
 }
 
 function renderWarrantyBadge(wStatus) {
-  if (wStatus === 'IN_WARRANTY') return '<span class="badge badge-success">IN WARRANTY</span>';
-  if (wStatus === 'OUT_OF_WARRANTY') return '<span class="badge badge-danger">OUT OF WARRANTY</span>';
-  return '<span class="badge badge-warning">' + (wStatus || 'UNKNOWN') + '</span>';
+  if (wStatus === 'IN_WARRANTY' || wStatus === 'FULL_REPLACEMENT') return '<span class="badge badge-green">IN WARRANTY</span>';
+  if (wStatus === 'OUT_OF_WARRANTY' || wStatus === 'EXPIRED') return '<span class="badge badge-red">OUT OF WARRANTY</span>';
+  return '<span class="badge badge-amber">' + (wStatus || 'UNKNOWN') + '</span>';
 }
 
 function renderAgeingBadge(days) {
   var d = parseInt(days, 10) || 0;
-  if (d <= 7) return '<span class="badge badge-success">' + d + ' Days</span>';
-  if (d <= 15) return '<span class="badge badge-info">' + d + ' Days</span>';
-  if (d <= 30) return '<span class="badge badge-warning">' + d + ' Days</span>';
-  return '<span class="badge badge-danger" style="font-weight:bold;">🚨 ' + d + ' Days</span>';
+  if (d <= 7) return '<span class="badge badge-green">' + d + ' Days</span>';
+  if (d <= 15) return '<span class="badge badge-blue">' + d + ' Days</span>';
+  if (d <= 30) return '<span class="badge badge-amber">' + d + ' Days</span>';
+  return '<span class="badge badge-red" style="font-weight:bold;">🚨 ' + d + ' Days</span>';
 }
 
 function renderTicketActions(t) {
@@ -1083,12 +2130,12 @@ function renderTicketActions(t) {
   if (t.status === 'RECEIVED') {
     html += '<button class="btn btn-primary btn-sm" onclick="openTestModal(\'' + t.ticket_no + '\', \'' + t.battery_model + '\', \'' + t.original_serial_no + '\')">Test</button>';
   } else if (t.status === 'TEST_PASSED') {
-    html += '<button class="btn btn-success btn-sm" onclick="openClaimModal(\'' + t.ticket_no + '\')">Create Claim</button>';
+    html += '<button class="btn btn-success btn-sm" onclick="openClaimModal(\'' + t.ticket_no + '\')">Claim</button>';
   } else if (t.status === 'TEST_REJECTED') {
-    html += '<button class="btn btn-danger btn-sm" onclick="createReturnChallan(\'' + t.ticket_no + '\')">Create Challan</button>';
+    html += '<button class="btn btn-danger btn-sm" onclick="createReturnChallan(\'' + t.ticket_no + '\')">Challan</button>';
   } else if (t.status === 'REJECTED — RETURN PENDING') {
-    html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + t.challan_no + '\')">Print Challan</button>';
-    html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + t.challan_no + '\')">Mark Returned</button>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + (t.challan_no || ('DC-RET-' + t.ticket_no.replace('TKT-', ''))) + '\')">Print</button>';
+    html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + (t.challan_no || ('DC-RET-' + t.ticket_no.replace('TKT-', ''))) + '\')">Handover</button>';
   }
   html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">Timeline</button>';
   html += '</div>';
@@ -1099,11 +2146,11 @@ function renderClaimActions(c) {
   var html = '<div style="display:flex; gap:6px;">';
   html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
   html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs</button>';
-  if (c.claim_status === 'SENT_TO_COMPANY') {
+  if (c.status === 'SENT_TO_COMPANY') {
     html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">Receive Rep</button>';
-  } else if (c.stock_update_status === 'REQUIRED') {
+  } else if (c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
     html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">Stock Task</button>';
-  } else if (c.claim_status === 'REPLACEMENT_RECEIVED') {
+  } else if (c.status === 'REPLACEMENT_RECEIVED') {
     html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">Close Claim</button>';
   }
   html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">Timeline</button>';
@@ -1116,10 +2163,13 @@ function renderChallanActions(item) {
   if (item.type === 'BATTERY_RETURN') {
     html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + item.challan_no + '\')">🖨️ Print</button>';
     if (item.status === 'REJECTED — RETURN PENDING') {
-      html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + item.challan_no + '\')">Mark Returned</button>';
+      html += '<button class="btn btn-danger btn-sm" onclick="openMarkReturnedModal(\'' + item.challan_no + '\')">Handover</button>';
     }
   } else {
-    html += '<button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + item.challan_no + '\')">🖨️ Print Batch Challan</button>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + item.challan_no + '\')">🖨️ Print Batch</button>';
+    if (item.dispatch_batch_no) {
+      html += '<button class="btn btn-secondary btn-sm" onclick="openBatchItemsModal(\'' + item.dispatch_batch_no + '\')">👁️ Items</button>';
+    }
   }
   html += '</div>';
   return html;
@@ -1245,7 +2295,7 @@ function callServer(funcName, args, onSuccess, onError) {
     if (onSuccess) onSuccess(json);
   })
   .catch(function(err) {
-    // If POST fails (e.g. strict third-party cookie/network filter), try GET fallback
+    // If POST fails (e.g. strict network filter), try GET fallback
     var getUrl = url + '?action=' + encodeURIComponent(funcName) + '&args=' + encodeURIComponent(JSON.stringify(args));
     fetch(getUrl, { mode: 'cors', redirect: 'follow' })
       .then(function(r) { return r.json(); })

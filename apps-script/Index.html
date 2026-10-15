@@ -94,12 +94,18 @@
       <header class="topbar">
         <div class="topbar-left">
           <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
-          <div class="search-wrapper">
+          <div class="search-wrapper" style="position:relative;">
             <span class="search-icon">🔍</span>
-            <input type="text" id="global-search-input" class="search-input" placeholder="Universal Search: Serial No, Ticket #, Claim #, Customer, Mobile, Vehicle..." onkeydown="handleSearchKey(event)">
+            <input type="text" id="global-search-input" class="search-input" placeholder="Universal Search: Serial No, Ticket #, Claim #, Customer, Mobile, Vehicle..." oninput="handleUniversalSearchInput(this.value)" onkeydown="handleSearchKey(event)">
+            <div id="search-suggestions-dropdown" class="search-dropdown-menu"></div>
           </div>
         </div>
         <div class="topbar-right">
+          <div class="sync-status-badge" id="sync-status-badge" onclick="syncAllData(true)" title="Instant local in-memory store. Click to refresh from Google Cloud.">
+            <span class="sync-dot" id="sync-dot"></span>
+            <span id="sync-status-text">Preloading...</span>
+            <span id="sync-refresh-icon">🔄</span>
+          </div>
           <button class="btn btn-primary" onclick="openIntakeModal()">
             <span>+</span> <span>New Intake Ticket</span>
           </button>
@@ -120,7 +126,29 @@
               <h1 class="view-title">Executive Operations Hub</h1>
               <p class="view-subtitle">Live warranty intake, lab diagnostics, manufacturer batches, and stock status</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="refreshDashboard()">🔄 Refresh Hub</button>
+            <button class="btn btn-secondary btn-sm" onclick="syncAllData(true)">🔄 Sync Live Data</button>
+          </div>
+
+          <!-- Quick Actions Bar -->
+          <div class="quick-action-bar">
+            <div class="quick-action-chip" onclick="openIntakeModal()">
+              <span class="chip-icon">📥</span> <span>Receive Battery</span>
+            </div>
+            <div class="quick-action-chip" onclick="navigateTo('lab')">
+              <span class="chip-icon">🔬</span> <span>Testing Lab Queue</span>
+            </div>
+            <div class="quick-action-chip" onclick="navigateTo('pending-company')">
+              <span class="chip-icon">🚚</span> <span>Dispatch Batch</span>
+            </div>
+            <div class="quick-action-chip" onclick="navigateTo('stock-tasks')">
+              <span class="chip-icon">📦</span> <span>ERP Stock Inward</span>
+            </div>
+            <div class="quick-action-chip" onclick="navigateTo('reports')">
+              <span class="chip-icon">📈</span> <span>Ageing Analytics</span>
+            </div>
+            <div class="quick-action-chip" onclick="syncAllData(true)">
+              <span class="chip-icon">⚡</span> <span>Instant Cloud Sync</span>
+            </div>
           </div>
 
           <!-- KPI Metric Grid -->
@@ -228,27 +256,39 @@
               <p class="view-subtitle">Batteries received from retail customers or authorized dealers</p>
             </div>
             <div style="display:flex; gap:10px;">
-              <button class="btn btn-secondary btn-sm" onclick="loadTickets()">🔄 Refresh</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportTicketsCSV()">📥 Export CSV</button>
               <button class="btn btn-primary" onclick="openIntakeModal()">+ Receive Battery</button>
             </div>
           </div>
 
-          <div class="card-table">
-            <div class="table-header-bar">
-              <div class="table-title">Intake Records</div>
-              <div class="table-filter-bar">
-                <select id="filter-tickets-status" class="form-select" style="width:200px;" onchange="loadTickets()">
-                  <option value="ALL">All Statuses</option>
-                  <option value="RECEIVED">RECEIVED (Holding)</option>
-                  <option value="TESTING">TESTING</option>
-                  <option value="TEST_PASSED">TEST_PASSED</option>
-                  <option value="TEST_REJECTED">TEST_REJECTED</option>
-                  <option value="REJECTED — RETURN PENDING">REJECTED — RETURN PENDING</option>
-                  <option value="REJECTED — RETURNED">REJECTED — RETURNED</option>
-                  <option value="CLAIM_CREATED">CLAIM_CREATED</option>
-                </select>
-              </div>
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-tickets-search" class="table-search-input" placeholder="🔍 Search tickets by serial, customer, dealer, mobile, vehicle..." oninput="renderTicketsTable()">
+              <select id="filter-tickets-status" class="form-select" style="width:190px;" onchange="renderTicketsTable()">
+                <option value="ALL">All Statuses</option>
+                <option value="RECEIVED">RECEIVED (Holding)</option>
+                <option value="TESTING">TESTING</option>
+                <option value="TEST_PASSED">TEST_PASSED</option>
+                <option value="TEST_REJECTED">TEST_REJECTED</option>
+                <option value="REJECTED — RETURN PENDING">REJECTED — RETURN PENDING</option>
+                <option value="REJECTED — RETURNED">REJECTED — RETURNED</option>
+                <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+              </select>
+              <select id="filter-tickets-source" class="form-select" style="width:150px;" onchange="renderTicketsTable()">
+                <option value="ALL">All Sources</option>
+                <option value="CUSTOMER">Customer (Retail)</option>
+                <option value="DEALER">Dealer Channel</option>
+              </select>
+              <select id="filter-tickets-model" class="form-select" style="width:170px;" onchange="renderTicketsTable()">
+                <option value="ALL">All Models</option>
+              </select>
             </div>
+            <div class="view-toolbar-right">
+              <span id="tickets-count-badge" class="tab-counter">0 records</span>
+            </div>
+          </div>
+
+          <div class="card-table">
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
@@ -265,7 +305,7 @@
                   </tr>
                 </thead>
                 <tbody id="tickets-table-body">
-                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading tickets...</td></tr>
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading tickets from memory...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -279,12 +319,37 @@
               <h1 class="view-title">Battery Diagnostic & Testing Lab</h1>
               <p class="view-subtitle">Conduct diagnostic tests (voltage, specific gravity, load test) and record PASS or REJECT verdict</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadLabQueue()">🔄 Refresh Queue</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportLabCSV()">📥 Export Lab CSV</button>
           </div>
 
-          <div class="card-table">
+          <!-- Dual Tabs for Testing Lab -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-lab-queue" onclick="switchLabTab('queue')">
+              🔬 Queued for Testing <span class="tab-counter" id="lab-queue-tab-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-lab-history" onclick="switchLabTab('history')">
+              📋 Completed Diagnostic History <span class="tab-counter" id="lab-history-tab-count">0</span>
+            </button>
+          </div>
+
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-lab-search" class="table-search-input" placeholder="🔍 Search by serial, ticket #, customer, model, technician..." oninput="renderLabTables()">
+              <select id="filter-lab-verdict" class="form-select" style="width:160px;" onchange="renderLabTables()">
+                <option value="ALL">All Verdicts</option>
+                <option value="PASS">PASS (Eligible)</option>
+                <option value="REJECT">REJECT (Faulty/Dead)</option>
+              </select>
+            </div>
+            <div class="view-toolbar-right">
+              <span id="lab-count-badge" class="tab-counter">0 items</span>
+            </div>
+          </div>
+
+          <!-- Lab Queue Tab Container -->
+          <div id="container-lab-queue" class="card-table">
             <div class="table-header-bar">
-              <div class="table-title">Batteries Queued for Testing</div>
+              <div class="table-title">Batteries Awaiting Testing Bench</div>
             </div>
             <div class="table-responsive">
               <table class="data-table">
@@ -305,6 +370,33 @@
               </table>
             </div>
           </div>
+
+          <!-- Lab History Tab Container -->
+          <div id="container-lab-history" class="card-table" style="display:none;">
+            <div class="table-header-bar">
+              <div class="table-title">Diagnostic Test Records & Electrical Parameters</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Test ID</th>
+                    <th>Ticket #</th>
+                    <th>Original Serial</th>
+                    <th>Test Date</th>
+                    <th>OCV Voltage</th>
+                    <th>Verdict</th>
+                    <th>Tested By</th>
+                    <th>Diagnostic Remarks</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="lab-history-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">No completed tests found.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <!-- 4. WARRANTY CLAIMS VIEW -->
@@ -314,22 +406,34 @@
               <h1 class="view-title">Manufacturer Warranty Claims</h1>
               <p class="view-subtitle">Warranty claims created for passed batteries with auto-calculated validity</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadClaims()">🔄 Refresh</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportClaimsCSV()">📥 Export Claims CSV</button>
+          </div>
+
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-claims-search" class="table-search-input" placeholder="🔍 Search claims by claim #, ticket #, serial, party, model..." oninput="renderClaimsTable()">
+              <select id="filter-claims-status" class="form-select" style="width:190px;" onchange="renderClaimsTable()">
+                <option value="ALL">All Statuses</option>
+                <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                <option value="SENT_TO_COMPANY">SENT_TO_COMPANY</option>
+                <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
+                <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
+              </select>
+              <select id="filter-claims-warranty" class="form-select" style="width:180px;" onchange="renderClaimsTable()">
+                <option value="ALL">All Warranty Types</option>
+                <option value="IN_WARRANTY">IN WARRANTY</option>
+                <option value="OUT_OF_WARRANTY">OUT OF WARRANTY</option>
+              </select>
+              <select id="filter-claims-model" class="form-select" style="width:170px;" onchange="renderClaimsTable()">
+                <option value="ALL">All Models</option>
+              </select>
+            </div>
+            <div class="view-toolbar-right">
+              <span id="claims-count-badge" class="tab-counter">0 claims</span>
+            </div>
           </div>
 
           <div class="card-table">
-            <div class="table-header-bar">
-              <div class="table-title">Claims Registry</div>
-              <div class="table-filter-bar">
-                <select id="filter-claims-status" class="form-select" style="width:200px;" onchange="loadClaims()">
-                  <option value="ALL">All Statuses</option>
-                  <option value="CLAIM_CREATED">CLAIM_CREATED</option>
-                  <option value="SENT_TO_COMPANY">SENT_TO_COMPANY</option>
-                  <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
-                  <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
-                </select>
-              </div>
-            </div>
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
@@ -357,35 +461,82 @@
         <section id="view-pending-company" class="app-view" style="display:none;">
           <div class="view-header">
             <div>
-              <h1 class="view-title">Company Dispatch Staging</h1>
+              <h1 class="view-title">Company Dispatch Staging & Batches</h1>
               <p class="view-subtitle">Consolidate verified warranty claims into batch dispatches with Delivery Challan (DC-COM)</p>
             </div>
             <button class="btn btn-primary" onclick="openDispatchBatchModal()">🚚 Create Dispatch Batch</button>
           </div>
 
-          <div class="card-table">
-            <div class="table-header-bar">
-              <div class="table-title">Claims Pending Dispatch to Battery Manufacturer</div>
-              <div><small id="selected-dispatch-count" style="font-weight:600; color:var(--accent);">0 selected</small></div>
+          <!-- Dual Tabs for Dispatch -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-dsp-queue" onclick="switchDispatchTab('queue')">
+              🚚 Claims Pending Dispatch <span class="tab-counter" id="dsp-queue-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-dsp-batches" onclick="switchDispatchTab('batches')">
+              📦 Dispatched Batches History (DC-COM) <span class="tab-counter" id="dsp-batches-count">0</span>
+            </button>
+          </div>
+
+          <!-- Staging Queue Tab -->
+          <div id="container-dsp-queue">
+            <div class="view-toolbar">
+              <div class="view-toolbar-left">
+                <input type="text" id="filter-dispatch-search" class="table-search-input" placeholder="🔍 Search pending claims..." oninput="renderDispatchQueueTable()">
+              </div>
+              <div class="view-toolbar-right">
+                <span id="selected-dispatch-count" style="font-weight:600; color:var(--accent);">0 selected</span>
+              </div>
             </div>
-            <div class="table-responsive">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th style="width:40px;"><input type="checkbox" id="chk-select-all-dispatch" onchange="toggleSelectAllDispatch(this.checked)"></th>
-                    <th>Claim #</th>
-                    <th>Party</th>
-                    <th>Battery Model</th>
-                    <th>Original Serial</th>
-                    <th>Claim Date</th>
-                    <th>Docs Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="pending-dispatch-body">
-                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading dispatch queue...</td></tr>
-                </tbody>
-              </table>
+
+            <div class="card-table">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:40px;"><input type="checkbox" id="chk-select-all-dispatch" onchange="toggleSelectAllDispatch(this.checked)"></th>
+                      <th>Claim #</th>
+                      <th>Party Details</th>
+                      <th>Battery Model</th>
+                      <th>Original Serial</th>
+                      <th>Claim Date</th>
+                      <th>Docs Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pending-dispatch-body">
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">Loading dispatch queue...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Batches History Tab -->
+          <div id="container-dsp-batches" style="display:none;">
+            <div class="card-table">
+              <div class="table-header-bar">
+                <div class="table-title">Consolidated Factory Shipments (DC-COM Batches)</div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Batch #</th>
+                      <th>Company Challan #</th>
+                      <th>Company / Destination</th>
+                      <th>Transporter / Courier</th>
+                      <th>Docket / LR #</th>
+                      <th>Batteries</th>
+                      <th>Dispatch Date</th>
+                      <th>Created By</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dispatch-batches-body">
+                    <tr><td colspan="9" style="text-align:center; padding:20px;">No dispatch batches recorded yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
@@ -397,31 +548,85 @@
               <h1 class="view-title">Company Replacements Pending</h1>
               <p class="view-subtitle">Track batteries currently in manufacturer possession with real-time ageing alerts</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadReplacementPending()">🔄 Refresh</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportReplacementsCSV()">📥 Export CSV</button>
           </div>
 
-          <div class="card-table">
-            <div class="table-header-bar">
-              <div class="table-title">Open Manufacturer Requisitions</div>
+          <!-- Dual Tabs for Replacements -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-rep-pending" onclick="switchReplacementTab('pending')">
+              ⏳ Awaiting Replacements from Factory <span class="tab-counter" id="rep-pending-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-rep-history" onclick="switchReplacementTab('history')">
+              📥 Received Replacements Registry <span class="tab-counter" id="rep-history-count">0</span>
+            </button>
+          </div>
+
+          <!-- Pending Requisitions Tab -->
+          <div id="container-rep-pending">
+            <div class="view-toolbar">
+              <div class="view-toolbar-left">
+                <input type="text" id="filter-rep-search" class="table-search-input" placeholder="🔍 Search by claim #, serial, party, model, challan..." oninput="renderReplacementsTable()">
+                <select id="filter-rep-ageing" class="form-select" style="width:190px;" onchange="renderReplacementsTable()">
+                  <option value="ALL">All Ageing Windows</option>
+                  <option value="0-7">0–7 Days (Normal)</option>
+                  <option value="8-15">8–15 Days (Routine)</option>
+                  <option value="16-30">16–30 Days (Follow-up)</option>
+                  <option value="31+">31+ Days (Overdue Alert)</option>
+                </select>
+              </div>
+              <div class="view-toolbar-right">
+                <span id="rep-count-badge" class="tab-counter">0 pending</span>
+              </div>
             </div>
-            <div class="table-responsive">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Claim #</th>
-                    <th>Batch / Challan</th>
-                    <th>Party Details</th>
-                    <th>Battery Model</th>
-                    <th>Original Serial</th>
-                    <th>Dispatch Date</th>
-                    <th>Ageing Days</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody id="replacement-pending-body">
-                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading pending replacements...</td></tr>
-                </tbody>
-              </table>
+
+            <div class="card-table">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Claim #</th>
+                      <th>Batch / Challan</th>
+                      <th>Party Details</th>
+                      <th>Battery Model</th>
+                      <th>Original Serial</th>
+                      <th>Dispatch Date</th>
+                      <th>Ageing Days</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="replacement-pending-body">
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">Loading pending replacements...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Received Registry Tab -->
+          <div id="container-rep-history" style="display:none;">
+            <div class="card-table">
+              <div class="table-header-bar">
+                <div class="table-title">Received Factory Replacement Units</div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Claim #</th>
+                      <th>Battery Model</th>
+                      <th>Original Serial</th>
+                      <th>Replacement Serial (New)</th>
+                      <th>Received Date</th>
+                      <th>Invoice / CN Ref</th>
+                      <th>Stock Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="replacement-history-body">
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">No replacements logged yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
@@ -433,30 +638,77 @@
               <h1 class="view-title">ERP Stock Reconciliation Tasks</h1>
               <p class="view-subtitle">Replacement batteries received physically that require manual ledger entry in Busy, Tally, or Marg ERP</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadStockTasks()">🔄 Refresh</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportStockCSV()">📥 Export Stock Log</button>
           </div>
 
-          <div class="card-table">
-            <div class="table-header-bar">
-              <div class="table-title">Stock Ledger Entry Queue</div>
+          <!-- Dual Tabs for Stock -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-stock-pending" onclick="switchStockTab('pending')">
+              📦 Pending ERP Reconciliation <span class="tab-counter" id="stock-pending-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-stock-history" onclick="switchStockTab('history')">
+              ✅ Reconciled Inventory Log <span class="tab-counter" id="stock-history-count">0</span>
+            </button>
+          </div>
+
+          <!-- Pending Stock Tasks Tab -->
+          <div id="container-stock-pending">
+            <div class="view-toolbar">
+              <div class="view-toolbar-left">
+                <input type="text" id="filter-stock-search" class="table-search-input" placeholder="🔍 Search by replacement serial, claim #, model..." oninput="renderStockTasksTable()">
+              </div>
+              <div class="view-toolbar-right">
+                <span id="stock-count-badge" class="tab-counter">0 pending</span>
+              </div>
             </div>
-            <div class="table-responsive">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Claim #</th>
-                    <th>Battery Model</th>
-                    <th>Replacement Serial</th>
-                    <th>Original Serial</th>
-                    <th>Received Date</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody id="stock-tasks-body">
-                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading stock tasks...</td></tr>
-                </tbody>
-              </table>
+
+            <div class="card-table">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Claim #</th>
+                      <th>Battery Model</th>
+                      <th>Replacement Serial (New)</th>
+                      <th>Original Serial</th>
+                      <th>Received Date</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="stock-tasks-body">
+                    <tr><td colspan="7" style="text-align:center; padding:20px;">Loading stock tasks...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stock History Log Tab -->
+          <div id="container-stock-history" style="display:none;">
+            <div class="card-table">
+              <div class="table-header-bar">
+                <div class="table-title">Certified Accounting Inventory Inward Postings</div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Task ID</th>
+                      <th>Claim #</th>
+                      <th>Replacement Serial</th>
+                      <th>ERP Software</th>
+                      <th>Voucher / Inward Ref</th>
+                      <th>Reconciled By</th>
+                      <th>Updated At</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody id="stock-history-body">
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">No stock logs found.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
@@ -468,13 +720,32 @@
               <h1 class="view-title">Delivery Challans & Physical Custody</h1>
               <p class="view-subtitle">Return Challans (DC-RET) without rates/prices and Consolidated Company Challans (DC-COM)</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadChallans()">🔄 Refresh</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportChallansCSV()">📥 Export Challans CSV</button>
+          </div>
+
+          <!-- Triple Tabs for Challans -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-ch-all" onclick="switchChallansTab('all')">
+              All Challans <span class="tab-counter" id="ch-all-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-ch-ret" onclick="switchChallansTab('ret')">
+              Return Challans (DC-RET) <span class="tab-counter" id="ch-ret-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-ch-com" onclick="switchChallansTab('com')">
+              Company Dispatches (DC-COM) <span class="tab-counter" id="ch-com-count">0</span>
+            </button>
+          </div>
+
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-challans-search" class="table-search-input" placeholder="🔍 Search challans by #, serial, party, model..." oninput="renderChallansTable()">
+            </div>
+            <div class="view-toolbar-right">
+              <span id="challans-count-badge" class="tab-counter">0 challans</span>
+            </div>
           </div>
 
           <div class="card-table">
-            <div class="table-header-bar">
-              <div class="table-title">Challan Registry</div>
-            </div>
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
@@ -503,7 +774,7 @@
               <h1 class="view-title">Warranty Reports & Ageing Analytics</h1>
               <p class="view-subtitle">Detailed turnaround time, failure distributions, and operational volume</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadReports()">🔄 Run Report</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportReportsCSV()">📥 Export Report CSV</button>
           </div>
 
           <div class="kpi-grid" id="report-ageing-grid">
@@ -529,7 +800,7 @@
             </div>
           </div>
 
-          <div class="card-table">
+          <div class="card-table" style="margin-bottom:20px;">
             <div class="table-header-bar"><div class="table-title">Performance Summary by Battery Model</div></div>
             <div class="table-responsive">
               <table class="data-table">
@@ -545,7 +816,27 @@
                   </tr>
                 </thead>
                 <tbody id="reports-models-body">
-                  <tr><td colspan="7" style="text-align:center; padding:20px;">Run report to view model breakdown.</td></tr>
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading model breakdown...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card-table">
+            <div class="table-header-bar"><div class="table-title">Dealer-Wise Warranty Volume & Resolution</div></div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Dealer Name</th>
+                    <th>Total Claims</th>
+                    <th>Pending at Factory</th>
+                    <th>Resolved & Closed</th>
+                    <th>Resolution Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-dealers-body">
+                  <tr><td colspan="5" style="text-align:center; padding:20px;">Loading dealer breakdown...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -559,11 +850,29 @@
               <h1 class="view-title">System Audit Log</h1>
               <p class="view-subtitle">Immutable append-only chronological log of all warranty transitions and updates</p>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="loadAuditTrail()">🔄 Refresh</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportAuditCSV()">📥 Export Audit CSV</button>
+          </div>
+
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-audit-search" class="table-search-input" placeholder="🔍 Search audit by entity, ID, user, action..." oninput="renderAuditTable()">
+              <select id="filter-audit-action" class="form-select" style="width:180px;" onchange="renderAuditTable()">
+                <option value="ALL">All Actions</option>
+                <option value="TICKET_CREATED">TICKET_CREATED</option>
+                <option value="BATTERY_TESTED">BATTERY_TESTED</option>
+                <option value="CLAIM_CREATED">CLAIM_CREATED</option>
+                <option value="COMPANY_DISPATCH">COMPANY_DISPATCH</option>
+                <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
+                <option value="STOCK_UPDATED">STOCK_UPDATED</option>
+                <option value="CLAIM_CLOSED">CLAIM_CLOSED</option>
+              </select>
+            </div>
+            <div class="view-toolbar-right">
+              <span id="audit-count-badge" class="tab-counter">0 events</span>
+            </div>
           </div>
 
           <div class="card-table">
-            <div class="table-header-bar"><div class="table-title">Audit Log Entries</div></div>
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
@@ -591,11 +900,28 @@
               <h1 class="view-title">Settings & Master Configuration</h1>
               <p class="view-subtitle">Company profile, battery model warranty durations, and authorized dealers</p>
             </div>
-            <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Save Profile Settings</button>
           </div>
 
-          <div class="card-table" style="padding:24px;">
-            <h3 style="font-size:15px; margin-bottom:16px;">Distributor Profile</h3>
+          <!-- Settings Tab Bar -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-cfg-profile" onclick="switchSettingsTab('profile')">
+              🏢 Distributor Profile
+            </button>
+            <button class="tab-btn" id="tab-btn-cfg-models" onclick="switchSettingsTab('models')">
+              ⚡ Battery Models Master <span class="tab-counter" id="cfg-models-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-cfg-dealers" onclick="switchSettingsTab('dealers')">
+              🤝 Authorized Dealers Master <span class="tab-counter" id="cfg-dealers-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-cfg-cloud" onclick="switchSettingsTab('cloud')">
+              ☁️ Cloud Database & Cache Engine
+            </button>
+          </div>
+
+          <!-- Tab 1: Distributor Profile -->
+          <div id="container-cfg-profile" class="card-table" style="padding:24px;">
+            <h3 style="font-size:15px; margin-bottom:16px;">Distributor Business Information</h3>
             <div class="form-grid form-grid-2">
               <div class="form-group">
                 <label class="form-label">Distributor / Business Name</label>
@@ -617,6 +943,93 @@
                 <label class="form-label">Contact Email</label>
                 <input type="text" id="cfg-company-email" class="form-control">
               </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label class="form-label">Delivery Challan Terms & Conditions</label>
+                <textarea id="cfg-company-terms" class="form-control" rows="3" placeholder="Terms printed on delivery challans..."></textarea>
+              </div>
+            </div>
+            <div style="margin-top:16px; text-align:right;">
+              <button class="btn btn-primary" onclick="saveSettings()">💾 Save Profile Settings</button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Battery Models Master -->
+          <div id="container-cfg-models" class="card-table" style="display:none;">
+            <div class="table-header-bar">
+              <div class="table-title">Registered Battery Models & Warranty Durations</div>
+              <button class="btn btn-primary btn-sm" onclick="openAddModelModal()">+ Add New Battery Model</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Model Code</th>
+                    <th>Brand</th>
+                    <th>Commercial Name</th>
+                    <th>Capacity (Ah)</th>
+                    <th>Warranty (M)</th>
+                    <th>Guarantee (M)</th>
+                    <th>Pro-Rata (M)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="cfg-models-body">
+                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading battery models...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 3: Authorized Dealers Master -->
+          <div id="container-cfg-dealers" class="card-table" style="display:none;">
+            <div class="table-header-bar">
+              <div class="table-title">Authorized Dealer Channel Directory</div>
+              <button class="btn btn-primary btn-sm" onclick="openAddDealerModal()">+ Add New Dealer</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Dealer ID</th>
+                    <th>Dealer Name</th>
+                    <th>Contact Person</th>
+                    <th>Mobile</th>
+                    <th>GSTIN</th>
+                    <th>Address</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="cfg-dealers-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading dealers...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 4: Cloud Database & Cache Engine -->
+          <div id="container-cfg-cloud" class="card-table" style="padding:24px; display:none;">
+            <h3 style="font-size:15px; margin-bottom:16px;">Cloud Database & Architecture Health</h3>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:20px;">
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Google Spreadsheet Master</div>
+                <div style="font-weight:700; font-size:14px; margin-bottom:8px;">ID: 1Vp8DLi...UKXK08</div>
+                <a href="https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit" target="_blank" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+                  <span>📊 Open Google Sheet</span>
+                </a>
+              </div>
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">In-Memory Fast Store Status</div>
+                <div id="cloud-store-stats" style="font-weight:700; font-size:14px; margin-bottom:8px;">Active • Local Cache</div>
+                <button class="btn btn-primary btn-sm" onclick="syncAllData(true)">⚡ Hard Cloud Sync Now</button>
+              </div>
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Connection Latency Probe</div>
+                <div id="cloud-latency-val" style="font-weight:700; font-size:14px; margin-bottom:8px;">Ready to test</div>
+                <button class="btn btn-secondary btn-sm" onclick="runLatencyProbe()">🔌 Test Connection</button>
+              </div>
+            </div>
+            <div style="background:#f1f5f9; padding:12px 16px; border-radius:6px; font-size:12px; color:#475569;">
+              <strong>Fast Bulk State Engine:</strong> The entire database is preloaded into an in-memory client store on startup with background sync, giving instantaneous 0ms response time on view navigation, universal search, and filtering.
             </div>
           </div>
         </section>
@@ -1106,6 +1519,124 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modal-print')">Close</button>
         <button class="btn btn-primary" onclick="triggerIframePrint()">🖨️ Print Document</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. ADD BATTERY MODEL MODAL -->
+  <div class="modal" id="modal-add-model">
+    <div class="modal-backdrop" onclick="closeModal('modal-add-model')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Add New Battery Model to Master</h2>
+        <button class="modal-close" onclick="closeModal('modal-add-model')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-model" onsubmit="handleAddModelSubmit(event)">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Brand *</label>
+              <input type="text" id="new-model-brand" class="form-control" required value="Amaron">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Commercial Model Name *</label>
+              <input type="text" id="new-model-name" class="form-control" required placeholder="e.g. AAM-FL-550114042">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Battery Capacity (Ah)</label>
+              <input type="number" id="new-model-ah" class="form-control" placeholder="e.g. 50">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Total Warranty Months *</label>
+              <input type="number" id="new-model-warranty" class="form-control" required value="36">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Full Free Guarantee Months *</label>
+              <input type="number" id="new-model-guarantee" class="form-control" required value="18">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pro-Rata Months *</label>
+              <input type="number" id="new-model-prorata" class="form-control" required value="18">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-model')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Model to Cloud Master</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 13. ADD DEALER MODAL -->
+  <div class="modal" id="modal-add-dealer">
+    <div class="modal-backdrop" onclick="closeModal('modal-add-dealer')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Register Authorized Dealer</h2>
+        <button class="modal-close" onclick="closeModal('modal-add-dealer')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-dealer" onsubmit="handleAddDealerSubmit(event)">
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Dealer / Shop Name *</label>
+              <input type="text" id="new-dealer-name" class="form-control" required placeholder="e.g. Shree Ram Auto Electric">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contact Person</label>
+              <input type="text" id="new-dealer-contact" class="form-control" placeholder="Proprietor / Manager">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mobile Number *</label>
+              <input type="tel" id="new-dealer-mobile" class="form-control" required placeholder="10-digit mobile">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GSTIN</label>
+              <input type="text" id="new-dealer-gst" class="form-control" placeholder="e.g. 24AABCS1429B1Z0">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Address & City</label>
+              <input type="text" id="new-dealer-address" class="form-control" placeholder="Shop No, Road, City, PIN">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-dealer')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Dealer to Cloud Master</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 14. VIEW BATCH ITEMS MODAL -->
+  <div class="modal" id="modal-batch-items">
+    <div class="modal-backdrop" onclick="closeModal('modal-batch-items')"></div>
+    <div class="modal-content" style="max-width:700px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="batch-items-title">Batch Shipment Details</h2>
+        <button class="modal-close" onclick="closeModal('modal-batch-items')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="batch-items-summary" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:14px;"></div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Claim #</th>
+                <th>Party Details</th>
+                <th>Battery Model</th>
+                <th>Original Serial</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="batch-items-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-batch-items')">Close</button>
       </div>
     </div>
   </div>

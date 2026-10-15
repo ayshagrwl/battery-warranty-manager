@@ -111,6 +111,49 @@ var Database = (function () {
     return rows;
   }
 
+  function getBulkTables(sheetNames) {
+    var ss = getSpreadsheet();
+    if (!ss) throw new Error('Spreadsheet not accessible.');
+    var result = {};
+    for (var i = 0; i < sheetNames.length; i++) {
+      var name = sheetNames[i];
+      var sheet = ss.getSheetByName(name);
+      if (!sheet) {
+        result[name] = [];
+        continue;
+      }
+      var data = sheet.getDataRange().getValues();
+      if (data.length <= 1) {
+        result[name] = [];
+        continue;
+      }
+      var headers = data[0];
+      var rows = [];
+      for (var r = 1; r < data.length; r++) {
+        var row = {};
+        var hasData = false;
+        for (var c = 0; c < headers.length; c++) {
+          var key = headers[c];
+          var val = data[r][c];
+          if (val !== '' && val !== null && val !== undefined) {
+            hasData = true;
+          }
+          if (val instanceof Date) {
+            try {
+              val = val.toISOString().split('T')[0];
+            } catch (e) {}
+          }
+          row[key] = val;
+        }
+        if (hasData) {
+          rows.push(row);
+        }
+      }
+      result[name] = rows;
+    }
+    return result;
+  }
+
   function appendRow(sheetName, rowObj) {
     return Utils.withLock(function () {
       var sheet = getSheet(sheetName);
@@ -501,6 +544,7 @@ var Database = (function () {
     appendRow: appendRow,
     updateRow: updateRow,
     getRowById: getRowById,
+    getBulkTables: getBulkTables,
     setupDatabase: setupDatabase,
     seedDemoData: seedDemoData,
     checkDatabaseConnection: checkDatabaseConnection
