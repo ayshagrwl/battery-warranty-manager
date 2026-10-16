@@ -80,7 +80,10 @@ function doGet(e) {
     return renderPrintTemplate('templates/company-challan', DispatchService.getCompanyChallanPrintData(params.id));
   }
   if (page === 'print-claim-form' && params.id) {
-    return renderPrintTemplate('templates/claim-form', DispatchService.getClaimFormPrintData(params.id));
+    return renderPrintTemplate('templates/claim-form', ClaimService.getClaimFormPrintData(params.id));
+  }
+  if (page === 'print-intake-slip' && params.id) {
+    return renderPrintTemplate('templates/intake-slip', TicketService.getIntakeSlipPrintData(params.id));
   }
 
   // Render primary single page app
@@ -116,6 +119,26 @@ function renderPrintTemplate(filename, printData) {
     .setTitle((printData && printData.company ? printData.company.name : 'Battery Hub') + ' - Document')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function apiGetPrintData(docType, id) {
+  try {
+    var data = null;
+    if (docType === 'return-challan') {
+      data = ChallanService.getChallanPrintData(id);
+    } else if (docType === 'company-challan') {
+      data = DispatchService.getCompanyChallanPrintData(id);
+    } else if (docType === 'claim-form') {
+      data = ClaimService.getClaimFormPrintData(id);
+    } else if (docType === 'intake-slip') {
+      data = TicketService.getIntakeSlipPrintData(id);
+    } else {
+      throw new Error('Unknown document type: ' + docType);
+    }
+    return Utils.success(data);
+  } catch (err) {
+    return Utils.error(err.message);
+  }
 }
 
 function apiGetAuditLog() {

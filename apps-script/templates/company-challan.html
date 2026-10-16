@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <base target="_top">
-  <title>Company Delivery Challan - Warranty Dispatch</title>
+  <title>Delivery Challan - Company Dispatch</title>
   <style>
-    @page { size: A4 portrait; margin: 12mm; }
+    @page { size: A4; margin: 12mm 15mm; }
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial, sans-serif;
-      color: #1e293b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
       margin: 0;
       padding: 20px;
       background: #ffffff;
       font-size: 12px;
+      line-height: 1.45;
     }
     .header {
       border-bottom: 2px solid #0f172a;
@@ -22,32 +25,54 @@
       align-items: flex-start;
     }
     .company-title {
-      font-size: 18px;
-      font-weight: bold;
+      font-size: 19px;
+      font-weight: 800;
       color: #0f172a;
       text-transform: uppercase;
+      letter-spacing: -0.3px;
+      margin-bottom: 3px;
     }
     .company-details {
       font-size: 11px;
       color: #475569;
       line-height: 1.4;
     }
-    .doc-badge { text-align: right; }
+    .doc-badge {
+      text-align: right;
+    }
     .doc-title {
-      font-size: 14px;
-      font-weight: bold;
+      font-size: 13px;
+      font-weight: 800;
       background: #f1f5f9;
-      padding: 5px 10px;
+      color: #0f172a;
+      padding: 5px 12px;
       border: 1px solid #cbd5e1;
+      border-radius: 4px;
       display: inline-block;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .doc-meta { font-size: 11px; margin-top: 5px; color: #334155; }
+    .doc-meta {
+      font-size: 11px;
+      margin-top: 6px;
+      color: #334155;
+      line-height: 1.5;
+    }
+    .no-price-banner {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid #0284c7;
+      color: #0369a1;
+      padding: 6px 12px;
+      font-size: 10.5px;
+      margin-bottom: 14px;
+      font-weight: 500;
+    }
     .grid-two {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     .panel {
       border: 1px solid #cbd5e1;
@@ -56,95 +81,119 @@
       background: #f8fafc;
     }
     .panel-title {
-      font-size: 10px;
-      font-weight: bold;
+      font-size: 10.5px;
+      font-weight: 700;
       text-transform: uppercase;
-      color: #64748b;
-      margin-bottom: 4px;
+      color: #475569;
+      margin-bottom: 6px;
       border-bottom: 1px solid #e2e8f0;
       padding-bottom: 3px;
+      letter-spacing: 0.3px;
     }
-    .info-row { margin-bottom: 3px; display: flex; }
-    .info-label { width: 100px; color: #64748b; font-weight: 500; }
-    .info-val { font-weight: bold; color: #0f172a; flex: 1; }
-    table {
+    .info-row {
+      margin-bottom: 4px;
+      display: flex;
+    }
+    .info-label {
+      width: 105px;
+      color: #64748b;
+      font-weight: 500;
+      font-size: 11px;
+    }
+    .info-val {
+      font-weight: 600;
+      color: #0f172a;
+      flex: 1;
+      font-size: 11px;
+    }
+    table.data-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 20px;
+      margin-bottom: 14px;
     }
-    th, td {
+    table.data-table th, table.data-table td {
       border: 1px solid #cbd5e1;
-      padding: 7px 9px;
+      padding: 7px 10px;
       text-align: left;
     }
-    th {
+    table.data-table th {
       background: #f1f5f9;
-      font-weight: bold;
+      font-weight: 700;
       font-size: 11px;
       text-transform: uppercase;
+      color: #334155;
     }
     .sig-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 20px;
-      margin-top: 40px;
+      margin-top: 30px;
+      page-break-inside: avoid;
     }
     .sig-box {
       border-top: 1px solid #475569;
       padding-top: 5px;
       font-size: 11px;
+      color: #334155;
       text-align: center;
+      font-weight: 600;
     }
     @media print {
       body { padding: 0; }
-      .no-print { display: none; }
+      .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="no-print" style="margin-bottom: 16px; text-align: right;">
-    <button onclick="window.print()" style="padding: 8px 16px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Print Delivery Challan</button>
+  <div class="no-print" style="margin-bottom: 14px; display: flex; justify-content: flex-end; gap: 8px;">
+    <button onclick="window.print()" style="padding: 8px 18px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 12px;">🖨️ Print Delivery Challan (A4)</button>
   </div>
 
   <div class="header">
     <div>
-      <div class="company-title"><?= data.company.name ?></div>
+      <div class="company-title"><?= (data && data.company && data.company.name) ? data.company.name : 'Amaron Battery Hub & Service Care' ?></div>
       <div class="company-details">
-        <?= data.company.address ?><br>
-        Phone: <?= data.company.phone ?> | Email: <?= data.company.email ?>
-        <? if (data.company.gstin) { ?> | GSTIN: <?= data.company.gstin ?><? } ?>
+        <?= (data && data.company && data.company.address) ? data.company.address : 'Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002' ?><br>
+        Phone: <?= (data && data.company && data.company.phone) ? data.company.phone : '+91 98250 12345' ?> &nbsp;|&nbsp; Email: <?= (data && data.company && data.company.email) ? data.company.email : 'service@batteryhub.in' ?><br>
+        <? var gstinVal = (data && data.company && (data.company.gstin || data.company.gst)) ? (data.company.gstin || data.company.gst) : ''; ?>
+        <? if (gstinVal) { ?><strong>GSTIN:</strong> <?= gstinVal ?><? } ?>
       </div>
     </div>
     <div class="doc-badge">
       <div class="doc-title">Delivery Challan (Company Dispatch)</div>
       <div class="doc-meta">
-        <strong>Challan No:</strong> <?= data.challan.challan_no ?><br>
-        <strong>Batch No:</strong> <?= (data.dispatch && data.dispatch.dispatch_batch_no) ? data.dispatch.dispatch_batch_no : '-' ?><br>
-        <strong>Date:</strong> <?= data.challan.challan_date ?>
+        <strong>Challan No:</strong> <?= (data && data.challan && data.challan.challan_no) ? data.challan.challan_no : '-' ?><br>
+        <strong>Batch No:</strong> <?= (data && data.dispatch && data.dispatch.dispatch_batch_no) ? data.dispatch.dispatch_batch_no : '-' ?><br>
+        <strong>Date:</strong> <?= (data && data.challan && (data.challan.challan_date_formatted || data.challan.challan_date)) ? (data.challan.challan_date_formatted || data.challan.challan_date) : ((data && data.dispatch && (data.dispatch.dispatch_date_formatted || data.dispatch.dispatch_date)) ? (data.dispatch.dispatch_date_formatted || data.dispatch.dispatch_date) : '-') ?>
       </div>
     </div>
   </div>
 
+  <div class="no-price-banner">
+    STATUTORY NOTICE: Delivery Challan issued under Rule 55 of CGST Rules, 2017 for dispatch of goods for warranty testing &amp; replacement credit to manufacturer depot. Value declared for transit insurance purpose only. Not for sale.
+  </div>
+
   <div class="grid-two">
     <div class="panel">
-      <div class="panel-title">Consignee (Battery Manufacturer Depot)</div>
-      <div class="info-row"><span class="info-label">Company:</span><span class="info-val"><?= (data.dispatch && data.dispatch.company_name) ? data.dispatch.company_name : data.challan.recipient_name ?></span></div>
-      <div class="info-row"><span class="info-label">Destination:</span><span class="info-val"><?= (data.dispatch && data.dispatch.destination) ? data.dispatch.destination : data.challan.address ?></span></div>
-      <div class="info-row"><span class="info-label">Total Qty:</span><span class="info-val"><?= data.items.length ?> Batteries</span></div>
+      <div class="panel-title">Consignee (Manufacturer Depot / Service Center)</div>
+      <div class="info-row"><span class="info-label">Company:</span><span class="info-val"><?= (data && data.dispatch && data.dispatch.company_name) ? data.dispatch.company_name : ((data && data.challan && data.challan.recipient_name) ? data.challan.recipient_name : 'Amaron Batteries Ltd. (Depot)') ?></span></div>
+      <div class="info-row"><span class="info-label">Destination:</span><span class="info-val"><?= (data && data.dispatch && data.dispatch.destination) ? data.dispatch.destination : ((data && data.challan && data.challan.address) ? data.challan.address : 'Regional Warranty Depot') ?></span></div>
+      <div class="info-row"><span class="info-label">Consignment Qty:</span><span class="info-val"><?= (data && data.items) ? data.items.length : 1 ?> Batteries</span></div>
     </div>
     <div class="panel">
       <div class="panel-title">Logistics & Consignment Details</div>
-      <div class="info-row"><span class="info-label">Transporter:</span><span class="info-val"><?= (data.dispatch && data.dispatch.carrier_transporter) ? data.dispatch.carrier_transporter : 'Direct Handover' ?></span></div>
-      <div class="info-row"><span class="info-label">LR/Docket No:</span><span class="info-val"><?= (data.dispatch && data.dispatch.lr_docket_no) ? data.dispatch.lr_docket_no : '-' ?></span></div>
-      <div class="info-row"><span class="info-label">Dispatched By:</span><span class="info-val"><?= (data.dispatch && data.dispatch.created_by) ? data.dispatch.created_by : 'Store Manager' ?></span></div>
+      <div class="info-row"><span class="info-label">Transporter:</span><span class="info-val"><?= (data && data.dispatch && data.dispatch.carrier_transporter) ? data.dispatch.carrier_transporter : 'Direct Handover / Self Transport' ?></span></div>
+      <div class="info-row"><span class="info-label">LR / Docket No:</span><span class="info-val"><?= (data && data.dispatch && data.dispatch.lr_docket_no) ? data.dispatch.lr_docket_no : '-' ?></span></div>
+      <div class="info-row"><span class="info-label">Dispatched By:</span><span class="info-val"><?= (data && data.dispatch && data.dispatch.created_by) ? data.dispatch.created_by : 'Store Manager' ?></span></div>
     </div>
   </div>
 
-  <table>
+  <table class="data-table">
     <thead>
       <tr>
         <th style="width: 30px; text-align: center;">#</th>
-        <th style="width: 100px;">Claim No</th>
+        <th style="width: 105px;">Claim No</th>
+        <th style="width: 105px;">Ticket Ref</th>
         <th>Customer / Dealer</th>
         <th>Battery Model</th>
         <th>Original Battery Serial Number</th>
@@ -153,38 +202,60 @@
       </tr>
     </thead>
     <tbody>
-      <? for (var i = 0; i < data.items.length; i++) { ?>
+      <? var itemsList = (data && data.items && data.items.length > 0) ? data.items : []; ?>
+      <? if (itemsList.length === 0) { ?>
       <tr>
-        <td style="text-align: center;"><?= i + 1 ?></td>
-        <td style="font-weight: bold;"><?= data.items[i].claim_no ?></td>
-        <td><?= data.items[i].customer_name ?></td>
-        <td><?= data.items[i].battery_model ?></td>
-        <td style="font-family: monospace; font-size: 13px; font-weight: bold;"><?= data.items[i].original_serial_no ?></td>
-        <td><?= data.items[i].warranty_status ?></td>
+        <td style="text-align: center;">1</td>
+        <td style="font-weight: bold;"><?= (data && data.challan && data.challan.challan_no) ? data.challan.challan_no : 'CLM-BATCH' ?></td>
+        <td>-</td>
+        <td><?= (data && data.challan && data.challan.recipient_name) ? data.challan.recipient_name : 'Customer' ?></td>
+        <td><?= (data && data.challan && data.challan.battery_model) ? data.challan.battery_model : 'Battery Batch' ?></td>
+        <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 13px; font-weight: 800;"><?= (data && data.challan && data.challan.battery_serial_no) ? data.challan.battery_serial_no : '-' ?></span></td>
+        <td>IN_WARRANTY</td>
         <td style="text-align: center; font-weight: bold;">1</td>
       </tr>
+      <? } else { ?>
+      <? for (var i = 0; i < itemsList.length; i++) { ?>
+      <tr>
+        <td style="text-align: center; font-weight: bold;"><?= i + 1 ?></td>
+        <td style="font-weight: bold;"><?= itemsList[i].claim_no || '-' ?></td>
+        <td><?= itemsList[i].ticket_no || '-' ?></td>
+        <td><?= itemsList[i].customer_name || '-' ?></td>
+        <td><?= itemsList[i].battery_model || '-' ?></td>
+        <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 13px; font-weight: 800;"><?= itemsList[i].original_serial_no || '-' ?></span></td>
+        <td><?= itemsList[i].warranty_status || 'IN_WARRANTY' ?></td>
+        <td style="text-align: center; font-weight: bold;">1</td>
+      </tr>
+      <? } ?>
       <? } ?>
     </tbody>
     <tfoot>
       <tr style="background: #f8fafc; font-weight: bold;">
-        <td colspan="6" style="text-align: right;">Total Batteries Dispatched:</td>
-        <td style="text-align: center;"><?= data.items.length ?></td>
+        <td colspan="7" style="text-align: right;">Total Batteries Dispatched in Batch:</td>
+        <td style="text-align: center; font-size: 13px;"><?= itemsList.length > 0 ? itemsList.length : 1 ?></td>
       </tr>
     </tfoot>
   </table>
 
+  <div style="font-size: 10px; color: #475569; margin-bottom: 20px; line-height: 1.45; border-left: 3px solid #cbd5e1; padding-left: 8px;">
+    <strong>Declaration:</strong> Goods dispatched under this Delivery Challan are for warranty replacement verification. The quantities, model specifications, and serial numbers mentioned above have been physically inspected and sealed in crates.
+  </div>
+
   <div class="sig-grid">
     <div class="sig-box">
       <div style="height: 35px;"></div>
-      Prepared & Verified By
+      Prepared &amp; Verified By<br>
+      <span style="font-size: 10px; font-weight: normal; color: #64748b;">(Store In-Charge / Dispatch Officer)</span>
     </div>
     <div class="sig-box">
       <div style="height: 35px;"></div>
-      Transporter Signature / Seal
+      Transporter Signature &amp; Seal<br>
+      <span style="font-size: 10px; font-weight: normal; color: #64748b;">(Goods Accepted in Sound Condition)</span>
     </div>
     <div class="sig-box">
       <div style="height: 35px;"></div>
-      Receiver Seal & Signature (Company Depot)
+      Manufacturer Depot Receiving Inward<br>
+      <span style="font-size: 10px; font-weight: normal; color: #64748b;">(Seal, Date &amp; Inward No.)</span>
     </div>
   </div>
 </body>

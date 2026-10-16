@@ -26,6 +26,7 @@ const colors = {
 const SHEET_ID = '1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08';
 const DEPLOYMENT_ID = 'AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j';
 const WEBAPP_URL = `https://script.google.com/macros/s/${DEPLOYMENT_ID}/exec`;
+const appsScriptDir = path.join(__dirname, '..', 'apps-script');
 
 let passedCount = 0;
 let totalCount = 0;
@@ -293,6 +294,8 @@ async function runTests() {
           contains(c) { return this.classes.has(c); }
         },
         style: {},
+        setAttribute(k, v) { this[k] = v; },
+        removeAttribute(k) { delete this[k]; },
         appendChild(child) {
           this.children.push(child);
           if (child && (child.tagName === 'option' || child.value !== undefined)) {
@@ -330,11 +333,12 @@ async function runTests() {
           }
         },
         setAttribute: (k, v) => { el[k] = v; },
+        removeAttribute: (k) => { delete el[k]; },
         click: () => {}
       };
       return el;
     },
-    body: { appendChild: () => {}, removeChild: () => {} },
+    body: { style: {}, appendChild: () => {}, removeChild: () => {} },
     querySelectorAll: (sel) => {
       return Object.values(elements).filter(e => {
         if (!sel) return false;
@@ -509,6 +513,162 @@ async function runTests() {
 
   vmContext.handleSpotlightSearch('NON-EXISTENT-BATTERY-999');
   assert(mockSpotlightEl.innerHTML.includes('Check Warranty') && mockSpotlightEl.innerHTML.includes('New Intake'), 'Fast Search: Unknown query renders fallback quick-action buttons with zero dead ends');
+
+  console.log(`\n${colors.bold}SUITE 8: High-Fidelity Client-Side Print Engine & Document Data Fidelity${colors.reset}`);
+  console.log(`─────────────────────────────────────────────────────────────────────────────`);
+
+  // Add tests and dispatch items to VM store
+  vmContext.BWMS.config = {
+    COMPANY_NAME: 'Test Battery Distributors Pvt Ltd',
+    COMPANY_ADDRESS: 'Plot 45, GIDC Industrial Estate, Surat, Gujarat - 395003',
+    COMPANY_PHONE: '+91 98765 43210',
+    COMPANY_EMAIL: 'support@testbattery.in',
+    COMPANY_GST: '24TESTG1234Z1',
+    COMPANY_TERMS: 'Standard Warranty Terms'
+  };
+
+  vmContext.BWMS.tests = [
+    {
+      test_id: 'TST-2026-0001',
+      ticket_no: 'TKT-0003',
+      original_serial_no: '001236',
+      test_date: '2026-10-12',
+      tested_by: 'Senior Technician',
+      open_circuit_voltage: '10.2',
+      load_test_voltage: '8.0',
+      specific_gravity: '1.14, 1.15, 1.12, 1.14, 1.13, 1.14',
+      physical_condition: 'Intact, normal wear',
+      test_result: 'REJECT',
+      test_remarks: 'Discharged and deep sulfation, non-manufacturing defect'
+    },
+    {
+      test_id: 'TST-2026-0002',
+      ticket_no: 'TKT-0002',
+      original_serial_no: '001235',
+      test_date: '2026-10-11',
+      tested_by: 'Lab Head',
+      open_circuit_voltage: '12.4',
+      load_test_voltage: '9.8',
+      specific_gravity: '1.24, 1.24, 1.24, 1.24, 1.24, 1.24',
+      physical_condition: 'Clean, no damage',
+      test_result: 'PASS',
+      test_remarks: 'Internal open circuit cell #3 factory defect'
+    }
+  ];
+
+  vmContext.BWMS.dispatchItems = [
+    {
+      item_id: 'DPI-001',
+      dispatch_batch_no: 'DSP-0001',
+      claim_no: 'CLM-0001',
+      ticket_no: 'TKT-0005',
+      customer_name: 'Deepak',
+      battery_model: 'AAM-FL-00042B20L',
+      original_serial_no: '001238',
+      warranty_status: 'IN_WARRANTY'
+    },
+    {
+      item_id: 'DPI-002',
+      dispatch_batch_no: 'DSP-0001',
+      claim_no: 'CLM-0002',
+      ticket_no: 'TKT-0002',
+      customer_name: 'Anita',
+      battery_model: 'AAM-PR-00055D23L',
+      original_serial_no: '001235',
+      warranty_status: 'PRO_RATA'
+    }
+  ];
+
+  // 8.1 Customer Battery Return Delivery Challan Tests
+  const retChallanHtml1 = vmContext.buildReturnChallanHTML('DC-RET-0001');
+  assert(retChallanHtml1.includes('Delivery Challan — Battery Return') &&
+         retChallanHtml1.includes('Rule 55 of CGST Rules, 2017') &&
+         retChallanHtml1.includes('Commercial Value: NIL') &&
+         retChallanHtml1.includes('001236') &&
+         retChallanHtml1.includes('10.2 V') &&
+         retChallanHtml1.includes('REJECT'),
+         'Return Challan: Generates statutory zero-price layout with diagnostic test values and exact serial');
+
+  // Verify resolution via ticket_no and PENDING wrapper
+  const retChallanHtml2 = vmContext.buildReturnChallanHTML('PENDING (TKT-0003)');
+  assert(retChallanHtml2.includes('001236') && retChallanHtml2.includes('Suresh'),
+         'Return Challan: Resolves accurately from PENDING ticket wrapper without error');
+
+  // 8.2 Manufacturer Company Dispatch Challan Tests
+  const compChallanHtml = vmContext.buildCompanyChallanHTML('DC-COM-0001');
+  assert(compChallanHtml.includes('Delivery Challan (Company Dispatch)') &&
+         compChallanHtml.includes('VRL Logistics') &&
+         compChallanHtml.includes('001238') &&
+         compChallanHtml.includes('001235') &&
+         compChallanHtml.includes('Deepak') &&
+         compChallanHtml.includes('Anita'),
+         'Company Challan: Formats batched consignment with carrier, destination, and all batched serials');
+
+  const compChallanFromClaim = vmContext.buildCompanyChallanHTML('CLM-0001');
+  assert(compChallanFromClaim.includes('DC-COM-0001') || compChallanFromClaim.includes('DSP-0001'),
+         'Company Challan: Resolves batch from associated claim ID without mismatch');
+
+  // 8.3 Official Battery Warranty Claim Form Tests
+  const claimFormHtml = vmContext.buildClaimFormHTML('CLM-0002');
+  assert(claimFormHtml.includes('BATTERY WARRANTY CLAIM FORM') &&
+         claimFormHtml.includes('CLM-0002') &&
+         claimFormHtml.includes('Anita') &&
+         claimFormHtml.includes('001235') &&
+         claimFormHtml.includes('PRO_RATA') &&
+         claimFormHtml.includes('Pro-Rata Settlement Discount') &&
+         claimFormHtml.includes('12.4 V') &&
+         !claimFormHtml.includes('CLM-2026-001001') &&
+         !claimFormHtml.includes('Rahul S. Verma'),
+         'Claim Form: Renders real claim data dynamically and never displays hardcoded dummy text');
+
+  const claimFormFromTicket = vmContext.buildClaimFormHTML('TKT-0002');
+  assert(claimFormFromTicket.includes('001235') && claimFormFromTicket.includes('Anita'),
+         'Claim Form: Resolves accurately when queried by ticket ID');
+
+  // 8.4 Customer Intake Acknowledgement Slip Tests
+  const intakeSlipWithLoaner = vmContext.buildIntakeSlipHTML('TKT-0001');
+  assert(intakeSlipWithLoaner.includes('CUSTOMER INTAKE ACKNOWLEDGEMENT SLIP') &&
+         intakeSlipWithLoaner.includes('TKT-0001') &&
+         intakeSlipWithLoaner.includes('Rahul') &&
+         intakeSlipWithLoaner.includes('001234') &&
+         intakeSlipWithLoaner.includes('Terms &amp; Conditions of Service &amp; Custody'),
+         'Intake Slip: Renders complete customer receipt with terms and signature sections');
+
+  // Intake slip with loaner battery
+  vmContext.BWMS.tickets.push({
+    ticket_no: 'TKT-LOANER-TEST',
+    customer_name: 'Prakash Patel',
+    battery_model: 'AAM-FL-00042B20L',
+    original_serial_no: 'ORIG-8899',
+    service_battery_issued: true,
+    service_battery_model: 'Standby 42B20L',
+    service_battery_serial: 'LENT-9988',
+    status: 'RECEIVED'
+  });
+  const intakeSlipLoaner = vmContext.buildIntakeSlipHTML('TKT-LOANER-TEST');
+  assert(intakeSlipLoaner.includes('STANDBY SERVICE / LOANER BATTERY ISSUED') &&
+         intakeSlipLoaner.includes('LENT-9988') &&
+         intakeSlipLoaner.includes('Loaner Undertaking'),
+         'Intake Slip: Accurately formats loaner standby battery undertaking when issued');
+
+  // 8.5 Apps Script Production Template Integrity
+  const templateClaimForm = fs.readFileSync(path.join(appsScriptDir, 'templates', 'claim-form.html'), 'utf8');
+  assert(templateClaimForm.includes('<?=') && !templateClaimForm.includes('CLM-2026-001001') && !templateClaimForm.includes('Rahul S. Verma'),
+         'Apps Script Templates: claim-form.html uses dynamic scriptlet tags without hardcoded placeholders');
+
+  const templateIntakeSlip = fs.readFileSync(path.join(appsScriptDir, 'templates', 'intake-slip.html'), 'utf8');
+  assert(templateIntakeSlip.includes('CUSTOMER INTAKE ACKNOWLEDGEMENT SLIP') && templateIntakeSlip.includes('<?='),
+         'Apps Script Templates: intake-slip.html created and validated with dynamic scriptlet tags');
+
+  // 8.6 Client Print Engine Navigation & Actions
+  let printRendered = false;
+  try {
+    vmContext.renderPrintDocument('return-challan', 'DC-RET-0001', 'Test Title');
+    printRendered = (vmContext.BWMS.currentPrintHTML && vmContext.BWMS.currentPrintHTML.length > 500);
+  } catch (e) {
+    printRendered = false;
+  }
+  assert(printRendered, 'Client Print Engine: renderPrintDocument generates high-fidelity HTML and loads iframe');
 
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);

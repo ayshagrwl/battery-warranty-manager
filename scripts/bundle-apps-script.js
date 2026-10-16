@@ -74,7 +74,7 @@ for (const file of htmlFiles) {
 const templatesDir = path.join(distDir, 'templates');
 if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir, { recursive: true });
 
-const tmplFiles = ['claim-form.html', 'company-challan.html', 'return-challan.html'];
+const tmplFiles = ['claim-form.html', 'company-challan.html', 'return-challan.html', 'intake-slip.html'];
 for (const file of tmplFiles) {
   const src = path.join(srcDir, 'templates', file);
   const dest = path.join(templatesDir, file);

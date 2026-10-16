@@ -602,7 +602,9 @@ function handleIntakeSubmit(e) {
       showToast(res.message || 'Ticket generated successfully!', 'success');
       syncAllData(false);
 
-      if (confirm('Intake ticket ' + res.data.ticket_no + ' generated! Would you like to conduct the Diagnostic Bench Test now?')) {
+      if (confirm('Intake ticket ' + res.data.ticket_no + ' created! Would you like to print the Customer Intake Slip now?')) {
+        printIntakeSlip(res.data.ticket_no);
+      } else if (confirm('Would you like to conduct the Diagnostic Bench Test now?')) {
         openTestModal(res.data.ticket_no, res.data.battery_model, res.data.original_serial_no);
       }
     } else {
@@ -2102,13 +2104,28 @@ function showTimeline(query) {
   var metaBox = document.getElementById('timeline-meta-box');
   var nodesList = document.getElementById('timeline-nodes-list');
 
-  var primary = matchedClaim || matchedTicket || { ticket_no: query };
+  var printQuickBtns = '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">';
+  if (matchedTicket) {
+    printQuickBtns += '<button class="btn btn-secondary btn-sm" onclick="printIntakeSlip(\'' + matchedTicket.ticket_no + '\')">🖨️ Intake Slip</button>';
+    var retCh = (BWMS.challans || []).find(function(ch) { return ch.ticket_no === matchedTicket.ticket_no; });
+    if (retCh || (matchedTicket.status && String(matchedTicket.status).indexOf('REJECT') !== -1)) {
+      printQuickBtns += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + (retCh ? retCh.challan_no : matchedTicket.ticket_no) + '\')">🖨️ Return Challan</button>';
+    }
+  }
+  if (matchedClaim) {
+    printQuickBtns += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + matchedClaim.claim_no + '\')">🖨️ Claim Form</button>';
+    if (matchedClaim.company_challan_no) {
+      printQuickBtns += '<button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + matchedClaim.company_challan_no + '\')">🖨️ Co. Challan</button>';
+    }
+  }
+  printQuickBtns += '</div>';
+
   metaBox.innerHTML =
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
     '  <div><h3 style="font-size:16px; margin-bottom:4px;">Lifecycle Report for: <span style="color:var(--accent);">' + query + '</span></h3>' +
     '  <span style="color:#64748b; font-size:12px;">Matched: ' + (primary.battery_model || '-') + ' • Serial: <strong>' + (primary.original_serial_no || '-') + '</strong></span></div>' +
     '  <div>' + renderStatusBadge(primary.status || 'FOUND') + '</div>' +
-    '</div>';
+    '</div>' + printQuickBtns;
 
   nodesList.innerHTML = '<div class="timeline-line"></div>';
 
@@ -2249,39 +2266,867 @@ function handleUploadSubmit(e) {
   reader.readAsDataURL(file);
 }
 
-// ─── PRINT PREVIEWS & CHALLAN PRINTS ─────────────────────────────────────────
+// ─── PRINT PREVIEWS & CLIENT-SIDE HIGH-FIDELITY PRINT ENGINE ─────────────────
+
+function escapeHtml(val) {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getPrintCompanyInfo() {
+  var cfg = BWMS.config || {};
+  return {
+    name: cfg.COMPANY_NAME || 'Amaron Battery Hub & Service Care',
+    address: cfg.COMPANY_ADDRESS || 'Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002',
+    phone: cfg.COMPANY_PHONE || '+91 98250 12345',
+    email: cfg.COMPANY_EMAIL || 'service@batteryhub.in',
+    gstin: cfg.COMPANY_GST || cfg.COMPANY_GSTIN || '24AAACG1234A1Z5',
+    terms: cfg.COMPANY_TERMS || ''
+  };
+}
+
+function buildDocumentStyles() {
+  return '<style>' +
+    '@page { size: A4 portrait; margin: 10mm 12mm 10mm 12mm; }' +
+    '* { box-sizing: border-box; }' +
+    'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; font-size: 11.5px; line-height: 1.45; background: #ffffff; }' +
+    '.no-print { margin-bottom: 14px; display: flex; justify-content: flex-end; gap: 8px; }' +
+    '.btn-print-action { padding: 8px 18px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 12px; }' +
+    '.btn-print-action:hover { background: #1e293b; }' +
+    '.header { border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; }' +
+    '.company-title { font-size: 18px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: -0.2px; margin-bottom: 3px; }' +
+    '.company-details { font-size: 10.5px; color: #475569; line-height: 1.4; }' +
+    '.doc-badge-col { text-align: right; }' +
+    '.doc-badge { font-size: 12px; font-weight: 800; background: #f1f5f9; color: #0f172a; padding: 5px 12px; border: 1px solid #cbd5e1; border-radius: 4px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px; }' +
+    '.doc-badge.purple { background: #f3e8ff; color: #7e22ce; border-color: #c084fc; }' +
+    '.doc-badge.blue { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }' +
+    '.doc-meta { font-size: 10.5px; margin-top: 6px; color: #334155; line-height: 1.5; }' +
+    '.statutory-notice { background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; color: #0369a1; padding: 6px 12px; font-size: 10px; margin-bottom: 12px; font-weight: 500; }' +
+    '.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }' +
+    '.panel { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 12px; background: #f8fafc; }' +
+    '.panel-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #475569; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; letter-spacing: 0.3px; }' +
+    '.section-title { background: #0f172a; color: #ffffff; padding: 4px 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 6px; border-radius: 3px; letter-spacing: 0.3px; }' +
+    '.info-row { margin-bottom: 3.5px; display: flex; }' +
+    '.info-label { width: 120px; color: #64748b; font-weight: 600; font-size: 10.5px; }' +
+    '.info-val { font-weight: 600; color: #0f172a; flex: 1; font-size: 10.5px; }' +
+    'table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }' +
+    'table.data-table th, table.data-table td { border: 1px solid #cbd5e1; padding: 6px 9px; text-align: left; }' +
+    'table.data-table th { background: #f1f5f9; font-weight: 700; font-size: 10.5px; text-transform: uppercase; color: #334155; }' +
+    '.test-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 12px; background: #ffffff; margin-bottom: 12px; }' +
+    '.test-box-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; border-bottom: 1px solid #fecaca; padding-bottom: 3px; display: flex; justify-content: space-between; }' +
+    '.test-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }' +
+    '.test-cell { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 8px; }' +
+    '.test-cell-lbl { font-size: 9.5px; color: #64748b; font-weight: 600; text-transform: uppercase; }' +
+    '.test-cell-val { font-size: 11px; font-weight: 700; color: #0f172a; margin-top: 2px; }' +
+    '.terms-box { font-size: 9.5px; color: #475569; line-height: 1.45; margin-bottom: 12px; border-left: 3px solid #cbd5e1; padding-left: 8px; }' +
+    '.ack-box { border: 1.5px dashed #94a3b8; border-radius: 4px; padding: 10px 12px; background: #fafaf9; page-break-inside: avoid; }' +
+    '.loaner-box { border: 1.5px solid #0284c7; background: #f0f9ff; border-radius: 4px; padding: 8px 12px; margin-top: 6px; margin-bottom: 10px; }' +
+    '.sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; page-break-inside: avoid; }' +
+    '.sig-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px; page-break-inside: avoid; }' +
+    '.sig-line { border-top: 1px solid #475569; padding-top: 4px; font-size: 10.5px; color: #334155; }' +
+    '.sig-box-center { border-top: 1px solid #475569; padding-top: 4px; font-size: 10.5px; color: #334155; text-align: center; font-weight: 600; }' +
+    '.sig-sub { font-size: 9.5px; font-weight: normal; color: #64748b; margin-top: 2px; }' +
+    '@media print { body { padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }' +
+    '</style>';
+}
+
+function buildReturnChallanHTML(challanOrTicketId) {
+  var rawId = String(challanOrTicketId || '').trim();
+  var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').trim();
+
+  var challans = BWMS.challans || [];
+  var tickets = BWMS.tickets || [];
+  var tests = BWMS.tests || [];
+  var comp = getPrintCompanyInfo();
+
+  // Find challan
+  var challan = challans.find(function(ch) {
+    return (ch.challan_no === rawId || ch.challan_no === cleanId) && ch.challan_type !== 'COMPANY_DISPATCH';
+  });
+  if (!challan) {
+    challan = challans.find(function(ch) {
+      return (ch.ticket_no === cleanId || ch.ticket_no === rawId) && ch.challan_type !== 'COMPANY_DISPATCH';
+    });
+  }
+
+  // Find ticket
+  var ticket = null;
+  if (challan && challan.ticket_no) {
+    ticket = tickets.find(function(t) { return t.ticket_no === challan.ticket_no; });
+  }
+  if (!ticket) {
+    ticket = tickets.find(function(t) {
+      return t.ticket_no === cleanId || t.ticket_no === rawId || t.original_serial_no === cleanId || t.original_serial_no === rawId;
+    });
+  }
+
+  // Find test
+  var ticketNo = (challan && challan.ticket_no) ? challan.ticket_no : (ticket ? ticket.ticket_no : cleanId);
+  var serialNo = (ticket && ticket.original_serial_no) ? ticket.original_serial_no : (challan ? challan.battery_serial_no : '');
+  var matchedTests = tests.filter(function(tst) {
+    return (ticketNo && tst.ticket_no === ticketNo) || (serialNo && tst.original_serial_no === serialNo);
+  });
+  var test = matchedTests.length > 0 ? matchedTests[matchedTests.length - 1] : null;
+
+  // Synthesize preview challan if needed
+  if (!challan && ticket) {
+    var todayIso = new Date().toISOString().split('T')[0];
+    challan = {
+      challan_no: 'DC-PREVIEW-' + ticket.ticket_no,
+      challan_type: 'BATTERY_RETURN',
+      challan_date: todayIso,
+      recipient_type: ticket.source_type || 'CUSTOMER',
+      recipient_name: (ticket.source_type === 'DEALER' && ticket.dealer_name) ? ticket.dealer_name : (ticket.customer_name || 'Customer'),
+      mobile: ticket.mobile || '',
+      address: ticket.address || '',
+      ticket_no: ticket.ticket_no,
+      battery_model: ticket.battery_model || '',
+      battery_serial_no: ticket.original_serial_no || '',
+      quantity: 1,
+      status: 'GENERATED',
+      remarks: (test && test.test_remarks) ? test.test_remarks : 'Physical goods return delivery challan. Warranty claim rejected after electrical test.'
+    };
+  }
+
+  if (!challan && !ticket) {
+    challan = {
+      challan_no: rawId || 'RET-CHALLAN',
+      challan_type: 'BATTERY_RETURN',
+      challan_date: new Date().toISOString().split('T')[0],
+      recipient_type: 'CUSTOMER',
+      recipient_name: 'Customer',
+      mobile: '-',
+      address: '-',
+      ticket_no: cleanId,
+      battery_model: 'Automotive Battery',
+      battery_serial_no: '-',
+      quantity: 1,
+      status: 'GENERATED',
+      remarks: 'Warranty claim rejected upon electrical test'
+    };
+  }
+
+  var partyName = (challan && challan.recipient_name) ? challan.recipient_name : (ticket ? (ticket.dealer_name || ticket.customer_name) : 'Customer');
+  var partyType = (challan && challan.recipient_type) ? challan.recipient_type : (ticket ? ticket.source_type : 'CUSTOMER');
+  var partyMobile = (challan && challan.mobile) ? challan.mobile : (ticket ? ticket.mobile : '-');
+  var partyAddress = (challan && challan.address) ? challan.address : (ticket ? ticket.address : '-');
+  var vehicleReg = (ticket && ticket.vehicle_number) ? ticket.vehicle_number : '-';
+  var battModel = (challan && challan.battery_model) ? challan.battery_model : (ticket ? ticket.battery_model : 'Automotive Battery');
+  var battSerial = (challan && challan.battery_serial_no) ? challan.battery_serial_no : (ticket ? ticket.original_serial_no : '-');
+  var intakeDate = (ticket && ticket.date_received) ? formatDate(ticket.date_received) : '-';
+  var challanDate = (challan && challan.challan_date) ? formatDate(challan.challan_date) : formatDate(new Date());
+  var rejectionReason = (challan && challan.remarks) ? challan.remarks : ((test && test.test_remarks) ? test.test_remarks : 'Test findings outside manufacturer warranty terms');
+  var isAck = (challan && (challan.status === 'ACKNOWLEDGED' || challan.received_by_name));
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Battery Return Challan — ' + escapeHtml(challan.challan_no) + '</title>' +
+    buildDocumentStyles() + '</head><body>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Challan (A4)</button></div>' +
+    '<div class="header">' +
+    '  <div>' +
+    '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
+    '    <div class="company-details">' + escapeHtml(comp.address) + '<br>' +
+    '      Phone: ' + escapeHtml(comp.phone) + ' &nbsp;|&nbsp; Email: ' + escapeHtml(comp.email) + '<br>' +
+    (comp.gstin ? '<strong>GSTIN:</strong> ' + escapeHtml(comp.gstin) : '') +
+    '    </div>' +
+    '  </div>' +
+    '  <div class="doc-badge-col">' +
+    '    <div class="doc-badge">Delivery Challan — Battery Return</div>' +
+    '    <div class="doc-meta">' +
+    '      <strong>Challan No:</strong> ' + escapeHtml(challan.challan_no) + '<br>' +
+    '      <strong>Date:</strong> ' + challanDate + '<br>' +
+    '      <strong>Ticket Ref:</strong> ' + escapeHtml(challan.ticket_no || (ticket ? ticket.ticket_no : '-')) +
+    '    </div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="statutory-notice">' +
+    '  STATUTORY NOTICE: Physical Goods Return Delivery Challan issued under Rule 55 of CGST Rules, 2017 for goods moved other than by way of supply (Defective / Rejected Battery Return). Commercial Value: NIL. Not for sale.' +
+    '</div>' +
+    '<div class="grid-2">' +
+    '  <div class="panel">' +
+    '    <div class="panel-title">Returned To (Customer / Dealer)</div>' +
+    '    <div class="info-row"><span class="info-label">Name:</span><span class="info-val">' + escapeHtml(partyName) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Party Type:</span><span class="info-val">' + escapeHtml(partyType) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Mobile:</span><span class="info-val">' + escapeHtml(partyMobile) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Address:</span><span class="info-val">' + escapeHtml(partyAddress) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Vehicle Reg:</span><span class="info-val">' + escapeHtml(vehicleReg) + '</span></div>' +
+    '  </div>' +
+    '  <div class="panel">' +
+    '    <div class="panel-title">Inspection &amp; Claim Disposition</div>' +
+    '    <div class="info-row"><span class="info-label">Intake Date:</span><span class="info-val">' + intakeDate + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Inspection Verdict:</span><span class="info-val" style="color:#dc2626; font-weight:800;">WARRANTY CLAIM REJECTED</span></div>' +
+    '    <div class="info-row"><span class="info-label">Rejection Reason:</span><span class="info-val">' + escapeHtml(rejectionReason) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Challan Status:</span><span class="info-val">' + escapeHtml(challan.status || 'GENERATED') + '</span></div>' +
+    '  </div>' +
+    '</div>' +
+    '<table class="data-table">' +
+    '  <thead><tr>' +
+    '    <th style="width:35px; text-align:center;">#</th>' +
+    '    <th>Battery Model Description</th>' +
+    '    <th>Battery Serial Number</th>' +
+    '    <th style="width:75px; text-align:center;">Qty</th>' +
+    '    <th>Return Reason / Condition Remarks</th>' +
+    '  </tr></thead>' +
+    '  <tbody><tr>' +
+    '    <td style="text-align:center; font-weight:bold;">1</td>' +
+    '    <td><strong>' + escapeHtml(battModel) + '</strong></td>' +
+    '    <td><span style="font-family:monospace; font-size:13px; font-weight:800; color:#0f172a;">' + escapeHtml(battSerial) + '</span></td>' +
+    '    <td style="text-align:center; font-weight:bold;">1 No.</td>' +
+    '    <td>' + escapeHtml(rejectionReason) + '</td>' +
+    '  </tr></tbody>' +
+    '</table>' +
+    '<div class="test-box">' +
+    '  <div class="test-box-title">' +
+    '    <span>🔬 Diagnostic Bench Test Readings</span>' +
+    '    <span style="color:#64748b; font-size:10px; font-weight:normal;">Test Ref: ' + escapeHtml(test ? (test.test_id || 'TST-BENCH') : 'TST-BENCH') + '</span>' +
+    '  </div>' +
+    '  <div class="test-grid">' +
+    '    <div class="test-cell"><div class="test-cell-lbl">Open Circuit Voltage</div><div class="test-cell-val">' + escapeHtml(test && test.open_circuit_voltage ? test.open_circuit_voltage + ' V' : '-') + '</div></div>' +
+    '    <div class="test-cell"><div class="test-cell-lbl">15s Load Voltage</div><div class="test-cell-val">' + escapeHtml(test && test.load_test_voltage ? test.load_test_voltage + ' V' : '-') + '</div></div>' +
+    '    <div class="test-cell"><div class="test-cell-lbl">Physical Condition</div><div class="test-cell-val">' + escapeHtml(test && test.physical_condition ? test.physical_condition : 'Normal') + '</div></div>' +
+    '    <div class="test-cell"><div class="test-cell-lbl">Test Verdict</div><div class="test-cell-val" style="color:#dc2626;">REJECT</div></div>' +
+    '  </div>' +
+    '  <div style="font-size:10.5px; margin-top:4px; color:#334155;"><strong>Specific Gravity Readings across Cells:</strong> <span style="font-family:monospace; font-weight:bold;">' + escapeHtml(test && test.specific_gravity ? test.specific_gravity : '-') + '</span></div>' +
+    '  <div style="font-size:10px; margin-top:4px; color:#64748b;">Diagnostic Remarks: ' + escapeHtml(test && test.test_remarks ? test.test_remarks : 'Defect outside warranty terms') + ' &nbsp;|&nbsp; Tested By: ' + escapeHtml(test && test.tested_by ? test.tested_by : 'Technician') + ' &nbsp;|&nbsp; Date: ' + (test && test.test_date ? formatDate(test.test_date) : '-') + '</div>' +
+    '</div>' +
+    '<div class="terms-box">' +
+    '  <strong>Terms &amp; Conditions of Return:</strong><br>' +
+    '  1. The battery described above has undergone standard laboratory bench inspection and electrical load testing. Findings confirm that the defect is not covered under manufacturer warranty.<br>' +
+    '  2. The goods are returned in "as-is" physical condition without any financial consideration. Service center responsibility ceases upon physical handover.<br>' +
+    '  3. Movement of physical goods under this challan is strictly non-commercial and not liable to GST under Rule 55 of CGST Rules, 2017.' +
+    '</div>' +
+    '<div class="ack-box">' +
+    '  <div style="font-size:11px; font-weight:700; color:#0f172a; margin-bottom:8px;">' +
+    '    CUSTOMER ACKNOWLEDGEMENT: "I hereby confirm receipt of the battery detailed above in good physical condition along with the diagnostic test report."' +
+    '  </div>' +
+    (isAck ?
+    '  <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:4px; padding:7px 10px; margin-bottom:6px; font-size:11px; color:#065f46;">' +
+    '    ✓ <strong>HANDOVER COMPLETED &amp; ACKNOWLEDGED</strong><br>' +
+    '    Received By: <strong>' + escapeHtml(challan.received_by_name) + '</strong> &nbsp;|&nbsp; Date: <strong>' + formatDate(challan.received_date) + '</strong>' +
+    '  </div>' :
+    '  <div style="font-size:10.5px; margin-bottom:6px;">Receiver Name: __________________________________________________ &nbsp;&nbsp;&nbsp;&nbsp; Mobile: _________________________</div>'
+    ) +
+    '  <div class="sig-grid">' +
+    '    <div><div style="height:30px;"></div><div class="sig-line"><strong>Customer / Dealer Signature</strong><br>Date: ______________ &nbsp;&nbsp; Time: ______________</div></div>' +
+    '    <div><div style="height:30px;"></div><div class="sig-line" style="text-align:right;"><strong>For ' + escapeHtml(comp.name) + '</strong><br>Authorized Representative / Service Manager</div></div>' +
+    '  </div>' +
+    '</div></body></html>';
+
+  return html;
+}
+
+function buildCompanyChallanHTML(companyChallanOrBatchId) {
+  var rawId = String(companyChallanOrBatchId || '').trim();
+  var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').trim();
+
+  var dispatches = BWMS.dispatches || [];
+  var challans = BWMS.challans || [];
+  var claims = BWMS.claims || [];
+  var dispatchItems = BWMS.dispatchItems || [];
+  var comp = getPrintCompanyInfo();
+
+  // Find dispatch
+  var dispatch = dispatches.find(function(d) {
+    return d.company_challan_no === rawId || d.company_challan_no === cleanId ||
+      d.dispatch_batch_no === rawId || d.dispatch_batch_no === cleanId;
+  });
+
+  // Find challan
+  var challan = challans.find(function(ch) {
+    return (ch.challan_no === rawId || ch.challan_no === cleanId) &&
+      (ch.challan_type === 'COMPANY_DISPATCH' || ch.recipient_type === 'COMPANY' || String(ch.challan_no).indexOf('COM') !== -1);
+  });
+
+  // If matched from claim
+  if (!dispatch && !challan) {
+    var matchedClaim = claims.find(function(c) {
+      return c.claim_no === rawId || c.claim_no === cleanId || c.ticket_no === rawId || c.ticket_no === cleanId ||
+        c.original_serial_no === rawId || c.original_serial_no === cleanId;
+    });
+    if (matchedClaim) {
+      var tBatch = matchedClaim.dispatch_batch_no;
+      var tChallan = matchedClaim.company_challan_no;
+      if (tBatch) {
+        dispatch = dispatches.find(function(d) { return d.dispatch_batch_no === tBatch; });
+      }
+      if (tChallan) {
+        challan = challans.find(function(ch) { return ch.challan_no === tChallan; });
+        if (!dispatch) dispatch = dispatches.find(function(d) { return d.company_challan_no === tChallan; });
+      }
+    }
+    // Also check dispatchItems for batched claim/ticket/serial
+    var matchedItem = dispatchItems.find(function(it) {
+      return it.claim_no === rawId || it.claim_no === cleanId || it.ticket_no === rawId || it.ticket_no === cleanId ||
+        it.original_serial_no === rawId || it.original_serial_no === cleanId;
+    });
+    if (matchedItem && matchedItem.dispatch_batch_no) {
+      if (!dispatch) dispatch = dispatches.find(function(d) { return d.dispatch_batch_no === matchedItem.dispatch_batch_no; });
+      if (!challan && dispatch && dispatch.company_challan_no) {
+        challan = challans.find(function(ch) { return ch.challan_no === dispatch.company_challan_no; });
+      }
+    }
+  }
+
+  // Cross-link dispatch and challan
+  if (dispatch && !challan && dispatch.company_challan_no) {
+    challan = challans.find(function(ch) { return ch.challan_no === dispatch.company_challan_no; });
+  }
+  if (challan && !dispatch) {
+    dispatch = dispatches.find(function(d) { return d.company_challan_no === challan.challan_no; });
+  }
+
+  var batchNo = dispatch ? dispatch.dispatch_batch_no : (challan ? challan.challan_no : cleanId);
+
+  // Resolve items
+  var items = dispatchItems.filter(function(it) {
+    return it.dispatch_batch_no === batchNo || (dispatch && it.dispatch_batch_no === dispatch.dispatch_batch_no);
+  });
+
+  if (items.length === 0) {
+    var matchedClaims = claims.filter(function(c) {
+      return (dispatch && dispatch.dispatch_batch_no && c.dispatch_batch_no === dispatch.dispatch_batch_no) ||
+        (challan && challan.challan_no && c.company_challan_no === challan.challan_no) ||
+        (dispatch && dispatch.company_challan_no && c.company_challan_no === dispatch.company_challan_no) ||
+        c.company_challan_no === rawId || c.company_challan_no === cleanId ||
+        c.dispatch_batch_no === rawId || c.dispatch_batch_no === cleanId;
+    });
+    items = matchedClaims.map(function(clm, idx) {
+      return {
+        item_id: 'DPI-SYNTH-' + (idx + 1),
+        dispatch_batch_no: clm.dispatch_batch_no || batchNo,
+        claim_no: clm.claim_no,
+        ticket_no: clm.ticket_no,
+        customer_name: clm.customer_name || clm.dealer_name || 'Customer',
+        battery_model: clm.battery_model,
+        original_serial_no: clm.original_serial_no,
+        warranty_status: clm.warranty_status || 'IN_WARRANTY'
+      };
+    });
+  }
+
+  if (items.length === 0) {
+    items.push({
+      item_id: 'DPI-SYNTH-1',
+      dispatch_batch_no: batchNo,
+      claim_no: dispatch ? dispatch.company_challan_no : (challan ? challan.challan_no : 'BATCH-1'),
+      ticket_no: (challan ? challan.ticket_no : '-'),
+      customer_name: (challan ? challan.recipient_name : (dispatch ? dispatch.company_name : 'Customer')),
+      battery_model: (challan ? challan.battery_model : 'Consolidated Battery Batch'),
+      original_serial_no: (challan ? challan.battery_serial_no : 'BATCH-' + batchNo),
+      warranty_status: 'IN_WARRANTY'
+    });
+  }
+
+  var cNo = (challan && challan.challan_no) ? challan.challan_no : (dispatch && dispatch.company_challan_no ? dispatch.company_challan_no : 'DC-COM-' + batchNo);
+  var dDate = (dispatch && dispatch.dispatch_date) ? formatDate(dispatch.dispatch_date) : ((challan && challan.challan_date) ? formatDate(challan.challan_date) : formatDate(new Date()));
+  var destCompany = (dispatch && dispatch.company_name) ? dispatch.company_name : (challan && challan.recipient_name ? challan.recipient_name : 'Amaron Batteries Ltd. (Regional Depot)');
+  var destination = (dispatch && dispatch.destination) ? dispatch.destination : (challan && challan.address ? challan.address : 'Regional Warranty Depot');
+  var carrier = (dispatch && dispatch.carrier_transporter) ? dispatch.carrier_transporter : 'Direct Handover / Self Transport';
+  var lrDocket = (dispatch && dispatch.lr_docket_no) ? dispatch.lr_docket_no : '-';
+  var dispatchedBy = (dispatch && dispatch.created_by) ? dispatch.created_by : (BWMS.currentUser.name || 'Store Manager');
+
+  var rowsHtml = '';
+  items.forEach(function(it, idx) {
+    rowsHtml += '<tr>' +
+      '<td style="text-align:center; font-weight:bold;">' + (idx + 1) + '</td>' +
+      '<td style="font-weight:bold;">' + escapeHtml(it.claim_no || '-') + '</td>' +
+      '<td>' + escapeHtml(it.ticket_no || '-') + '</td>' +
+      '<td>' + escapeHtml(it.customer_name || '-') + '</td>' +
+      '<td>' + escapeHtml(it.battery_model || '-') + '</td>' +
+      '<td><span style="font-family:monospace; font-size:12px; font-weight:800;">' + escapeHtml(it.original_serial_no || '-') + '</span></td>' +
+      '<td>' + escapeHtml(it.warranty_status || 'IN_WARRANTY') + '</td>' +
+      '<td style="text-align:center; font-weight:bold;">1</td>' +
+      '</tr>';
+  });
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Company Dispatch Challan — ' + escapeHtml(cNo) + '</title>' +
+    buildDocumentStyles() + '</head><body>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Dispatch Challan (A4)</button></div>' +
+    '<div class="header">' +
+    '  <div>' +
+    '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
+    '    <div class="company-details">' + escapeHtml(comp.address) + '<br>' +
+    '      Phone: ' + escapeHtml(comp.phone) + ' &nbsp;|&nbsp; Email: ' + escapeHtml(comp.email) + '<br>' +
+    (comp.gstin ? '<strong>GSTIN:</strong> ' + escapeHtml(comp.gstin) : '') +
+    '    </div>' +
+    '  </div>' +
+    '  <div class="doc-badge-col">' +
+    '    <div class="doc-badge purple">Delivery Challan (Company Dispatch)</div>' +
+    '    <div class="doc-meta">' +
+    '      <strong>Challan No:</strong> ' + escapeHtml(cNo) + '<br>' +
+    '      <strong>Batch No:</strong> ' + escapeHtml(batchNo) + '<br>' +
+    '      <strong>Date:</strong> ' + dDate +
+    '    </div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="statutory-notice">' +
+    '  STATUTORY NOTICE: Delivery Challan issued under Rule 55 of CGST Rules, 2017 for dispatch of goods for warranty testing &amp; replacement credit to manufacturer depot. Value declared for transit insurance purpose only. Not for sale.' +
+    '</div>' +
+    '<div class="grid-2">' +
+    '  <div class="panel">' +
+    '    <div class="panel-title">Consignee (Manufacturer Depot / Service Center)</div>' +
+    '    <div class="info-row"><span class="info-label">Company:</span><span class="info-val">' + escapeHtml(destCompany) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Destination:</span><span class="info-val">' + escapeHtml(destination) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Consignment Qty:</span><span class="info-val"><strong>' + items.length + ' Batteries</strong></span></div>' +
+    '  </div>' +
+    '  <div class="panel">' +
+    '    <div class="panel-title">Logistics &amp; Consignment Details</div>' +
+    '    <div class="info-row"><span class="info-label">Transporter:</span><span class="info-val">' + escapeHtml(carrier) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">LR / Docket No:</span><span class="info-val">' + escapeHtml(lrDocket) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Dispatched By:</span><span class="info-val">' + escapeHtml(dispatchedBy) + '</span></div>' +
+    '  </div>' +
+    '</div>' +
+    '<table class="data-table">' +
+    '  <thead><tr>' +
+    '    <th style="width:30px; text-align:center;">#</th>' +
+    '    <th style="width:110px;">Claim No</th>' +
+    '    <th style="width:110px;">Ticket Ref</th>' +
+    '    <th>Customer / Dealer</th>' +
+    '    <th>Battery Model</th>' +
+    '    <th>Original Serial Number</th>' +
+    '    <th style="width:80px;">Warranty</th>' +
+    '    <th style="width:45px; text-align:center;">Qty</th>' +
+    '  </tr></thead>' +
+    '  <tbody>' + rowsHtml + '</tbody>' +
+    '  <tfoot><tr style="background:#f8fafc; font-weight:bold;">' +
+    '    <td colspan="7" style="text-align:right;">Total Batteries Dispatched in Batch:</td>' +
+    '    <td style="text-align:center; font-size:12.5px;">' + items.length + '</td>' +
+    '  </tr></tfoot>' +
+    '</table>' +
+    '<div class="terms-box">' +
+    '  <strong>Declaration:</strong> Goods dispatched under this Delivery Challan are for warranty replacement verification. The quantities, model specifications, and serial numbers mentioned above have been physically inspected and sealed in crates.' +
+    '</div>' +
+    '<div class="sig-grid-3">' +
+    '  <div class="sig-box-center"><div style="height:30px;"></div>Prepared &amp; Verified By<br><span class="sig-sub">(Store In-Charge / Dispatch Officer)</span></div>' +
+    '  <div class="sig-box-center"><div style="height:30px;"></div>Transporter Signature &amp; Seal<br><span class="sig-sub">(Goods Accepted in Sound Condition)</span></div>' +
+    '  <div class="sig-box-center"><div style="height:30px;"></div>Manufacturer Depot Inward<br><span class="sig-sub">(Seal, Date &amp; Inward No.)</span></div>' +
+    '</div></body></html>';
+
+  return html;
+}
+
+function buildClaimFormHTML(claimOrTicketId) {
+  var rawId = String(claimOrTicketId || '').trim();
+  var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').replace(/^CLM-PREVIEW-/i, '').trim();
+
+  var claims = BWMS.claims || [];
+  var tickets = BWMS.tickets || [];
+  var tests = BWMS.tests || [];
+  var comp = getPrintCompanyInfo();
+
+  // Find claim
+  var claim = claims.find(function(c) {
+    return c.claim_no === rawId || c.claim_no === cleanId ||
+      c.ticket_no === rawId || c.ticket_no === cleanId ||
+      c.original_serial_no === rawId || c.original_serial_no === cleanId;
+  });
+
+  // Find ticket
+  var ticket = null;
+  if (claim && claim.ticket_no) {
+    ticket = tickets.find(function(t) { return t.ticket_no === claim.ticket_no; });
+  }
+  if (!ticket) {
+    ticket = tickets.find(function(t) {
+      return t.ticket_no === cleanId || t.ticket_no === rawId ||
+        t.original_serial_no === cleanId || t.original_serial_no === rawId;
+    });
+  }
+
+  // Find test
+  var ticketNo = (claim && claim.ticket_no) ? claim.ticket_no : (ticket ? ticket.ticket_no : cleanId);
+  var serialNo = (claim && claim.original_serial_no) ? claim.original_serial_no : (ticket ? ticket.original_serial_no : cleanId);
+  var matchedTests = tests.filter(function(tst) {
+    return (ticketNo && tst.ticket_no === ticketNo) || (serialNo && tst.original_serial_no === serialNo);
+  });
+  var test = matchedTests.length > 0 ? matchedTests[matchedTests.length - 1] : null;
+
+  // Synthesize preview claim if not created yet
+  if (!claim && ticket) {
+    var wCalc = evaluateWarrantyTerms(ticket.battery_model, ticket.date_of_sale || ticket.date_received, ticket.date_received);
+    var todayIso = new Date().toISOString().split('T')[0];
+    claim = {
+      claim_no: 'CLM-PREVIEW-' + ticket.ticket_no,
+      ticket_no: ticket.ticket_no,
+      source_type: ticket.source_type || 'CUSTOMER',
+      customer_name: ticket.customer_name || '',
+      dealer_name: ticket.dealer_name || '',
+      mobile: ticket.mobile || '',
+      address: ticket.address || '',
+      vehicle_number: ticket.vehicle_number || '',
+      battery_model: ticket.battery_model || '',
+      original_serial_no: ticket.original_serial_no || '',
+      date_of_sale: ticket.date_of_sale || '',
+      warranty_months: wCalc.totalMonths || 36,
+      warranty_expiry_date: wCalc.warrantyExpiry ? (wCalc.warrantyExpiry instanceof Date ? wCalc.warrantyExpiry.toISOString().split('T')[0] : String(wCalc.warrantyExpiry)) : '',
+      warranty_status: wCalc.status || 'IN_WARRANTY',
+      claim_date: todayIso,
+      status: 'DRAFT',
+      remarks: ticket.remarks || 'Warranty claim technical requisition'
+    };
+  }
+
+  if (!claim) {
+    claim = {
+      claim_no: rawId || 'CLM-PREVIEW',
+      ticket_no: cleanId,
+      source_type: 'CUSTOMER',
+      customer_name: 'Customer',
+      dealer_name: '-',
+      mobile: '-',
+      address: '-',
+      vehicle_number: '-',
+      battery_model: 'Automotive Battery',
+      original_serial_no: '-',
+      date_of_sale: '',
+      warranty_months: 36,
+      warranty_expiry_date: '',
+      warranty_status: 'IN_WARRANTY',
+      claim_date: new Date().toISOString().split('T')[0],
+      status: 'DRAFT',
+      remarks: 'Warranty claim technical requisition'
+    };
+  }
+
+  var cNo = claim.claim_no || 'CLM-DRAFT';
+  var tNo = claim.ticket_no || (ticket ? ticket.ticket_no : '-');
+  var cDate = claim.claim_date ? formatDate(claim.claim_date) : formatDate(new Date());
+  var bModel = claim.battery_model || (ticket ? ticket.battery_model : '-');
+  var bSerial = claim.original_serial_no || (ticket ? ticket.original_serial_no : '-');
+  var dos = claim.date_of_sale ? formatDate(claim.date_of_sale) : ((ticket && ticket.date_of_sale) ? formatDate(ticket.date_of_sale) : '-');
+  var wMonths = claim.warranty_months ? claim.warranty_months + ' Months' : '36 Months';
+  var wExp = claim.warranty_expiry_date ? formatDate(claim.warranty_expiry_date) : '-';
+  var wStatus = claim.warranty_status || 'IN_WARRANTY';
+  var covType = (wStatus === 'PRO_RATA') ? 'Pro-Rata Settlement Discount' : '100% Free Replacement Guarantee';
+
+  var custName = claim.customer_name || (ticket ? ticket.customer_name : 'Customer');
+  var custMobile = claim.mobile || (ticket ? ticket.mobile : '-');
+  var vehicleNum = claim.vehicle_number || (ticket ? ticket.vehicle_number : '-');
+  var srcType = claim.source_type || (ticket ? ticket.source_type : 'CUSTOMER');
+  var dealerName = claim.dealer_name || (ticket ? ticket.dealer_name : '-');
+  var custAddr = claim.address || (ticket ? ticket.address : '-');
+
+  var ocvVal = (test && test.open_circuit_voltage) ? test.open_circuit_voltage + ' V' : '-';
+  var loadVal = (test && test.load_test_voltage) ? test.load_test_voltage + ' V' : '-';
+  var physVal = (test && test.physical_condition) ? test.physical_condition : 'Intact / Sound';
+  var testRes = (test && test.test_result) ? test.test_result : 'PASS';
+  var sgVal = (test && test.specific_gravity) ? test.specific_gravity : '-';
+  var testRem = (test && test.test_remarks) ? test.test_remarks : 'Internal failure confirmed upon diagnostic evaluation. Battery forwarded for manufacturer replacement credit.';
+  var testedBy = (test && test.tested_by) ? test.tested_by : 'Technician';
+  var testDate = (test && test.test_date) ? formatDate(test.test_date) : formatDate(new Date());
+  var testId = (test && test.test_id) ? test.test_id : 'TST-LAB';
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Battery Warranty Claim Form — ' + escapeHtml(cNo) + '</title>' +
+    buildDocumentStyles() + '</head><body>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Claim Form (A4)</button></div>' +
+    '<div class="header">' +
+    '  <div>' +
+    '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
+    '    <div class="company-details">' + escapeHtml(comp.address) + '<br>' +
+    '      Phone: ' + escapeHtml(comp.phone) + ' &nbsp;|&nbsp; Email: ' + escapeHtml(comp.email) + '<br>' +
+    (comp.gstin ? '<strong>GSTIN:</strong> ' + escapeHtml(comp.gstin) : '') +
+    '    </div>' +
+    '  </div>' +
+    '  <div class="doc-badge-col">' +
+    '    <div class="doc-badge purple">BATTERY WARRANTY CLAIM FORM</div>' +
+    '    <div style="font-size:10.5px; color:#64748b; margin-top:3px; font-weight:700;">OFFICIAL TECHNICAL REQUISITION</div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="section-title">1. Claim &amp; Battery Specification</div>' +
+    '<div class="grid-2">' +
+    '  <div class="grid-col">' +
+    '    <div class="info-row"><span class="info-label">Claim Number:</span><span class="info-val"><strong>' + escapeHtml(cNo) + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Claim Date:</span><span class="info-val">' + cDate + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Originating Ticket:</span><span class="info-val">' + escapeHtml(tNo) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Battery Model:</span><span class="info-val"><strong>' + escapeHtml(bModel) + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Original Serial No:</span><span class="info-val"><span style="font-family:monospace; font-size:13px; font-weight:bold;">' + escapeHtml(bSerial) + '</span></span></div>' +
+    '  </div>' +
+    '  <div class="grid-col">' +
+    '    <div class="info-row"><span class="info-label">Date of Sale:</span><span class="info-val">' + dos + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Warranty Period:</span><span class="info-val">' + escapeHtml(wMonths) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Warranty Expiry Date:</span><span class="info-val">' + wExp + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Warranty Status:</span><span class="info-val"><strong style="color:' + (wStatus === 'PRO_RATA' ? '#b45309' : '#16a34a') + ';">' + escapeHtml(wStatus) + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Coverage Type:</span><span class="info-val">' + escapeHtml(covType) + '</span></div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="section-title">2. Customer &amp; Origin Information</div>' +
+    '<div class="grid-2">' +
+    '  <div class="grid-col">' +
+    '    <div class="info-row"><span class="info-label">Customer / Garage:</span><span class="info-val"><strong>' + escapeHtml(custName) + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Mobile Number:</span><span class="info-val">' + escapeHtml(custMobile) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Vehicle Registration:</span><span class="info-val">' + escapeHtml(vehicleNum) + '</span></div>' +
+    '  </div>' +
+    '  <div class="grid-col">' +
+    '    <div class="info-row"><span class="info-label">Source Type:</span><span class="info-val">' + escapeHtml(srcType) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Dealer / Channel:</span><span class="info-val">' + escapeHtml(dealerName) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Address:</span><span class="info-val">' + escapeHtml(custAddr) + '</span></div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="section-title">3. Laboratory Diagnostic &amp; Electrical Test Findings</div>' +
+    '<div style="border:1px solid #e2e8f0; border-radius:4px; padding:7px 10px; background:#fff;">' +
+    '  <table class="data-table" style="margin-bottom:8px;">' +
+    '    <tr><th style="width:25%;">Open Circuit Voltage (OCV)</th><th style="width:25%;">15s Carbon Pile Load Test</th><th style="width:25%;">Physical Condition</th><th style="width:25%;">Test Verdict</th></tr>' +
+    '    <tr>' +
+    '      <td><strong>' + escapeHtml(ocvVal) + '</strong></td>' +
+    '      <td><strong>' + escapeHtml(loadVal) + '</strong></td>' +
+    '      <td>' + escapeHtml(physVal) + '</td>' +
+    '      <td><strong style="color:' + (testRes === 'PASS' ? '#16a34a' : '#dc2626') + ';">' + escapeHtml(testRes) + ' (Eligible for Replacement)</strong></td>' +
+    '    </tr>' +
+    '  </table>' +
+    '  <div style="margin-top:7px; font-size:10.5px;"><strong>Specific Gravity Readings across Cells:</strong> <span style="font-family:monospace; font-size:11px; font-weight:bold;">' + escapeHtml(sgVal) + '</span></div>' +
+    '  <div style="margin-top:5px; font-size:10.5px;"><strong>Technical Diagnostic Conclusion:</strong> <span style="color:#334155;">' + escapeHtml(testRem) + '</span></div>' +
+    '  <div style="margin-top:4px; font-size:10px; color:#64748b;">Tested By: <strong>' + escapeHtml(testedBy) + '</strong> &nbsp;|&nbsp; Date Tested: <strong>' + testDate + '</strong> &nbsp;|&nbsp; Test Ref: <strong>' + escapeHtml(testId) + '</strong></div>' +
+    '</div>' +
+    '<div class="section-title">4. Document Verification &amp; Enclosures</div>' +
+    '<div style="display:flex; gap:20px; font-size:10.5px; padding:4px 6px;">' +
+    '  <div>☑ Original Purchase Invoice Copy</div>' +
+    '  <div>☑ Manufacturer Warranty Card</div>' +
+    '  <div>☑ Battery Diagnostic Printout / Slip</div>' +
+    '</div>' +
+    '<div class="sig-grid-3">' +
+    '  <div class="sig-box-center"><div style="height:30px;"></div>Customer / Dealer Signature<br><span class="sig-sub">(Surrender Confirmation)</span></div>' +
+    '  <div class="sig-box-center"><div style="height:30px;"></div>Technical Examiner<br><span class="sig-sub">(Verified &amp; Approved)</span></div>' +
+    '  <div class="sig-box-center"><div style="height:30px;"></div>For ' + escapeHtml(comp.name) + '<br><span class="sig-sub">(Authorized Distributor Signatory &amp; Stamp)</span></div>' +
+    '</div></body></html>';
+
+  return html;
+}
+
+function buildIntakeSlipHTML(ticketNo) {
+  var rawId = String(ticketNo || '').trim();
+  var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').trim();
+
+  var tickets = BWMS.tickets || [];
+  var comp = getPrintCompanyInfo();
+
+  var ticket = tickets.find(function(t) {
+    return t.ticket_no === cleanId || t.ticket_no === rawId ||
+      t.original_serial_no === cleanId || t.original_serial_no === rawId;
+  });
+
+  if (!ticket) {
+    ticket = {
+      ticket_no: rawId || 'TKT-PREVIEW',
+      date_received: new Date().toISOString().split('T')[0],
+      status: 'RECEIVED',
+      source_type: 'CUSTOMER',
+      customer_name: 'Customer',
+      dealer_name: '-',
+      mobile: '-',
+      address: '-',
+      vehicle_number: '-',
+      battery_model: 'Automotive Battery',
+      original_serial_no: '-',
+      remarks: 'Intake for testing & evaluation'
+    };
+  }
+
+  var tNo = ticket.ticket_no || 'TKT-NEW';
+  var dateRec = ticket.date_received ? formatDate(ticket.date_received) : formatDate(new Date());
+  var partyName = (ticket.source_type === 'DEALER' && ticket.dealer_name) ? ticket.dealer_name : (ticket.customer_name || 'Customer');
+  var hasLoaner = (ticket.service_battery_issued === true || ticket.service_battery_issued === 'YES' || ticket.service_battery_issued === 'true' || ticket.service_battery_serial);
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Customer Intake Slip — ' + escapeHtml(tNo) + '</title>' +
+    buildDocumentStyles() + '</head><body>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Intake Slip (A4)</button></div>' +
+    '<div class="header">' +
+    '  <div>' +
+    '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
+    '    <div class="company-details">' + escapeHtml(comp.address) + '<br>' +
+    '      Phone: ' + escapeHtml(comp.phone) + ' &nbsp;|&nbsp; Email: ' + escapeHtml(comp.email) + '<br>' +
+    (comp.gstin ? '<strong>GSTIN:</strong> ' + escapeHtml(comp.gstin) : '') +
+    '    </div>' +
+    '  </div>' +
+    '  <div class="doc-badge-col">' +
+    '    <div class="doc-badge blue">CUSTOMER INTAKE ACKNOWLEDGEMENT SLIP</div>' +
+    '    <div style="font-size:10.5px; color:#64748b; margin-top:3px; font-weight:700;">BATTERY SERVICE RECEIPT &amp; LOANER UNDERTAKING</div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="section-title">1. Ticket &amp; Service Meta Information</div>' +
+    '<div class="grid-2">' +
+    '  <div class="panel">' +
+    '    <div class="info-row"><span class="info-label">Ticket Number:</span><span class="info-val"><strong>' + escapeHtml(tNo) + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Intake Date:</span><span class="info-val">' + dateRec + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Intake Status:</span><span class="info-val"><strong style="color:#0284c7;">' + escapeHtml(ticket.status || 'RECEIVED') + '</strong></span></div>' +
+    '  </div>' +
+    '  <div class="panel">' +
+    '    <div class="info-row"><span class="info-label">Source Type:</span><span class="info-val">' + escapeHtml(ticket.source_type || 'CUSTOMER') + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Channel Dealer:</span><span class="info-val">' + escapeHtml(ticket.dealer_name || '-') + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Service Workshop:</span><span class="info-val">Central Testing Lab &amp; Warranty Care</span></div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="section-title">2. Customer / Depositor Information</div>' +
+    '<div class="grid-2">' +
+    '  <div class="panel">' +
+    '    <div class="info-row"><span class="info-label">Customer / Depositor:</span><span class="info-val"><strong>' + escapeHtml(partyName) + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Contact Mobile:</span><span class="info-val">' + escapeHtml(ticket.mobile || '-') + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Vehicle Registration:</span><span class="info-val">' + escapeHtml(ticket.vehicle_number || '-') + '</span></div>' +
+    '  </div>' +
+    '  <div class="panel">' +
+    '    <div class="info-row"><span class="info-label">Address:</span><span class="info-val">' + escapeHtml(ticket.address || '-') + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Deposited Purpose:</span><span class="info-val">Bench Diagnostic Inspection / Warranty Evaluation</span></div>' +
+    '    <div class="info-row"><span class="info-label">Reported Issue:</span><span class="info-val">' + escapeHtml(ticket.remarks || 'Starting failure / discharge complaint') + '</span></div>' +
+    '  </div>' +
+    '</div>' +
+    '<div class="section-title">3. Deposited Battery Specifications</div>' +
+    '<div class="grid-2">' +
+    '  <div class="panel">' +
+    '    <div class="info-row"><span class="info-label">Battery Model:</span><span class="info-val"><strong>' + escapeHtml(ticket.battery_model || '-') + '</strong></span></div>' +
+    '    <div class="info-row"><span class="info-label">Original Serial No:</span><span class="info-val"><span style="font-family:monospace; font-size:13px; font-weight:bold;">' + escapeHtml(ticket.original_serial_no || '-') + '</span></span></div>' +
+    '    <div class="info-row"><span class="info-label">Quantity Deposited:</span><span class="info-val">1 No. (Automotive / Inverter Battery)</span></div>' +
+    '  </div>' +
+    '  <div class="panel">' +
+    '    <div class="info-row"><span class="info-label">Date of Purchase:</span><span class="info-val">' + (ticket.date_of_sale ? formatDate(ticket.date_of_sale) : '-') + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Physical Condition:</span><span class="info-val">Terminals Intact, Container Sound (Pending Test)</span></div>' +
+    '    <div class="info-row"><span class="info-label">Diagnostic Target:</span><span class="info-val">15s Load, OCV, Specific Gravity 6 Cells</span></div>' +
+    '  </div>' +
+    '</div>' +
+    (hasLoaner ?
+    '<div class="loaner-box">' +
+    '  <div style="font-size:11px; font-weight:800; color:#0369a1; text-transform:uppercase; margin-bottom:6px;">🔋 STANDBY SERVICE / LOANER BATTERY ISSUED</div>' +
+    '  <div style="display:flex; gap:16px; margin-bottom:6px; font-size:11px;">' +
+    '    <div><strong>Service Model:</strong> ' + escapeHtml(ticket.service_battery_model || 'Standby Service Battery') + '</div>' +
+    '    <div><strong>Service Serial No:</strong> <span style="font-family:monospace; font-weight:bold;">' + escapeHtml(ticket.service_battery_serial || 'LENT-SB') + '</span></div>' +
+    '    <div><strong>Issue Date:</strong> ' + (ticket.service_battery_date ? formatDate(ticket.service_battery_date) : dateRec) + '</div>' +
+    '  </div>' +
+    '  <div style="font-size:10px; color:#0369a1; line-height:1.4;">' +
+    '    <strong>Loaner Undertaking:</strong> "The customer acknowledges temporary receipt of the standby service battery detailed above in good working condition. The customer undertakes to return this service battery in identical condition immediately upon collection of their tested or replacement battery."' +
+    '  </div>' +
+    '</div>' :
+    '<div style="border:1px dashed #cbd5e1; border-radius:4px; padding:6px 10px; margin-bottom:8px; font-size:10.5px; color:#64748b;"><strong>Standby Service Battery:</strong> None issued for this intake ticket.</div>'
+    ) +
+    '<div class="terms-box">' +
+    '  <strong>Terms &amp; Conditions of Service &amp; Custody:</strong><br>' +
+    '  1. The deposited battery will undergo bench electrical testing, specific gravity measurement, and load capacity evaluation within 24–48 operational hours.<br>' +
+    '  2. Warranty replacement eligibility is governed strictly by manufacturer warranty terms and diagnostic test findings.<br>' +
+    '  3. This acknowledgement slip must be presented in original at the time of collecting the tested battery or replacement.<br>' +
+    '  4. Batteries not collected within 30 days of notification may be subject to demurrage or disposal per service center policy.' +
+    '</div>' +
+    '<div class="sig-grid">' +
+    '  <div><div style="height:30px;"></div><div class="sig-line"><strong>Customer / Depositor Signature</strong><br><span class="sig-sub">Accepted Terms &amp; Deposited Goods</span></div></div>' +
+    '  <div><div style="height:30px;"></div><div class="sig-line" style="text-align:right;"><strong>For ' + escapeHtml(comp.name) + '</strong><br><span class="sig-sub">Authorized Service Desk Attendant &amp; Stamp</span></div></div>' +
+    '</div></body></html>';
+
+  return html;
+}
+
+function generatePrintDocumentHTML(docType, id) {
+  if (docType === 'return-challan') {
+    return buildReturnChallanHTML(id);
+  } else if (docType === 'company-challan') {
+    return buildCompanyChallanHTML(id);
+  } else if (docType === 'claim-form') {
+    return buildClaimFormHTML(id);
+  } else if (docType === 'intake-slip') {
+    return buildIntakeSlipHTML(id);
+  }
+  return '<!DOCTYPE html><html><body><p>Unknown document type: ' + escapeHtml(docType) + '</p></body></html>';
+}
+
+function renderPrintDocument(docType, id, title) {
+  var html = generatePrintDocumentHTML(docType, id);
+  BWMS.currentPrintHTML = html;
+
+  var titleEl = document.getElementById('print-modal-title');
+  if (titleEl) {
+    titleEl.textContent = title || 'Document Print Preview';
+  }
+
+  var iframe = document.getElementById('print-iframe');
+  if (iframe) {
+    if (typeof iframe.removeAttribute === 'function') {
+      iframe.removeAttribute('src');
+    } else {
+      delete iframe.src;
+    }
+    iframe.srcdoc = html;
+
+    setTimeout(function() {
+      try {
+        var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+        if (doc && (!iframe.srcdoc || doc.body.innerHTML === '')) {
+          doc.open();
+          doc.write(html);
+          doc.close();
+        }
+      } catch (e) {
+        console.warn('Iframe write error:', e);
+      }
+    }, 50);
+  }
+
+  openModal('modal-print');
+}
 
 function printReturnChallan(challanNo) {
-  openPrintModal('Battery Return Delivery Challan — ' + challanNo, '?page=print-return-challan&id=' + encodeURIComponent(challanNo));
+  renderPrintDocument('return-challan', challanNo, 'Battery Return Delivery Challan — ' + (challanNo || ''));
 }
 
 function printCompanyChallan(challanNo) {
-  openPrintModal('Company Consolidated Delivery Challan — ' + challanNo, '?page=print-company-challan&id=' + encodeURIComponent(challanNo));
+  renderPrintDocument('company-challan', challanNo, 'Company Consolidated Delivery Challan — ' + (challanNo || ''));
 }
 
 function printClaimForm(claimNo) {
-  openPrintModal('Battery Warranty Claim Form — ' + claimNo, '?page=print-claim-form&id=' + encodeURIComponent(claimNo));
+  renderPrintDocument('claim-form', claimNo, 'Battery Warranty Claim Form — ' + (claimNo || ''));
 }
 
-function openPrintModal(title, url) {
-  document.getElementById('print-modal-title').textContent = title;
-  var iframe = document.getElementById('print-iframe');
-  var fullUrl;
-  if (typeof google !== 'undefined' && google.script && google.script.run) {
-    fullUrl = url;
-  } else {
-    fullUrl = PROD_WEB_APP_URL + (url.indexOf('?') === 0 ? url : '?' + url);
-  }
-  iframe.src = fullUrl;
-  openModal('modal-print');
+function printIntakeSlip(ticketNo) {
+  renderPrintDocument('intake-slip', ticketNo, 'Customer Intake Slip — ' + (ticketNo || ''));
 }
 
 function triggerIframePrint() {
   var iframe = document.getElementById('print-iframe');
   if (iframe && iframe.contentWindow) {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      return;
+    } catch (e) {
+      console.warn('Iframe print error, falling back to window print:', e);
+    }
   }
+  openPrintInNewWindow();
+}
+
+function openPrintInNewWindow() {
+  if (!BWMS.currentPrintHTML) {
+    showToast('No printable document currently active.', 'warning');
+    return;
+  }
+  var win = window.open('', '_blank');
+  if (win) {
+    win.document.open();
+    win.document.write(BWMS.currentPrintHTML);
+    win.document.close();
+    win.focus();
+    setTimeout(function() {
+      try { win.print(); } catch (e) { }
+    }, 250);
+  } else {
+    showToast('Browser blocked pop-up window. Please allow popups.', 'error');
+  }
+}
+
+// Expose print generators on window for automated test suite and external callers
+if (typeof window !== 'undefined') {
+  window.escapeHtml = escapeHtml;
+  window.getPrintCompanyInfo = getPrintCompanyInfo;
+  window.buildReturnChallanHTML = buildReturnChallanHTML;
+  window.buildCompanyChallanHTML = buildCompanyChallanHTML;
+  window.buildClaimFormHTML = buildClaimFormHTML;
+  window.buildIntakeSlipHTML = buildIntakeSlipHTML;
+  window.generatePrintDocumentHTML = generatePrintDocumentHTML;
+  window.renderPrintDocument = renderPrintDocument;
+  window.printReturnChallan = printReturnChallan;
+  window.printCompanyChallan = printCompanyChallan;
+  window.printClaimForm = printClaimForm;
+  window.printIntakeSlip = printIntakeSlip;
+  window.triggerIframePrint = triggerIframePrint;
+  window.openPrintInNewWindow = openPrintInNewWindow;
 }
 
 // ─── CSV EXPORT UTILITIES ─────────────────────────────────────────────────────
@@ -2599,6 +3444,7 @@ function renderTicketActions(t) {
     }
   }
 
+  html += '<button class="btn btn-secondary btn-sm" onclick="printIntakeSlip(\'' + t.ticket_no + '\')" title="Print Customer Intake Acknowledgement Slip">🖨️ Slip</button>';
   html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">👁️ Timeline</button>';
   html += '</div>';
   return html;
@@ -3376,7 +4222,9 @@ function openModal(id) {
   if (el) {
     el.classList.add('active');
     el.classList.add('open');
-    document.body.style.overflow = 'hidden';
+    if (document.body && document.body.style) {
+      document.body.style.overflow = 'hidden';
+    }
   }
 }
 
@@ -3385,7 +4233,9 @@ function closeModal(id) {
   if (el) {
     el.classList.remove('active');
     el.classList.remove('open');
-    document.body.style.overflow = '';
+    if (document.body && document.body.style) {
+      document.body.style.overflow = '';
+    }
   }
 }
 

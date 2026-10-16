@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <title>Customer Intake Slip - <?= (data && data.ticket && data.ticket.ticket_no) ? data.ticket.ticket_no : '' ?></title>
+  <style>
+    @page { size: A4 portrait; margin: 10mm 12mm 10mm 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 11.5px;
+      color: #1e293b;
+      margin: 0;
+      padding: 20px;
+      line-height: 1.45;
+      background: #ffffff;
+    }
+    .header-table {
+      width: 100%;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .company-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      text-transform: uppercase;
+      margin: 0 0 3px 0;
+    }
+    .company-meta {
+      font-size: 10.5px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    .badge-doc {
+      display: inline-block;
+      font-size: 12.5px;
+      font-weight: 800;
+      background: #eff6ff;
+      color: #1d4ed8;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid #93c5fd;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .section-title {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 4px 8px;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-top: 10px;
+      margin-bottom: 6px;
+      border-radius: 3px;
+      letter-spacing: 0.3px;
+    }
+    .grid-2 {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .grid-col {
+      flex: 1;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 7px 10px;
+      background: #f8fafc;
+    }
+    .row {
+      display: flex;
+      margin-bottom: 3.5px;
+    }
+    .lbl {
+      width: 130px;
+      font-weight: 600;
+      color: #475569;
+      font-size: 10.5px;
+    }
+    .val {
+      flex: 1;
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 10.5px;
+    }
+    .loaner-box {
+      border: 1.5px solid #0284c7;
+      background: #f0f9ff;
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+    }
+    .loaner-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #0369a1;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .terms-box {
+      font-size: 9.5px;
+      color: #475569;
+      line-height: 1.45;
+      margin-top: 8px;
+      margin-bottom: 12px;
+      border-left: 3px solid #cbd5e1;
+      padding-left: 8px;
+    }
+    .sig-container {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+      page-break-inside: avoid;
+    }
+    .sig-box {
+      width: 45%;
+      border-top: 1px solid #94a3b8;
+      padding-top: 5px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .sig-sub {
+      font-size: 9.5px;
+      font-weight: normal;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    @media print {
+      body { padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 14px; text-align: right;">
+    <button onclick="window.print()" style="background:#0284c7; color:#fff; border:none; padding:8px 18px; border-radius:4px; font-weight:bold; cursor:pointer; font-size: 12px;">🖨️ Print Intake Slip (A4)</button>
+  </div>
+
+  <table class="header-table">
+    <tr>
+      <td style="vertical-align: top;">
+        <div class="company-title"><?= (data && data.company && data.company.name) ? data.company.name : 'Amaron Battery Hub & Service Care' ?></div>
+        <div class="company-meta"><?= (data && data.company && data.company.address) ? data.company.address : 'Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002' ?></div>
+        <div class="company-meta">
+          Phone: <?= (data && data.company && data.company.phone) ? data.company.phone : '+91 98250 12345' ?> &nbsp;|&nbsp;
+          Email: <?= (data && data.company && data.company.email) ? data.company.email : 'service@batteryhub.in' ?>
+          <? var gstinVal = (data && data.company && (data.company.gstin || data.company.gst)) ? (data.company.gstin || data.company.gst) : ''; ?>
+          <? if (gstinVal) { ?> &nbsp;|&nbsp; <strong>GSTIN:</strong> <?= gstinVal ?><? } ?>
+        </div>
+      </td>
+      <td style="text-align: right; vertical-align: top;">
+        <div class="badge-doc">CUSTOMER INTAKE ACKNOWLEDGEMENT SLIP</div>
+        <div style="font-size: 10.5px; color: #64748b; margin-top: 3px; font-weight: 700;">BATTERY SERVICE RECEIPT & DEPOSIT SLIP</div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="section-title">1. Ticket & Service Meta Information</div>
+  <div class="grid-2">
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Ticket Number:</div><div class="val"><strong><?= (data && data.ticket && data.ticket.ticket_no) ? data.ticket.ticket_no : '-' ?></strong></div></div>
+      <div class="row"><div class="lbl">Intake Date:</div><div class="val"><?= (data && data.ticket && (data.ticket.date_received_formatted || data.ticket.date_received)) ? (data.ticket.date_received_formatted || data.ticket.date_received) : '-' ?></div></div>
+      <div class="row"><div class="lbl">Intake Status:</div><div class="val"><strong style="color: #0284c7;"><?= (data && data.ticket && data.ticket.status) ? data.ticket.status : 'RECEIVED' ?></strong></div></div>
+    </div>
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Source Type:</div><div class="val"><?= (data && data.ticket && data.ticket.source_type) ? data.ticket.source_type : 'CUSTOMER' ?></div></div>
+      <div class="row"><div class="lbl">Channel Dealer:</div><div class="val"><?= (data && data.ticket && data.ticket.dealer_name) ? data.ticket.dealer_name : '-' ?></div></div>
+      <div class="row"><div class="lbl">Service Location:</div><div class="val">Central Service Workshop & Testing Lab</div></div>
+    </div>
+  </div>
+
+  <div class="section-title">2. Customer / Depositor Information</div>
+  <div class="grid-2">
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Customer / Depositor:</div><div class="val"><strong><?= (data && data.ticket && (data.ticket.customer_name || data.ticket.dealer_name)) ? (data.ticket.customer_name || data.ticket.dealer_name) : '-' ?></strong></div></div>
+      <div class="row"><div class="lbl">Contact Mobile:</div><div class="val"><?= (data && data.ticket && data.ticket.mobile) ? data.ticket.mobile : '-' ?></div></div>
+      <div class="row"><div class="lbl">Vehicle Registration:</div><div class="val"><?= (data && data.ticket && data.ticket.vehicle_number) ? data.ticket.vehicle_number : '-' ?></div></div>
+    </div>
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Address:</div><div class="val"><?= (data && data.ticket && data.ticket.address) ? data.ticket.address : '-' ?></div></div>
+      <div class="row"><div class="lbl">Deposited Purpose:</div><div class="val">Bench Diagnostic Inspection / Warranty Evaluation</div></div>
+      <div class="row"><div class="lbl">Customer Reported Issue:</div><div class="val"><?= (data && data.ticket && data.ticket.remarks) ? data.ticket.remarks : 'Starting failure / discharge complaint' ?></div></div>
+    </div>
+  </div>
+
+  <div class="section-title">3. Deposited Battery Specifications</div>
+  <div class="grid-2">
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Battery Model:</div><div class="val"><strong><?= (data && data.ticket && data.ticket.battery_model) ? data.ticket.battery_model : '-' ?></strong></div></div>
+      <div class="row"><div class="lbl">Original Serial No:</div><div class="val"><span style="font-family: monospace; font-size: 13px; font-weight: bold;"><?= (data && data.ticket && data.ticket.original_serial_no) ? data.ticket.original_serial_no : '-' ?></span></div></div>
+      <div class="row"><div class="lbl">Quantity Deposited:</div><div class="val">1 No. (Automotive / Inverter Battery)</div></div>
+    </div>
+    <div class="grid-col">
+      <div class="row"><div class="lbl">Date of Purchase:</div><div class="val"><?= (data && data.ticket && (data.ticket.date_of_sale_formatted || data.ticket.date_of_sale)) ? (data.ticket.date_of_sale_formatted || data.ticket.date_of_sale) : '-' ?></div></div>
+      <div class="row"><div class="lbl">Physical Condition:</div><div class="val">Terminals Intact, Container Sound (Pending Electrical Test)</div></div>
+      <div class="row"><div class="lbl">Diagnostic Target:</div><div class="val">15s Load, OCV, Specific Gravity 6 Cells</div></div>
+    </div>
+  </div>
+
+  <!-- 4. Service / Loaner Battery Undertaking -->
+  <? var hasLoaner = (data && data.ticket && (data.ticket.service_battery_issued === true || data.ticket.service_battery_issued === 'YES' || data.ticket.service_battery_issued === 'true' || data.ticket.service_battery_serial)); ?>
+  <? if (hasLoaner) { ?>
+  <div class="loaner-box">
+    <div class="loaner-title">
+      <span>🔋 STANDBY SERVICE / LOANER BATTERY ISSUED</span>
+    </div>
+    <div style="display: flex; gap: 16px; margin-bottom: 6px; font-size: 11px;">
+      <div><strong>Service Model:</strong> <?= (data && data.ticket && data.ticket.service_battery_model) ? data.ticket.service_battery_model : 'Standby Service Battery' ?></div>
+      <div><strong>Service Serial No:</strong> <span style="font-family: monospace; font-weight: bold;"><?= (data && data.ticket && data.ticket.service_battery_serial) ? data.ticket.service_battery_serial : 'LENT-SB' ?></span></div>
+      <div><strong>Issue Date:</strong> <?= (data && data.ticket && (data.ticket.service_battery_date_formatted || data.ticket.service_battery_date || data.ticket.date_received_formatted || data.ticket.date_received)) ? (data.ticket.service_battery_date_formatted || data.ticket.service_battery_date || data.ticket.date_received_formatted || data.ticket.date_received) : '-' ?></div>
+    </div>
+    <div style="font-size: 10px; color: #0369a1; line-height: 1.4;">
+      <strong>Loaner Undertaking:</strong> "The customer acknowledges temporary receipt of the standby service battery detailed above in good working condition. The customer undertakes to return this service battery in identical condition immediately upon collection of their tested or replacement battery."
+    </div>
+  </div>
+  <? } else { ?>
+  <div style="border: 1px dashed #cbd5e1; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 10.5px; color: #64748b;">
+    <strong>Standby Service Battery:</strong> None issued for this intake ticket.
+  </div>
+  <? } ?>
+
+  <div class="terms-box">
+    <strong>Terms & Conditions of Service & Custody:</strong><br>
+    1. The deposited battery will undergo bench electrical testing, specific gravity measurement, and load capacity evaluation within 24–48 operational hours.<br>
+    2. Warranty replacement eligibility is governed strictly by manufacturer warranty terms and diagnostic test findings.<br>
+    3. This acknowledgement slip must be presented in original at the time of collecting the tested battery or replacement.<br>
+    4. Batteries not collected within 30 days of notification may be subject to demurrage or disposal per service center policy.
+  </div>
+
+  <div class="sig-container">
+    <div class="sig-box">
+      <br><br>
+      Customer / Depositor Signature
+      <div class="sig-sub">Accepted Terms &amp; Deposited Goods</div>
+    </div>
+    <div class="sig-box" style="text-align: right;">
+      <br><br>
+      For <?= (data && data.company && data.company.name) ? data.company.name : 'Amaron Battery Hub & Service Care' ?>
+      <div class="sig-sub">Authorized Service Desk Attendant &amp; Stamp</div>
+    </div>
+  </div>
+</body>
+</html>

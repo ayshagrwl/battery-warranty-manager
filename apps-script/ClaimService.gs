@@ -466,23 +466,127 @@ var ClaimService = (function () {
     });
   }
 
-  function getClaimFormPrintData(claimNo) {
-    var claim = getClaimByNo(claimNo);
-    if (!claim) throw new Error('Claim ' + claimNo + ' not found');
-    var ticket = claim.ticket_no ? Database.getRowById('Tickets', 'ticket_no', claim.ticket_no) : {};
-    var tests = claim.ticket_no ? BatteryTestService.getTestsByTicket(claim.ticket_no) : [];
+  function getClaimFormPrintData(claimOrTicketId) {
+    if (!claimOrTicketId) throw new Error('Claim number or ticket number is required');
+    var rawId = String(claimOrTicketId).trim();
+    var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').replace(/^CLM-PREVIEW-/i, '').trim();
+
+    // 1. Try finding claim by claim_no
+    var claim = getClaimByNo(rawId);
+    if (!claim && cleanId !== rawId) {
+      claim = getClaimByNo(cleanId);
+    }
+
+    // 2. Try finding claim by ticket_no
+    if (!claim) {
+      claim = getClaimByTicket(cleanId) || getClaimByTicket(rawId);
+    }
+
+    // 2b. Try finding claim by serial
+    if (!claim) {
+      var allClaims = Database.getRows('Claims');
+      for (var cIdx = 0; cIdx < allClaims.length; cIdx++) {
+        if (allClaims[cIdx].original_serial_no === rawId || allClaims[cIdx].original_serial_no === cleanId) {
+          claim = allClaims[cIdx];
+          break;
+        }
+      }
+    }
+
+    // 3. Locate ticket
+    var ticket = null;
+    if (claim && claim.ticket_no) {
+      ticket = Database.getRowById('Tickets', 'ticket_no', claim.ticket_no);
+    }
+    if (!ticket) {
+      ticket = Database.getRowById('Tickets', 'ticket_no', cleanId) || Database.getRowById('Tickets', 'ticket_no', rawId);
+    }
+    if (!ticket) {
+      var allTickets = Database.getRows('Tickets');
+      for (var tIdx = 0; tIdx < allTickets.length; tIdx++) {
+        if (allTickets[tIdx].original_serial_no === rawId || allTickets[tIdx].original_serial_no === cleanId) {
+          ticket = allTickets[tIdx];
+          break;
+        }
+      }
+    }
+
+    // 4. If claim not yet created but ticket exists, build preview claim data from ticket
+    if (!claim && ticket) {
+      var wCalc = WarrantyService.evaluateWarranty(ticket.battery_model, ticket.date_of_sale || ticket.date_received, ticket.date_received);
+      var todayIso = Utils.toIsoDate(new Date());
+      claim = {
+        claim_no: 'CLM-PREVIEW-' + ticket.ticket_no,
+        ticket_no: ticket.ticket_no,
+        source_type: ticket.source_type || 'CUSTOMER',
+        customer_name: ticket.customer_name || '',
+        dealer_name: ticket.dealer_name || '',
+        mobile: ticket.mobile || '',
+        address: ticket.address || '',
+        vehicle_number: ticket.vehicle_number || '',
+        battery_model: ticket.battery_model || '',
+        original_serial_no: ticket.original_serial_no || '',
+        date_of_sale: ticket.date_of_sale || '',
+        date_of_sale_formatted: Utils.formatDateIndian(ticket.date_of_sale),
+        warranty_months: wCalc.totalWarrantyMonths || 36,
+        warranty_expiry_date: wCalc.expiryDate || '',
+        warranty_expiry_formatted: Utils.formatDateIndian(wCalc.expiryDate),
+        warranty_status: wCalc.status || 'IN_WARRANTY',
+        claim_date: todayIso,
+        claim_date_formatted: Utils.formatDateIndian(todayIso),
+        status: 'DRAFT',
+        remarks: ticket.remarks || 'Warranty claim technical requisition'
+      };
+    }
+
+    if (!claim) throw new Error('Claim record not found for: ' + rawId);
+
+    // Ensure formatted dates
+    if (claim.claim_date && !claim.claim_date_formatted) {
+      claim.claim_date_formatted = Utils.formatDateIndian(claim.claim_date);
+    }
+    if (claim.date_of_sale && !claim.date_of_sale_formatted) {
+      claim.date_of_sale_formatted = Utils.formatDateIndian(claim.date_of_sale);
+    }
+    if (claim.warranty_expiry_date && !claim.warranty_expiry_formatted) {
+      claim.warranty_expiry_formatted = Utils.formatDateIndian(claim.warranty_expiry_date);
+    }
+
+    var ticketNo = (claim && claim.ticket_no) ? claim.ticket_no : (ticket ? ticket.ticket_no : '');
+    var tests = ticketNo ? BatteryTestService.getTestsByTicket(ticketNo) : [];
+    if (tests.length === 0 && (ticket || claim)) {
+      var sNo = (claim && claim.original_serial_no) ? claim.original_serial_no : (ticket ? ticket.original_serial_no : '');
+      if (sNo) {
+        var allTests = Database.getRows('Battery_Tests');
+        for (var tstI = 0; tstI < allTests.length; tstI++) {
+          if (allTests[tstI].original_serial_no === sNo) {
+            tests.push(allTests[tstI]);
+          }
+        }
+      }
+    }
+    var test = (tests && tests.length > 0) ? tests[tests.length - 1] : {};
+
+    if (test && test.test_date && !test.test_date_formatted) {
+      test.test_date_formatted = Utils.formatDateIndian(test.test_date);
+    }
+
     var config = Config.getAll();
+    var gstVal = config.COMPANY_GST || '';
+
     return {
       company: {
         name: config.COMPANY_NAME || 'Amaron Battery Hub & Service Care',
-        address: config.COMPANY_ADDRESS || '',
-        phone: config.COMPANY_PHONE || '',
-        email: config.COMPANY_EMAIL || '',
-        gst: config.COMPANY_GST || ''
+        address: config.COMPANY_ADDRESS || 'Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002',
+        phone: config.COMPANY_PHONE || '+91 98250 12345',
+        email: config.COMPANY_EMAIL || 'service@batteryhub.in',
+        gst: gstVal,
+        gstin: gstVal,
+        terms: config.COMPANY_TERMS || ''
       },
       claim: claim,
       ticket: ticket || {},
-      test: tests.length > 0 ? tests[tests.length - 1] : {}
+      test: test || {}
     };
   }
 

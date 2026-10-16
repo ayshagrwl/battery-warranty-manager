@@ -245,6 +245,53 @@ var TicketService = (function () {
     return true;
   }
 
+  /**
+   * Retrieve structured data for Customer Intake Slip / Service Receipt.
+   */
+  function getIntakeSlipPrintData(ticketNo) {
+    if (!ticketNo) throw new Error('Ticket number is required');
+    var rawId = String(ticketNo).trim();
+    var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').trim();
+
+    var ticket = getTicketByNo(cleanId) || getTicketByNo(rawId);
+    if (!ticket) {
+      var rows = Database.getRows('Tickets');
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].original_serial_no === cleanId || rows[i].original_serial_no === rawId) {
+          ticket = rows[i];
+          break;
+        }
+      }
+    }
+    if (!ticket) throw new Error('Ticket ' + ticketNo + ' not found');
+
+    if (ticket.date_received && !ticket.date_received_formatted) {
+      ticket.date_received_formatted = Utils.formatDateIndian(ticket.date_received);
+    }
+    if (ticket.date_of_sale && !ticket.date_of_sale_formatted) {
+      ticket.date_of_sale_formatted = Utils.formatDateIndian(ticket.date_of_sale);
+    }
+    if (ticket.service_battery_date && !ticket.service_battery_date_formatted) {
+      ticket.service_battery_date_formatted = Utils.formatDateIndian(ticket.service_battery_date);
+    }
+
+    var config = Config.getAll();
+    var gstVal = config.COMPANY_GST || '';
+
+    return {
+      company: {
+        name: config.COMPANY_NAME || 'Amaron Battery Hub & Service Care',
+        address: config.COMPANY_ADDRESS || 'Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002',
+        phone: config.COMPANY_PHONE || '+91 98250 12345',
+        email: config.COMPANY_EMAIL || 'service@batteryhub.in',
+        gst: gstVal,
+        gstin: gstVal,
+        terms: config.COMPANY_TERMS || ''
+      },
+      ticket: ticket
+    };
+  }
+
   return {
     STATUS: STATUS,
     checkDuplicateSerial: checkDuplicateSerial,
@@ -254,6 +301,7 @@ var TicketService = (function () {
     getTicketByNo: getTicketByNo,
     getTicketDetails: getTicketByNo,
     updateTicketStatus: updateTicketStatus,
+    getIntakeSlipPrintData: getIntakeSlipPrintData,
     recordBatteryTest: function (data) { return BatteryTestService.recordTest(data); }
   };
 })();

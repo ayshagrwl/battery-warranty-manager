@@ -1,32 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <base target="_top">
   <title>Delivery Challan - Battery Return</title>
   <style>
-    @page { size: A4; margin: 15mm; }
+    @page { size: A4; margin: 12mm 15mm; }
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial, sans-serif;
-      color: #1e293b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
       margin: 0;
       padding: 20px;
       background: #ffffff;
-      font-size: 13px;
+      font-size: 12px;
+      line-height: 1.45;
     }
     .header {
       border-bottom: 2px solid #0f172a;
-      padding-bottom: 12px;
-      margin-bottom: 16px;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
     }
     .company-title {
-      font-size: 20px;
-      font-weight: bold;
+      font-size: 19px;
+      font-weight: 800;
       color: #0f172a;
       text-transform: uppercase;
-      margin-bottom: 4px;
+      letter-spacing: -0.3px;
+      margin-bottom: 3px;
     }
     .company-details {
       font-size: 11px;
@@ -37,197 +41,309 @@
       text-align: right;
     }
     .doc-title {
-      font-size: 15px;
-      font-weight: bold;
+      font-size: 13px;
+      font-weight: 800;
       background: #f1f5f9;
-      padding: 6px 12px;
+      color: #0f172a;
+      padding: 5px 12px;
       border: 1px solid #cbd5e1;
+      border-radius: 4px;
       display: inline-block;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .doc-meta {
-      font-size: 12px;
+      font-size: 11px;
       margin-top: 6px;
       color: #334155;
+      line-height: 1.5;
+    }
+    .no-price-banner {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid #0284c7;
+      color: #0369a1;
+      padding: 6px 12px;
+      font-size: 10.5px;
+      margin-bottom: 14px;
+      font-weight: 500;
     }
     .grid-two {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
+      gap: 12px;
+      margin-bottom: 14px;
     }
     .panel {
       border: 1px solid #cbd5e1;
       border-radius: 4px;
-      padding: 10px 14px;
+      padding: 8px 12px;
       background: #f8fafc;
     }
     .panel-title {
-      font-size: 11px;
-      font-weight: bold;
+      font-size: 10.5px;
+      font-weight: 700;
       text-transform: uppercase;
-      color: #64748b;
+      color: #475569;
       margin-bottom: 6px;
       border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 4px;
+      padding-bottom: 3px;
+      letter-spacing: 0.3px;
     }
     .info-row {
       margin-bottom: 4px;
       display: flex;
     }
     .info-label {
-      width: 110px;
+      width: 105px;
       color: #64748b;
       font-weight: 500;
+      font-size: 11px;
     }
     .info-val {
-      font-weight: bold;
+      font-weight: 600;
       color: #0f172a;
       flex: 1;
+      font-size: 11px;
     }
-    table {
+    table.data-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 24px;
+      margin-bottom: 14px;
     }
-    th, td {
+    table.data-table th, table.data-table td {
       border: 1px solid #cbd5e1;
-      padding: 10px 12px;
+      padding: 7px 10px;
       text-align: left;
     }
-    th {
+    table.data-table th {
       background: #f1f5f9;
-      font-weight: bold;
-      font-size: 12px;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #334155;
+    }
+    .test-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 10px 12px;
+      background: #ffffff;
+      margin-bottom: 14px;
+    }
+    .test-box-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #b91c1c;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #fecaca;
+      padding-bottom: 3px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .test-cell {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+    .test-cell-lbl {
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 600;
       text-transform: uppercase;
     }
+    .test-cell-val {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 2px;
+    }
+    .terms-box {
+      font-size: 10px;
+      color: #475569;
+      line-height: 1.45;
+      margin-bottom: 14px;
+      border-left: 3px solid #cbd5e1;
+      padding-left: 8px;
+    }
     .ack-box {
-      border: 2px dashed #94a3b8;
-      border-radius: 6px;
-      padding: 16px;
-      background: #fcfcfd;
-      margin-top: 30px;
+      border: 1.5px dashed #94a3b8;
+      border-radius: 4px;
+      padding: 12px 14px;
+      background: #fafaf9;
+      page-break-inside: avoid;
     }
     .ack-statement {
-      font-size: 13px;
-      font-weight: bold;
+      font-size: 11.5px;
+      font-weight: 700;
       color: #0f172a;
-      margin-bottom: 18px;
+      margin-bottom: 10px;
+      line-height: 1.4;
     }
     .sig-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 40px;
-      margin-top: 40px;
+      gap: 30px;
+      margin-top: 25px;
     }
     .sig-line {
       border-top: 1px solid #475569;
-      padding-top: 6px;
-      font-size: 12px;
-      color: #334155;
-    }
-    .no-price-banner {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      color: #1e40af;
-      padding: 6px 12px;
+      padding-top: 5px;
       font-size: 11px;
-      font-style: italic;
-      margin-bottom: 16px;
-      text-align: center;
+      color: #334155;
     }
     @media print {
       body { padding: 0; }
-      .no-print { display: none; }
+      .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="no-print" style="margin-bottom: 16px; text-align: right;">
-    <button onclick="window.print()" style="padding: 8px 16px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Print Challan (A4)</button>
+  <div class="no-print" style="margin-bottom: 14px; display: flex; justify-content: flex-end; gap: 8px;">
+    <button onclick="window.print()" style="padding: 8px 18px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 12px;">🖨️ Print Challan (A4)</button>
   </div>
 
   <div class="header">
     <div>
-      <div class="company-title"><?= data.company.name ?></div>
+      <div class="company-title"><?= (data && data.company && data.company.name) ? data.company.name : 'Amaron Battery Hub & Service Care' ?></div>
       <div class="company-details">
-        <?= data.company.address ?><br>
-        Phone: <?= data.company.phone ?> | Email: <?= data.company.email ?><br>
-        <? if (data.company.gstin) { ?>GSTIN: <?= data.company.gstin ?><? } ?>
+        <?= (data && data.company && data.company.address) ? data.company.address : 'Shop 14-16, Auto Hub Complex, Ring Road, Surat, Gujarat - 395002' ?><br>
+        Phone: <?= (data && data.company && data.company.phone) ? data.company.phone : '+91 98250 12345' ?> &nbsp;|&nbsp; Email: <?= (data && data.company && data.company.email) ? data.company.email : 'service@batteryhub.in' ?><br>
+        <? var gstinVal = (data && data.company && (data.company.gstin || data.company.gst)) ? (data.company.gstin || data.company.gst) : ''; ?>
+        <? if (gstinVal) { ?><strong>GSTIN:</strong> <?= gstinVal ?><? } ?>
       </div>
     </div>
     <div class="doc-badge">
-      <div class="doc-title">Battery Return Challan</div>
+      <div class="doc-title">Delivery Challan — Battery Return</div>
       <div class="doc-meta">
-        <strong>Challan No:</strong> <?= data.challan.challan_no ?><br>
-        <strong>Date:</strong> <?= data.challan.challan_date ?><br>
-        <strong>Ticket Ref:</strong> <?= data.challan.ticket_no ?>
+        <strong>Challan No:</strong> <?= (data && data.challan && data.challan.challan_no) ? data.challan.challan_no : '-' ?><br>
+        <strong>Date:</strong> <?= (data && data.challan && (data.challan.challan_date_formatted || data.challan.challan_date)) ? (data.challan.challan_date_formatted || data.challan.challan_date) : '-' ?><br>
+        <strong>Ticket Ref:</strong> <?= (data && data.challan && data.challan.ticket_no) ? data.challan.ticket_no : ((data && data.ticket && data.ticket.ticket_no) ? data.ticket.ticket_no : '-') ?>
       </div>
     </div>
   </div>
 
   <div class="no-price-banner">
-    Notice: Physical Goods Return Delivery Challan. Commercial value: NIL. Not for sale or accounting purchase return.
+    STATUTORY NOTICE: Physical Goods Return Delivery Challan issued under Rule 55 of CGST Rules, 2017 for goods moved other than by way of supply (Defective / Rejected Battery Return). Commercial Value: NIL. Not for sale.
   </div>
 
   <div class="grid-two">
     <div class="panel">
       <div class="panel-title">Returned To (Customer / Dealer)</div>
-      <div class="info-row"><span class="info-label">Name:</span><span class="info-val"><?= data.challan.recipient_name ?></span></div>
-      <div class="info-row"><span class="info-label">Type:</span><span class="info-val"><?= data.challan.recipient_type ?></span></div>
-      <div class="info-row"><span class="info-label">Mobile:</span><span class="info-val"><?= data.challan.mobile || '-' ?></span></div>
-      <div class="info-row"><span class="info-label">Address:</span><span class="info-val"><?= data.challan.address || '-' ?></span></div>
+      <div class="info-row"><span class="info-label">Name:</span><span class="info-val"><?= (data && data.challan && data.challan.recipient_name) ? data.challan.recipient_name : ((data && data.ticket && data.ticket.customer_name) ? data.ticket.customer_name : '-') ?></span></div>
+      <div class="info-row"><span class="info-label">Party Type:</span><span class="info-val"><?= (data && data.challan && data.challan.recipient_type) ? data.challan.recipient_type : ((data && data.ticket && data.ticket.source_type) ? data.ticket.source_type : 'CUSTOMER') ?></span></div>
+      <div class="info-row"><span class="info-label">Mobile:</span><span class="info-val"><?= (data && data.challan && data.challan.mobile) ? data.challan.mobile : ((data && data.ticket && data.ticket.mobile) ? data.ticket.mobile : '-') ?></span></div>
+      <div class="info-row"><span class="info-label">Address:</span><span class="info-val"><?= (data && data.challan && data.challan.address) ? data.challan.address : ((data && data.ticket && data.ticket.address) ? data.ticket.address : '-') ?></span></div>
+      <div class="info-row"><span class="info-label">Vehicle Reg:</span><span class="info-val"><?= (data && data.ticket && data.ticket.vehicle_number) ? data.ticket.vehicle_number : '-' ?></span></div>
     </div>
     <div class="panel">
-      <div class="panel-title">Test & Inspection Status</div>
-      <div class="info-row"><span class="info-label">Inspection:</span><span class="info-val" style="color: #dc2626;">TEST REJECTED</span></div>
-      <div class="info-row"><span class="info-label">Reason:</span><span class="info-val"><?= data.challan.remarks || 'Physical wear / out of warranty terms' ?></span></div>
-      <div class="info-row"><span class="info-label">Vehicle No:</span><span class="info-val"><?= (data.ticket && data.ticket.vehicle_number) ? data.ticket.vehicle_number : '-' ?></span></div>
+      <div class="panel-title">Inspection & Claim Disposition</div>
+      <div class="info-row"><span class="info-label">Intake Date:</span><span class="info-val"><?= (data && data.ticket && (data.ticket.date_received_formatted || data.ticket.date_received)) ? (data.ticket.date_received_formatted || data.ticket.date_received) : '-' ?></span></div>
+      <div class="info-row"><span class="info-label">Inspection Verdict:</span><span class="info-val" style="color: #dc2626; font-weight: 800;">WARRANTY CLAIM REJECTED</span></div>
+      <div class="info-row"><span class="info-label">Rejection Reason:</span><span class="info-val"><?= (data && data.challan && data.challan.remarks) ? data.challan.remarks : ((data && data.test && data.test.test_remarks) ? data.test.test_remarks : 'Test findings outside manufacturer warranty replacement terms') ?></span></div>
+      <div class="info-row"><span class="info-label">Challan Status:</span><span class="info-val"><?= (data && data.challan && data.challan.status) ? data.challan.status : 'GENERATED' ?></span></div>
     </div>
   </div>
 
-  <table>
+  <table class="data-table">
     <thead>
       <tr>
-        <th style="width: 40px;">#</th>
+        <th style="width: 35px; text-align: center;">#</th>
         <th>Battery Model Description</th>
         <th>Battery Serial Number</th>
-        <th style="width: 80px; text-align: center;">Qty</th>
-        <th>Return Reason / Remarks</th>
+        <th style="width: 75px; text-align: center;">Qty</th>
+        <th>Return Reason / Condition Remarks</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td style="text-align: center;">1</td>
-        <td><strong><?= data.challan.battery_model ?></strong></td>
-        <td style="font-family: monospace; font-size: 14px; font-weight: bold;"><?= data.challan.battery_serial_no ?></td>
+        <td style="text-align: center; font-weight: bold;">1</td>
+        <td><strong><?= (data && data.challan && data.challan.battery_model) ? data.challan.battery_model : ((data && data.ticket && data.ticket.battery_model) ? data.ticket.battery_model : 'Automotive Battery') ?></strong></td>
+        <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 13px; font-weight: 800; color: #0f172a;"><?= (data && data.challan && data.challan.battery_serial_no) ? data.challan.battery_serial_no : ((data && data.ticket && data.ticket.original_serial_no) ? data.ticket.original_serial_no : '-') ?></span></td>
         <td style="text-align: center; font-weight: bold;">1 No.</td>
-        <td><?= data.challan.remarks || 'Warranty claim rejected after electrical test' ?></td>
+        <td><?= (data && data.challan && data.challan.remarks) ? data.challan.remarks : ((data && data.test && data.test.test_remarks) ? data.test.test_remarks : 'Warranty claim rejected after electrical bench test') ?></td>
       </tr>
     </tbody>
   </table>
 
+  <!-- Laboratory Diagnostic Test Findings Box -->
+  <div class="test-box">
+    <div class="test-box-title">
+      <span>🔬 Diagnostic Bench Test Readings</span>
+      <span style="color: #64748b; font-size: 10px; font-weight: normal;">Test ID: <?= (data && data.test && data.test.test_id) ? data.test.test_id : 'TST-LAB' ?></span>
+    </div>
+    <div class="test-grid">
+      <div class="test-cell">
+        <div class="test-cell-lbl">Open Circuit Voltage</div>
+        <div class="test-cell-val"><?= (data && data.test && data.test.open_circuit_voltage) ? data.test.open_circuit_voltage + ' V' : '-' ?></div>
+      </div>
+      <div class="test-cell">
+        <div class="test-cell-lbl">15s Load Voltage</div>
+        <div class="test-cell-val"><?= (data && data.test && data.test.load_test_voltage) ? data.test.load_test_voltage + ' V' : '-' ?></div>
+      </div>
+      <div class="test-cell">
+        <div class="test-cell-lbl">Physical Condition</div>
+        <div class="test-cell-val"><?= (data && data.test && data.test.physical_condition) ? data.test.physical_condition : 'Normal' ?></div>
+      </div>
+      <div class="test-cell">
+        <div class="test-cell-lbl">Test Verdict</div>
+        <div class="test-cell-val" style="color: #dc2626;">REJECT</div>
+      </div>
+    </div>
+    <div style="font-size: 11px; margin-top: 4px; color: #334155;">
+      <strong>Specific Gravity Readings across Cells:</strong>
+      <span style="font-family: monospace; font-size: 11px; color: #0f172a; font-weight: bold;"><?= (data && data.test && data.test.specific_gravity) ? data.test.specific_gravity : '-' ?></span>
+    </div>
+    <div style="font-size: 10.5px; margin-top: 4px; color: #64748b;">
+      Diagnostic Remarks: <?= (data && data.test && data.test.test_remarks) ? data.test.test_remarks : 'Battery does not establish factory defect eligible for warranty claim.' ?> &nbsp;|&nbsp;
+      Tested By: <?= (data && data.test && data.test.tested_by) ? data.test.tested_by : 'Technician' ?> &nbsp;|&nbsp;
+      Date: <?= (data && data.test && (data.test.test_date_formatted || data.test.test_date)) ? (data.test.test_date_formatted || data.test.test_date) : '-' ?>
+    </div>
+  </div>
+
+  <div class="terms-box">
+    <strong>Terms & Conditions of Return:</strong><br>
+    1. The battery described above has undergone standard laboratory bench inspection and electrical load testing. Findings confirm that the defect is not covered under manufacturer warranty.<br>
+    2. The goods are returned in 'as-is' physical condition without any financial consideration. Service center responsibility ceases upon physical handover.<br>
+    3. Movement of physical goods under this challan is strictly non-commercial and not liable to GST under Rule 55 of CGST Rules, 2017.
+  </div>
+
   <div class="ack-box">
     <div class="ack-statement">
-      ACKNOWLEDGEMENT: "Received the above mentioned battery in good physical possession along with test report."
+      CUSTOMER ACKNOWLEDGEMENT: "I hereby confirm receipt of the battery detailed above in good physical condition along with the diagnostic test report."
     </div>
-    <div style="font-size: 12px; margin-bottom: 8px;">
-      Received By Name: __________________________________________________ &nbsp;&nbsp;&nbsp; Mobile: _________________________
+    <? var isAck = (data && data.challan && (data.challan.status === 'ACKNOWLEDGED' || data.challan.received_by_name)); ?>
+    <? if (isAck) { ?>
+    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; font-size: 11.5px; color: #065f46;">
+      ✓ <strong>HANDOVER COMPLETED &amp; ACKNOWLEDGED</strong><br>
+      Received By: <strong><?= data.challan.received_by_name ?></strong> &nbsp;|&nbsp;
+      Date Received: <strong><?= data.challan.received_date_formatted || data.challan.received_date || '-' ?></strong>
     </div>
+    <? } else { ?>
+    <div style="font-size: 11px; margin-bottom: 6px;">
+      Receiver Name: __________________________________________________ &nbsp;&nbsp;&nbsp;&nbsp; Mobile: _________________________
+    </div>
+    <? } ?>
     <div class="sig-grid">
       <div>
-        <div style="height: 45px;"></div>
+        <div style="height: 35px;"></div>
         <div class="sig-line">
           <strong>Customer / Dealer Signature</strong><br>
           Date: ______________ &nbsp;&nbsp; Time: ______________
         </div>
       </div>
       <div>
-        <div style="height: 45px;"></div>
+        <div style="height: 35px;"></div>
         <div class="sig-line" style="text-align: right;">
-          <strong>For <?= data.company.name ?></strong><br>
-          Authorized Representative / Store Keeper
+          <strong>For <?= (data && data.company && data.company.name) ? data.company.name : 'Amaron Battery Hub & Service Care' ?></strong><br>
+          Authorized Representative / Service Manager
         </div>
       </div>
     </div>
