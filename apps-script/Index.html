@@ -490,26 +490,39 @@
               </div>
             </div>
             <div class="calc-card-body" style="padding:14px 18px;">
-              <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:10px; align-items:end;">
-                <div>
-                  <label class="form-label" style="font-size:11px; margin-bottom:4px;">Battery Model</label>
-                  <select id="claimstab-calc-model" class="form-select" onchange="runWarrantyCalculator('claimstab')">
-                    <option value="">-- Select Battery Model --</option>
-                  </select>
+              <div class="calc-grid" style="margin-bottom:8px;">
+                <!-- Option A: Fast Serial Lookup -->
+                <div class="calc-panel" style="padding:10px 14px;">
+                  <div class="calc-panel-title" style="margin-bottom:6px;">🔍 Lookup by Serial Number</div>
+                  <div style="display:flex; gap:6px;">
+                    <input type="text" id="claimstab-calc-serial" class="form-control" placeholder="Enter Serial No (e.g. 001234)" style="font-family:monospace; font-weight:bold;" onkeydown="if(event.key==='Enter') lookupSerialInCalc('claimstab')">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="lookupSerialInCalc('claimstab')">Lookup</button>
+                  </div>
+                  <div id="claimstab-calc-serial-status" style="font-size:11px; margin-top:4px; color:#64748b;">Instant lookup in active intake & claim registry.</div>
                 </div>
-                <div>
-                  <label class="form-label" style="font-size:11px; margin-bottom:4px;">Date of Purchase</label>
-                  <input type="date" id="claimstab-calc-dos" class="form-control" onchange="runWarrantyCalculator('claimstab')">
-                </div>
-                <div>
-                  <label class="form-label" style="font-size:11px; margin-bottom:4px;">MRP (₹)</label>
-                  <input type="number" id="claimstab-calc-mrp" class="form-control" placeholder="e.g. 5500" oninput="runWarrantyCalculator('claimstab')">
-                </div>
-                <div>
-                  <button type="button" class="btn btn-primary btn-sm" onclick="runWarrantyCalculator('claimstab')" style="height:35px;">⚡ Calculate</button>
+
+                <!-- Option B: Model, Purchase Date & MRP -->
+                <div class="calc-panel" style="padding:10px 14px;">
+                  <div class="calc-panel-title" style="margin-bottom:6px;">⚡ Or Calculate by Model & Purchase Date</div>
+                  <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; align-items:center;">
+                    <div>
+                      <select id="claimstab-calc-model" class="form-select" onchange="runWarrantyCalculator('claimstab')">
+                        <option value="">-- Select Battery Model --</option>
+                      </select>
+                    </div>
+                    <div>
+                      <input type="date" id="claimstab-calc-dos" class="form-control" title="Date of Purchase" onchange="runWarrantyCalculator('claimstab')">
+                    </div>
+                    <div>
+                      <input type="number" id="claimstab-calc-mrp" class="form-control" placeholder="MRP (₹)" title="Current New Battery MRP" oninput="runWarrantyCalculator('claimstab')">
+                    </div>
+                    <div>
+                      <button type="button" class="btn btn-primary btn-sm" onclick="runWarrantyCalculator('claimstab')">Calculate</button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div id="claimstab-calc-result" style="display:none; margin-top:12px;"></div>
+              <div id="claimstab-calc-result" style="display:none; margin-top:10px;"></div>
             </div>
           </div>
 
@@ -810,10 +823,11 @@
                       <th>Reconciled By</th>
                       <th>Updated At</th>
                       <th>Remarks</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="stock-history-body">
-                    <tr><td colspan="8" style="text-align:center; padding:20px;">No stock logs found.</td></tr>
+                    <tr><td colspan="9" style="text-align:center; padding:20px;">No stock logs found.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1794,10 +1808,10 @@
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:16px;">
           <div style="font-weight:700; font-size:13px; color:#1e293b; margin-bottom:8px;">🔍 Fast Serial Number Lookup</div>
           <div style="display:flex; gap:8px;">
-            <input type="text" id="modalcalc-serial" class="form-control" placeholder="Enter Serial No (e.g. 001234)" style="font-family:monospace; font-weight:bold;" onkeydown="if(event.key==='Enter') lookupSerialInCalc('modal')">
+            <input type="text" id="modal-calc-serial" class="form-control" placeholder="Enter Serial No (e.g. 001234)" style="font-family:monospace; font-weight:bold;" onkeydown="if(event.key==='Enter') lookupSerialInCalc('modal')">
             <button type="button" class="btn btn-secondary" onclick="lookupSerialInCalc('modal')">Lookup</button>
           </div>
-          <div id="modalcalc-serial-status" style="font-size:11px; margin-top:6px; color:#64748b;">Instant lookup in system memory. If found, model and sale date will auto-fill below.</div>
+          <div id="modal-calc-serial-status" style="font-size:11px; margin-top:6px; color:#64748b;">Instant lookup in system memory. If found, model and sale date will auto-fill below.</div>
         </div>
 
         <div style="border:1px solid #e2e8f0; border-radius:10px; padding:16px; background:#ffffff;">
@@ -1805,23 +1819,23 @@
           <div class="form-grid form-grid-2">
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Battery Model *</label>
-              <select id="modalcalc-model" class="form-select" onchange="runWarrantyCalculator('modal')">
+              <select id="modal-calc-model" class="form-select" onchange="runWarrantyCalculator('modal')">
                 <option value="">-- Select Battery Model --</option>
               </select>
             </div>
             <div class="form-group">
               <label class="form-label">Date of Sale / Purchase *</label>
-              <input type="date" id="modalcalc-dos" class="form-control" onchange="runWarrantyCalculator('modal')">
+              <input type="date" id="modal-calc-dos" class="form-control" onchange="runWarrantyCalculator('modal')">
             </div>
             <div class="form-group">
               <label class="form-label">Current Battery MRP (₹)</label>
-              <input type="number" id="modalcalc-mrp" class="form-control" placeholder="e.g. 5500" oninput="runWarrantyCalculator('modal')">
+              <input type="number" id="modal-calc-mrp" class="form-control" placeholder="e.g. 5500" oninput="runWarrantyCalculator('modal')">
             </div>
           </div>
         </div>
 
         <!-- Live Calculation Result Container -->
-        <div id="modalcalc-result" style="display:none; margin-top:16px;"></div>
+        <div id="modal-calc-result" style="display:none; margin-top:16px;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('modal-warranty-calc')">Close</button>

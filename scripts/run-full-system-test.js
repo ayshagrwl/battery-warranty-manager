@@ -277,12 +277,14 @@ async function runTests() {
   const elements = {};
   function getEl(id) {
     if (!elements[id]) {
-      elements[id] = {
+      const el = {
         id,
         value: '',
         innerHTML: '',
         textContent: '',
         children: [],
+        options: [],
+        selectedIndex: -1,
         classList: {
           classes: new Set(),
           add(c) { this.classes.add(c); },
@@ -291,32 +293,55 @@ async function runTests() {
           contains(c) { return this.classes.has(c); }
         },
         style: {},
-        appendChild(child) { this.children.push(child); }
+        appendChild(child) {
+          this.children.push(child);
+          if (child && (child.tagName === 'option' || child.value !== undefined)) {
+            this.options.push(child);
+          }
+        }
       };
+      elements[id] = el;
     }
     return elements[id];
   }
 
   const mockDoc = {
     getElementById: (id) => getEl(id),
-    createElement: (tag) => ({
-      tagName: tag,
-      innerHTML: '',
-      textContent: '',
-      children: [],
-      style: {},
-      classList: {
-        classes: new Set(),
-        add(c) { this.classes.add(c); },
-        remove(c) { this.classes.delete(c); },
-        toggle(c) {}
-      },
-      appendChild(child) { this.children.push(child); },
-      setAttribute: () => {},
-      click: () => {}
-    }),
+    createElement: (tag) => {
+      const el = {
+        tagName: tag,
+        value: '',
+        innerHTML: '',
+        textContent: '',
+        children: [],
+        options: [],
+        selectedIndex: -1,
+        style: {},
+        classList: {
+          classes: new Set(),
+          add(c) { this.classes.add(c); },
+          remove(c) { this.classes.delete(c); },
+          toggle(c) {}
+        },
+        appendChild(child) {
+          this.children.push(child);
+          if (child && (child.tagName === 'option' || child.value !== undefined)) {
+            this.options.push(child);
+          }
+        },
+        setAttribute: (k, v) => { el[k] = v; },
+        click: () => {}
+      };
+      return el;
+    },
     body: { appendChild: () => {}, removeChild: () => {} },
-    querySelectorAll: () => [],
+    querySelectorAll: (sel) => {
+      return Object.values(elements).filter(e => {
+        if (!sel) return false;
+        if (sel.startsWith('.')) return e.classList.contains(sel.slice(1));
+        return false;
+      });
+    },
     addEventListener: () => {}
   };
 
@@ -418,6 +443,72 @@ async function runTests() {
     console.error('CSV export failure:', e);
   }
   assert(csvOk, 'All 8 management CSV exports execute and construct valid tabular downloads');
+
+  // TEST SUITE 7: Instant Warranty Calculator, Calendar Edge Cases & Guided Stepper Engine
+  console.log(`\n${colors.bold}SUITE 7: Instant Warranty Calculator, Calendar Edge Cases & Guided Stepper Engine${colors.reset}`);
+  console.log(`─────────────────────────────────────────────────────────────────────────────`);
+
+  // 7.1 Calendar Month Boundary Clamping (Aug 31 + 6M = Feb 28, not Mar 3)
+  const dAug31 = vmContext.addCalendarMonths('2024-08-31', 6);
+  const isoAug31 = `${dAug31.getFullYear()}-${String(dAug31.getMonth()+1).padStart(2,'0')}-${String(dAug31.getDate()).padStart(2,'0')}`;
+  assert(isoAug31 === '2025-02-28', 'Calendar boundary: Aug 31 + 6M correctly clamped to Feb 28 without March rollover');
+
+  // 7.2 Leap Year Clamping (Feb 29 + 12M = Feb 28)
+  const dLeap12 = vmContext.addCalendarMonths('2024-02-29', 12);
+  const isoLeap12 = `${dLeap12.getFullYear()}-${String(dLeap12.getMonth()+1).padStart(2,'0')}-${String(dLeap12.getDate()).padStart(2,'0')}`;
+  assert(isoLeap12 === '2025-02-28', 'Leap year: Feb 29 leap date + 12M correctly clamped to Feb 28 of non-leap year');
+
+  // 7.3 Model resolution (exact, substring, and token)
+  vmContext.BWMS.models = [
+    { model_id: 'MOD-001', model_name: 'AAM-FL-00042B20L', brand: 'Amaron', capacity_ah: 35, warranty_months: 36, guarantee_months: 18, pro_rata_months: 18, mrp: 5200 },
+    { model_id: 'MOD-002', model_name: 'AAM-PR-00055D23L', brand: 'Amaron', capacity_ah: 45, warranty_months: 48, guarantee_months: 24, pro_rata_months: 24, mrp: 6800 }
+  ];
+
+  const mExact = vmContext.findBatteryModel('AAM-FL-00042B20L');
+  assert(mExact && mExact.model_id === 'MOD-001', 'Model Resolver: Exact model name match successfully resolved');
+
+  const mSub = vmContext.findBatteryModel('42B20L');
+  assert(mSub && mSub.model_id === 'MOD-001', 'Model Resolver: Substring token query successfully resolved');
+
+  const mRawPattern = vmContext.calculateWarrantyDetails('Exide Mileage 36+18', null, null);
+  assert(mRawPattern.guaranteeMonths === 36 && mRawPattern.proRataMonths === 18 && mRawPattern.totalMonths === 54, 'Warranty Engine: Raw string regex parsing (36+18) successfully extracts terms without master record');
+
+  // 7.4 Guarantee vs Pro-Rata Cutoff Precision (sale: 2024-01-15, 18M guarantee, 18M pro-rata)
+  const calcGuarDay = vmContext.calculateWarrantyDetails('AAM-FL-00042B20L', '2024-01-15', '2025-07-15');
+  assert(calcGuarDay.status === 'FULL_GUARANTEE' && calcGuarDay.discountPercent === 100 && calcGuarDay.customerPayable === 0, 'Warranty Engine: Claim on exact last day of guarantee evaluates to FULL_GUARANTEE (100% discount, ₹0 payable)');
+
+  const calcProRataDay = vmContext.calculateWarrantyDetails('AAM-FL-00042B20L', '2024-01-15', '2025-07-16');
+  assert(calcProRataDay.status === 'PRO_RATA' && calcProRataDay.discountPercent > 0 && calcProRataDay.customerPayable > 0, 'Warranty Engine: Claim 1 day past guarantee transitions cleanly into PRO_RATA');
+
+  const calcExpiryDay = vmContext.calculateWarrantyDetails('AAM-FL-00042B20L', '2024-01-15', '2027-01-16');
+  assert(calcExpiryDay.status === 'EXPIRED' && calcExpiryDay.discountPercent === 0 && calcExpiryDay.customerPayable === calcExpiryDay.mrp, 'Warranty Engine: Claim past 36 months evaluates to EXPIRED (0% discount, full MRP payable)');
+
+  // 7.5 Guided Next Action Stepper across lifecycle
+  const tRec = vmContext.getTicketNextAction({ ticket_no: 'TKT-01', status: 'RECEIVED' });
+  assert(tRec.stepNumber === 1 && tRec.stepLabel.includes('Test Battery'), 'Stepper: RECEIVED ticket guides to Step 1: Test Battery');
+
+  const tPass = vmContext.getTicketNextAction({ ticket_no: 'TKT-02', status: 'PASSED' });
+  assert(tPass.stepNumber === 2 && tPass.stepLabel.includes('File Claim'), 'Stepper: PASSED ticket guides to Step 2: File Claim');
+
+  const tRej = vmContext.getTicketNextAction({ ticket_no: 'TKT-03', status: 'REJECTED_RETURN_PENDING' });
+  assert(tRej.stepNumber === 2 && tRej.stepLabel.includes('Return Challan'), 'Stepper: REJECTED ticket guides to Step 2: Return Challan');
+
+  const cSent = vmContext.getClaimNextAction({ claim_no: 'CLM-01', status: 'SENT_TO_COMPANY' });
+  assert(cSent.stepNumber === 4 && cSent.stepLabel.includes('Awaiting Mfr Rep'), 'Stepper: SENT_TO_COMPANY claim guides to Step 4: Awaiting Mfr Rep');
+
+  const cRep = vmContext.getClaimNextAction({ claim_no: 'CLM-02', status: 'REPLACEMENT_RECEIVED', stock_status: 'PENDING' });
+  assert(cRep.stepNumber === 5 && cRep.stepLabel.includes('Log ERP Stock'), 'Stepper: REPLACEMENT_RECEIVED claim guides to Step 5: Log ERP Stock');
+
+  const cStock = vmContext.getClaimNextAction({ claim_no: 'CLM-03', status: 'STOCK_UPDATED' });
+  assert(cStock.stepNumber === 6 && cStock.stepLabel.includes('Deliver & Close'), 'Stepper: STOCK_UPDATED claim guides to Step 6: Deliver & Close');
+
+  // 7.6 Universal Fast Search Spotlight Simulation
+  const mockSpotlightEl = getEl('spotlight-search-results');
+  vmContext.handleSpotlightSearch('001235');
+  assert(mockSpotlightEl.innerHTML.includes('CLM-0002') || mockSpotlightEl.innerHTML.includes('TKT-0002'), 'Fast Search: Serial query matches and returns structured preview with 1-click action buttons');
+
+  vmContext.handleSpotlightSearch('NON-EXISTENT-BATTERY-999');
+  assert(mockSpotlightEl.innerHTML.includes('Check Warranty') && mockSpotlightEl.innerHTML.includes('New Intake'), 'Fast Search: Unknown query renders fallback quick-action buttons with zero dead ends');
 
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);
