@@ -44,20 +44,33 @@ document.addEventListener('DOMContentLoaded', function() {
 function initApp() {
   // Set default dates across all form inputs
   var today = new Date().toISOString().split('T')[0];
-  var dateInputs = ['intake-date', 'test-date', 'claim-dos', 'ret-date', 'dsp-date', 'rep-date', 'close-del-date'];
+  var dateInputs = ['intake-date', 'test-date', 'claim-dos', 'ret-date', 'dsp-date', 'rep-date', 'close-del-date', 'dash-calc-dos', 'claimstab-calc-dos', 'modalcalc-dos'];
   dateInputs.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = today;
   });
 
   // Setup click outside listener for search suggestions dropdown
-  document.addEventListener('click', function(e) {
-    var searchBox = document.querySelector('.search-wrapper');
-    var dropdown = document.getElementById('search-suggestions-dropdown');
-    if (dropdown && searchBox && !searchBox.contains(e.target)) {
-      dropdown.style.display = 'none';
-    }
-  });
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('click', function(e) {
+      var searchBox = document.querySelector ? document.querySelector('.search-wrapper') : null;
+      var dropdown = document.getElementById('search-suggestions-dropdown');
+      if (dropdown && searchBox && !searchBox.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+  }
+
+  // Global keyboard shortcuts (Press '/' or Ctrl+K for fast search)
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('keydown', function(e) {
+      var tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+      if ((e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) {
+        e.preventDefault();
+        openFastSearchModal();
+      }
+    });
+  }
 
   // 1. Instant Cold Start from local cache (0ms perceived latency!)
   loadCachedState();
@@ -189,17 +202,20 @@ function updateSyncStatusBadge(text, state) {
 
 function populateDropdowns() {
   // Model Selects
-  var modelSelects = ['intake-model', 'filter-tickets-model', 'filter-claims-model'];
+  var modelSelects = ['intake-model', 'filter-tickets-model', 'filter-claims-model', 'dash-calc-model', 'claimstab-calc-model', 'modalcalc-model'];
   modelSelects.forEach(function(selId) {
     var sel = document.getElementById(selId);
     if (!sel) return;
     var currentVal = sel.value;
     var defaultText = selId.startsWith('filter') ? 'All Battery Models' : '-- Select Battery Model --';
     sel.innerHTML = '<option value="' + (selId.startsWith('filter') ? 'ALL' : '') + '">' + defaultText + '</option>';
-    BWMS.models.forEach(function(m) {
+    (BWMS.models || []).forEach(function(m) {
       var opt = document.createElement('option');
       opt.value = m.model_name || m.model_code;
-      opt.textContent = (m.model_name || m.model_code) + ' (' + (m.warranty_months || m.warranty_period_months || 24) + 'M)';
+      var gM = m.guarantee_months || 12;
+      var pM = m.pro_rata_months || 12;
+      var tM = m.warranty_months || 24;
+      opt.textContent = (m.model_name || m.model_code) + ' (' + gM + 'G+' + pM + 'P = ' + tM + 'M)';
       sel.appendChild(opt);
     });
     if (currentVal) sel.value = currentVal;
@@ -308,6 +324,9 @@ function renderDashboard() {
     return d > 15;
   }).length;
 
+  // Render Visual Warranty Pipeline
+  renderWarrantyPipeline('dashboard-pipeline-container');
+
   // KPI Elements
   setElText('kpi-total-tickets', tickets.length);
   setElText('kpi-pending-tests', underTesting);
@@ -337,11 +356,12 @@ function renderDashboard() {
   var recents = tickets.slice().reverse().slice(0, 12);
 
   if (recents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#94a3b8;">No intake tickets recorded yet. Click "+ Receive Battery" to begin.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:15px; color:#94a3b8;">No intake tickets recorded yet. Click "+ Receive Battery" to begin.</td></tr>';
     return;
   }
 
   recents.forEach(function(t) {
+    var nextAction = getTicketNextAction(t);
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
@@ -351,6 +371,7 @@ function renderDashboard() {
       '<td><span style="font-family:monospace; font-weight:bold;">' + t.original_serial_no + '</span></td>' +
       '<td>' + formatDate(t.date_received) + '</td>' +
       '<td>' + renderStatusBadge(t.status) + '</td>' +
+      '<td><span class="next-action-pill ' + nextAction.badgeClass + '">' + nextAction.stepLabel + '</span></td>' +
       '<td>' + renderTicketActions(t) + '</td>';
     tbody.appendChild(tr);
   });
@@ -399,6 +420,9 @@ function renderTicketsTable() {
     return true;
   });
 
+  // Render Visual Warranty Pipeline
+  renderWarrantyPipeline('tickets-pipeline-container', statusFilter);
+
   // Update counter badge
   var countBadge = document.getElementById('tickets-count-badge');
   if (countBadge) countBadge.textContent = filtered.length + ' of ' + tickets.length + ' records';
@@ -408,12 +432,13 @@ function renderTicketsTable() {
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No matching intake tickets found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:25px; color:#94a3b8;">No matching intake tickets found.</td></tr>';
     return;
   }
 
   // Reverse to show latest first
   filtered.slice().reverse().forEach(function(t) {
+    var nextAction = getTicketNextAction(t);
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + t.ticket_no + '\')">' + t.ticket_no + '</strong></td>' +
@@ -424,17 +449,34 @@ function renderTicketsTable() {
       '<td>' + formatDate(t.date_received) + '</td>' +
       '<td>' + (t.service_battery_issued ? '<span class="badge badge-blue">Lent: ' + (t.service_battery_serial || 'Yes') + '</span>' : '<span style="color:#94a3b8;">None</span>') + '</td>' +
       '<td>' + renderStatusBadge(t.status) + '</td>' +
+      '<td><span class="next-action-pill ' + nextAction.badgeClass + '">' + nextAction.stepLabel + '</span></td>' +
       '<td>' + renderTicketActions(t) + '</td>';
     tbody.appendChild(tr);
   });
 }
 
-function openIntakeModal() {
+function openIntakeModal(prefill) {
   document.getElementById('form-intake').reset();
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('intake-date').value = today;
   toggleSourceFields();
   toggleServiceBatteryFields();
+
+  if (prefill) {
+    if (prefill.model && document.getElementById('intake-model')) {
+      document.getElementById('intake-model').value = prefill.model;
+    }
+    if (prefill.serial && document.getElementById('intake-serial')) {
+      document.getElementById('intake-serial').value = prefill.serial;
+    }
+    if (prefill.customer_name && document.getElementById('intake-customer-name')) {
+      document.getElementById('intake-customer-name').value = prefill.customer_name;
+    }
+    if (prefill.mobile && document.getElementById('intake-mobile')) {
+      document.getElementById('intake-mobile').value = prefill.mobile;
+    }
+  }
+
   openModal('modal-intake');
 }
 
@@ -701,6 +743,9 @@ function renderClaimsTable() {
     return true;
   });
 
+  // Render Visual Warranty Pipeline
+  renderWarrantyPipeline('claims-pipeline-container', statusFilter);
+
   setElText('claims-count-badge', filtered.length + ' of ' + claims.length + ' claims');
 
   var tbody = document.getElementById('claims-table-body');
@@ -708,11 +753,12 @@ function renderClaimsTable() {
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No matching claims found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:25px; color:#94a3b8;">No matching claims found.</td></tr>';
     return;
   }
 
   filtered.slice().reverse().forEach(function(c) {
+    var nextAction = getClaimNextAction(c);
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
@@ -723,6 +769,7 @@ function renderClaimsTable() {
       '<td>Sale: ' + formatDate(c.date_of_sale) + '<br><small>Exp: ' + formatDate(c.warranty_expiry_date) + '</small></td>' +
       '<td>' + renderWarrantyBadge(c.warranty_status) + '</td>' +
       '<td>' + renderStatusBadge(c.status) + '</td>' +
+      '<td><span class="next-action-pill ' + nextAction.badgeClass + '">' + nextAction.stepLabel + '</span></td>' +
       '<td>' + renderClaimActions(c) + '</td>';
     tbody.appendChild(tr);
   });
@@ -738,39 +785,77 @@ function openClaimModal(ticketNo) {
   document.getElementById('form-claim').reset();
   document.getElementById('claim-ticket-no').value = t.ticket_no;
   document.getElementById('claim-view-ticket').textContent = t.ticket_no;
-  document.getElementById('claim-view-party').textContent = t.customer_name || t.dealer_name;
-  document.getElementById('claim-view-model').textContent = t.battery_model;
-  document.getElementById('claim-view-serial').textContent = t.original_serial_no;
-  document.getElementById('claim-calc-box').innerHTML = 'Enter date of sale to calculate';
+  document.getElementById('claim-view-party').textContent = (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) || '';
+  document.getElementById('claim-view-model').textContent = t.battery_model || '';
+  document.getElementById('claim-view-serial').textContent = t.original_serial_no || '';
+
+  // Look up model specifications
+  var m = (BWMS.models || []).find(function(item) {
+    return (item.model_name === t.battery_model || item.model_id === t.battery_model || item.model_code === t.battery_model);
+  });
+  var totalMonths = m ? (parseInt(m.warranty_months, 10) || 24) : 24;
+  var guaranteeMonths = m ? (parseInt(m.guarantee_months, 10) || 12) : 12;
+  var proRataMonths = m ? (parseInt(m.pro_rata_months, 10) || (totalMonths - guaranteeMonths)) : (totalMonths - guaranteeMonths);
+  if (proRataMonths < 0) proRataMonths = 0;
+
+  var specsEl = document.getElementById('claim-model-specs');
+  if (specsEl) {
+    specsEl.innerHTML =
+      '<span class="badge badge-blue">Warranty: ' + totalMonths + 'M (' + guaranteeMonths + 'G + ' + proRataMonths + 'P)</span> ' +
+      (m && m.brand ? '<span class="badge badge-gray">' + m.brand + '</span> ' : '') +
+      (m && m.capacity_ah ? '<span class="badge badge-gray">' + m.capacity_ah + ' Ah</span>' : '');
+  }
+
+  var dosInput = document.getElementById('claim-dos');
+  if (dosInput) {
+    if (t.date_of_sale) {
+      dosInput.value = t.date_of_sale.indexOf('T') !== -1 ? t.date_of_sale.split('T')[0] : t.date_of_sale;
+    } else {
+      var d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      dosInput.value = d.toISOString().split('T')[0];
+    }
+  }
+
+  var mrpInput = document.getElementById('claim-mrp');
+  if (mrpInput) {
+    mrpInput.value = (m && m.mrp) ? m.mrp : 5500;
+  }
+
+  calculateClaimWarranty();
   openModal('modal-claim');
 }
 
 function calculateClaimWarranty() {
-  var model = document.getElementById('claim-view-model').textContent;
-  var dos = document.getElementById('claim-dos').value;
-  if (!model || !dos) return;
-
-  var m = (BWMS.models || []).find(function(item) {
-    return (item.model_name === model || item.model_code === model);
-  });
-
-  var totalMonths = m ? (parseInt(m.warranty_months, 10) || 24) : 24;
-  var guaranteeMonths = m ? (parseInt(m.guarantee_months, 10) || 12) : 12;
-
-  var saleDate = new Date(dos);
-  var now = new Date();
-  var diffMonths = (now.getFullYear() - saleDate.getFullYear()) * 12 + (now.getMonth() - saleDate.getMonth());
-
+  var model = document.getElementById('claim-view-model') ? document.getElementById('claim-view-model').textContent : '';
+  var dos = document.getElementById('claim-dos') ? document.getElementById('claim-dos').value : '';
+  var mrp = document.getElementById('claim-mrp') ? document.getElementById('claim-mrp').value : '';
   var box = document.getElementById('claim-calc-box');
-  if (diffMonths <= guaranteeMonths) {
-    box.innerHTML = '<span style="color:#16a34a;">✅ FULL GUARANTEE (100% Free Replacement)</span> (' + (guaranteeMonths - diffMonths) + ' mos guarantee left)';
-  } else if (diffMonths <= totalMonths) {
-    var proMonths = totalMonths - guaranteeMonths;
-    var used = diffMonths - guaranteeMonths;
-    var disc = Math.max(0, Math.round(100 - (used / proMonths) * 100));
-    box.innerHTML = '<span style="color:#0284c7;">⚖️ PRO-RATA WARRANTY (' + disc + '% Discount)</span>';
+  if (!box) return;
+
+  if (!model || !dos) {
+    box.innerHTML = 'Enter date of sale to calculate';
+    return;
+  }
+
+  var calc = calculateWarrantyDetails(model, dos, null, mrp);
+  if (!calc.hasDate) {
+    box.innerHTML = 'Enter valid date of sale';
+    return;
+  }
+
+  if (calc.status === 'FULL_GUARANTEE') {
+    box.innerHTML =
+      '<div style="color:#16a34a; font-weight:700;">✅ FULL GUARANTEE (100% Free Replacement)</div>' +
+      '<div style="font-size:12px; color:#334155; margin-top:2px;">Within ' + calc.guaranteeMonths + 'M free guarantee window (' + (calc.guaranteeMonths - calc.diffMonths) + ' mos guarantee left) • Customer Payable: <strong style="color:#16a34a;">₹0.00</strong></div>';
+  } else if (calc.status === 'PRO_RATA') {
+    box.innerHTML =
+      '<div style="color:#0284c7; font-weight:700;">⚖️ PRO-RATA WARRANTY (' + calc.discountPercent + '% Discount)</div>' +
+      '<div style="font-size:12px; color:#334155; margin-top:2px;">Month ' + calc.diffMonths + ' of ' + calc.totalMonths + ' • Discount: <strong>' + calc.discountPercent + '%</strong> • Customer Pays: <strong style="color:#0369a1;">' + calc.payablePercent + '% (₹' + calc.customerPayable.toLocaleString('en-IN') + ' on ₹' + calc.mrp + ' MRP)</strong></div>';
   } else {
-    box.innerHTML = '<span style="color:#dc2626;">❌ OUT OF WARRANTY (Expired ' + (diffMonths - totalMonths) + ' mos ago)</span>';
+    box.innerHTML =
+      '<div style="color:#dc2626; font-weight:700;">❌ OUT OF WARRANTY (Expired ' + (calc.diffMonths - calc.totalMonths) + ' mos ago)</div>' +
+      '<div style="font-size:12px; color:#334155; margin-top:2px;">Expired on ' + formatDate(calc.warrantyExpiry) + ' • Standard scrap exchange discount can be applied.</div>';
   }
 }
 
@@ -1258,6 +1343,10 @@ function openCloseClaimModal(claimNo) {
   document.getElementById('form-close-claim').reset();
   document.getElementById('close-claim-no').value = claimNo;
   document.getElementById('close-del-date').value = new Date().toISOString().split('T')[0];
+  var c = (BWMS.claims || []).find(function(item) { return item.claim_no === claimNo; });
+  if (c && document.getElementById('close-receiver-name')) {
+    document.getElementById('close-receiver-name').value = c.customer_name || c.dealer_name || '';
+  }
   openModal('modal-close-claim');
 }
 
@@ -1780,27 +1869,34 @@ function handleUniversalSearchInput(val) {
   // Search Tickets
   (BWMS.tickets || []).forEach(function(t) {
     if (t.original_serial_no && t.original_serial_no.toLowerCase().indexOf(lower) !== -1) {
-      matches.push({ type: 'SERIAL', title: 'Serial: ' + t.original_serial_no, sub: t.ticket_no + ' • ' + (t.customer_name || t.dealer_name), id: t.original_serial_no });
+      matches.push({ type: 'SERIAL', title: 'Serial: ' + t.original_serial_no, sub: t.ticket_no + ' • ' + (t.customer_name || t.dealer_name), id: t.ticket_no, ticket: t });
     } else if (t.ticket_no && t.ticket_no.toLowerCase().indexOf(lower) !== -1) {
-      matches.push({ type: 'TICKET', title: t.ticket_no, sub: (t.customer_name || t.dealer_name) + ' • ' + t.battery_model, id: t.ticket_no });
+      matches.push({ type: 'TICKET', title: t.ticket_no, sub: (t.customer_name || t.dealer_name) + ' • ' + t.battery_model, id: t.ticket_no, ticket: t });
     } else if (t.customer_name && t.customer_name.toLowerCase().indexOf(lower) !== -1) {
-      matches.push({ type: 'CUSTOMER', title: t.customer_name, sub: t.ticket_no + ' • ' + (t.mobile || ''), id: t.ticket_no });
+      matches.push({ type: 'CUSTOMER', title: t.customer_name, sub: t.ticket_no + ' • ' + (t.mobile || ''), id: t.ticket_no, ticket: t });
     } else if (t.mobile && t.mobile.indexOf(lower) !== -1) {
-      matches.push({ type: 'MOBILE', title: 'Mobile: ' + t.mobile, sub: t.customer_name + ' • ' + t.ticket_no, id: t.ticket_no });
+      matches.push({ type: 'MOBILE', title: 'Mobile: ' + t.mobile, sub: t.customer_name + ' • ' + t.ticket_no, id: t.ticket_no, ticket: t });
     }
   });
 
   // Search Claims
   (BWMS.claims || []).forEach(function(c) {
     if (c.claim_no && c.claim_no.toLowerCase().indexOf(lower) !== -1) {
-      matches.push({ type: 'CLAIM', title: c.claim_no, sub: c.battery_model + ' • ' + c.original_serial_no, id: c.claim_no });
+      matches.push({ type: 'CLAIM', title: c.claim_no, sub: c.battery_model + ' • ' + c.original_serial_no, id: c.claim_no, claim: c });
     } else if (c.replacement_serial_no && c.replacement_serial_no.toLowerCase().indexOf(lower) !== -1) {
-      matches.push({ type: 'REP_SERIAL', title: 'Replacement: ' + c.replacement_serial_no, sub: c.claim_no + ' • ' + c.battery_model, id: c.claim_no });
+      matches.push({ type: 'REP_SERIAL', title: 'Replacement: ' + c.replacement_serial_no, sub: c.claim_no + ' • ' + c.battery_model, id: c.claim_no, claim: c });
     }
   });
 
   if (matches.length === 0) {
-    dropdown.innerHTML = '<div style="padding:12px; text-align:center; color:#94a3b8; font-size:12px;">No matching records found. Press Enter to full search.</div>';
+    dropdown.innerHTML =
+      '<div style="padding:14px; text-align:center;">' +
+      '  <div style="color:#64748b; font-size:12px; margin-bottom:8px;">No existing tickets or claims for "' + val + '"</div>' +
+      '  <div style="display:flex; justify-content:center; gap:8px;">' +
+      '    <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById(\'search-suggestions-dropdown\').style.display=\'none\'; openWarrantyCalcModal(null, \'' + val + '\')">⚡ Check Warranty</button>' +
+      '    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById(\'search-suggestions-dropdown\').style.display=\'none\'; openIntakeModal({ serial: \'' + val + '\' })">+ Intake Ticket</button>' +
+      '  </div>' +
+      '</div>';
     dropdown.style.display = 'block';
     return;
   }
@@ -1820,10 +1916,22 @@ function handleUniversalSearchInput(val) {
   unique.forEach(function(m) {
     var div = document.createElement('div');
     div.className = 'search-dropdown-item';
+    var nextActionPill = '';
+    if (m.ticket) {
+      var na = getTicketNextAction(m.ticket);
+      nextActionPill = '<span class="next-action-pill ' + na.badgeClass + '" style="font-size:10px;">' + na.stepLabel + '</span>';
+    } else if (m.claim) {
+      var ca = getClaimNextAction(m.claim);
+      nextActionPill = '<span class="next-action-pill ' + ca.badgeClass + '" style="font-size:10px;">' + ca.stepLabel + '</span>';
+    }
+
     div.innerHTML =
-      '<div>' +
-      '  <div style="font-weight:600; font-size:13px;">' + m.title + '</div>' +
-      '  <div style="font-size:11px; color:#64748b;">' + m.sub + '</div>' +
+      '<div style="flex:1;">' +
+      '  <div style="display:flex; align-items:center; gap:6px;">' +
+      '    <strong style="font-size:13px; color:var(--text-main);">' + m.title + '</strong>' +
+      '    ' + nextActionPill + ' ' +
+      '  </div>' +
+      '  <div style="font-size:11px; color:#64748b; margin-top:2px;">' + m.sub + '</div>' +
       '</div>' +
       '<div><span class="badge badge-gray">' + m.type + '</span></div>';
     div.onclick = function() {
@@ -2261,9 +2369,64 @@ function renderAgeingBadge(days) {
   return '<span class="badge badge-red" style="font-weight:bold;">🚨 ' + d + ' Days</span>';
 }
 
-function renderTicketActions(t) {
-  var html = '<div style="display:flex; gap:6px;">';
+function getTicketNextAction(t) {
   var s = (t.status || '').toUpperCase();
+  var c = (BWMS.claims || []).find(function(item) { return item.ticket_no === t.ticket_no; });
+
+  if (s === 'RECEIVED' || s === 'TESTING') {
+    return { stepNumber: 1, stepLabel: 'Step 1: Test Battery', badgeClass: 'step-blue' };
+  }
+  if (s === 'PASSED' || s === 'TEST_PASSED') {
+    return { stepNumber: 2, stepLabel: 'Step 2: File Claim', badgeClass: 'step-green' };
+  }
+  if (s === 'REJECTED_RETURN_PENDING' || s === 'TEST_REJECTED' || (s.indexOf('REJECT') !== -1 && s !== 'REJECTED_RETURNED')) {
+    return { stepNumber: 2, stepLabel: 'Step 2: Return Challan', badgeClass: 'step-danger' };
+  }
+  if (s === 'REJECTED_RETURNED' || s === 'REJECTED — RETURNED') {
+    return { stepNumber: 3, stepLabel: '✅ Returned to Party', badgeClass: 'step-done' };
+  }
+  if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY' || (c && (c.status === 'CLAIM_CREATED' || c.status === 'READY_FOR_COMPANY'))) {
+    return { stepNumber: 3, stepLabel: 'Step 3: Dispatch to Co.', badgeClass: 'step-purple' };
+  }
+  if (c && c.status === 'SENT_TO_COMPANY') {
+    return { stepNumber: 4, stepLabel: 'Step 4: Awaiting Mfr Rep', badgeClass: 'step-amber' };
+  }
+  if (c && c.status === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
+    return { stepNumber: 5, stepLabel: 'Step 5: Stock Inward Due', badgeClass: 'step-orange' };
+  }
+  if (c && (c.status === 'STOCK_UPDATED' || (c.status === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED'))) {
+    return { stepNumber: 6, stepLabel: 'Step 6: Handover & Close', badgeClass: 'step-emerald' };
+  }
+  if (s === 'CLOSED' || (c && c.status === 'CLOSED')) {
+    return { stepNumber: 7, stepLabel: '✅ Lifecycle Completed', badgeClass: 'step-done' };
+  }
+  return { stepNumber: 1, stepLabel: 'Action Required', badgeClass: 'step-blue' };
+}
+
+function getClaimNextAction(c) {
+  var s = (c.status || '').toUpperCase();
+  if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
+    return { stepNumber: 3, stepLabel: 'Step 3: Dispatch to Co.', badgeClass: 'step-purple' };
+  }
+  if (s === 'SENT_TO_COMPANY') {
+    return { stepNumber: 4, stepLabel: 'Step 4: Awaiting Mfr Rep', badgeClass: 'step-amber' };
+  }
+  if (s === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
+    return { stepNumber: 5, stepLabel: 'Step 5: Log ERP Stock', badgeClass: 'step-orange' };
+  }
+  if (s === 'STOCK_UPDATED' || (s === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED')) {
+    return { stepNumber: 6, stepLabel: 'Step 6: Deliver & Close', badgeClass: 'step-emerald' };
+  }
+  if (s === 'CLOSED' || s === 'CLAIM_CLOSED') {
+    return { stepNumber: 7, stepLabel: '✅ Claim Closed', badgeClass: 'step-done' };
+  }
+  return { stepNumber: 3, stepLabel: 'In Progress', badgeClass: 'step-blue' };
+}
+
+function renderTicketActions(t) {
+  var html = '<div style="display:flex; gap:6px; flex-wrap:wrap;">';
+  var s = (t.status || '').toUpperCase();
+  var c = (BWMS.claims || []).find(function(item) { return item.ticket_no === t.ticket_no; });
   var retChallan = (BWMS.challans || []).find(function(ch) {
     return ch.ticket_no === t.ticket_no && (ch.challan_type === 'BATTERY_RETURN' || !ch.challan_type);
   });
@@ -2285,19 +2448,38 @@ function renderTicketActions(t) {
     if (retChallan) {
       html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + retChallan.challan_no + '\')">🖨️ Challan</button>';
     }
+  } else if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
+    html += '<button class="btn btn-warning btn-sm" onclick="navigateTo(\'pending-company\')">🚚 Dispatch</button>';
   }
+
+  // Linked claim lifecycle progression actions directly on ticket card/row
+  if (c) {
+    var cs = (c.status || '').toUpperCase();
+    if (cs === 'SENT_TO_COMPANY') {
+      html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + (c.battery_model || t.battery_model || '') + '\', \'' + (c.original_serial_no || t.original_serial_no || '') + '\')">📥 Receive Rep</button>';
+    } else if (cs === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
+      html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>';
+    } else if (cs === 'STOCK_UPDATED' || (cs === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED')) {
+      html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">🤝 Close Claim</button>';
+    } else if (cs === 'CLOSED') {
+      html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
+    }
+  }
+
   html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">👁️ Timeline</button>';
   html += '</div>';
   return html;
 }
 
 function renderClaimActions(c) {
-  var html = '<div style="display:flex; gap:6px;">';
+  var html = '<div style="display:flex; gap:6px; flex-wrap:wrap;">';
   var s = (c.status || '').toUpperCase();
   html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
   html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs</button>';
 
-  if (s === 'SENT_TO_COMPANY') {
+  if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
+    html += '<button class="btn btn-warning btn-sm" onclick="navigateTo(\'pending-company\')">🚚 Dispatch to Co.</button>';
+  } else if (s === 'SENT_TO_COMPANY') {
     html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + (c.battery_model || '') + '\', \'' + (c.original_serial_no || '') + '\')">📥 Receive Rep</button>';
   } else if (s === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
     html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>';
@@ -2307,6 +2489,485 @@ function renderClaimActions(c) {
   html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">👁️ Timeline</button>';
   html += '</div>';
   return html;
+}
+
+// ─── INSTANT WARRANTY ENGINE & CALCULATOR ────────────────────────────────────
+
+function calculateWarrantyDetails(modelQuery, dateOfSaleStr, refDateStr, mrpValue) {
+  var model = null;
+  if (modelQuery) {
+    var q = String(modelQuery).trim().toLowerCase();
+    model = (BWMS.models || []).find(function(m) {
+      var n = String(m.model_name || '').toLowerCase();
+      var id = String(m.model_id || '').toLowerCase();
+      var c = String(m.model_code || '').toLowerCase();
+      return n === q || id === q || c === q || n.indexOf(q) !== -1 || q.indexOf(n) !== -1;
+    });
+  }
+
+  var totalMonths = model ? (parseInt(model.warranty_months, 10) || 24) : 24;
+  var guaranteeMonths = model ? (parseInt(model.guarantee_months, 10) || 12) : 12;
+  var proRataMonths = model ? (parseInt(model.pro_rata_months, 10) || (totalMonths - guaranteeMonths)) : (totalMonths - guaranteeMonths);
+  if (proRataMonths < 0) proRataMonths = 0;
+
+  var mrp = parseFloat(mrpValue) || (model && model.mrp ? parseFloat(model.mrp) : 5500);
+
+  if (!dateOfSaleStr) {
+    return {
+      hasDate: false,
+      model: model,
+      totalMonths: totalMonths,
+      guaranteeMonths: guaranteeMonths,
+      proRataMonths: proRataMonths,
+      mrp: mrp
+    };
+  }
+
+  var saleDate = new Date(dateOfSaleStr);
+  var refDate = refDateStr ? new Date(refDateStr) : new Date();
+  if (isNaN(saleDate.getTime())) {
+    return { hasDate: false, model: model, totalMonths: totalMonths, guaranteeMonths: guaranteeMonths, proRataMonths: proRataMonths, mrp: mrp };
+  }
+
+  var diffMonths = (refDate.getFullYear() - saleDate.getFullYear()) * 12 + (refDate.getMonth() - saleDate.getMonth());
+  var diffDays = Math.floor((refDate.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  var guaranteeExpiry = new Date(saleDate);
+  guaranteeExpiry.setMonth(guaranteeExpiry.getMonth() + guaranteeMonths);
+
+  var warrantyExpiry = new Date(saleDate);
+  warrantyExpiry.setMonth(warrantyExpiry.getMonth() + totalMonths);
+
+  var status = 'EXPIRED';
+  var discountPercent = 0;
+  var payablePercent = 100;
+  var customerPayable = mrp;
+  var coverageLabel = 'Warranty Expired';
+  var badgeClass = 'step-danger';
+  var explanation = '';
+
+  if (diffMonths <= guaranteeMonths) {
+    status = 'FULL_GUARANTEE';
+    discountPercent = 100;
+    payablePercent = 0;
+    customerPayable = 0;
+    coverageLabel = '100% Free Replacement Guarantee';
+    badgeClass = 'step-green';
+    var mosLeft = guaranteeMonths - diffMonths;
+    explanation = 'Battery is within the ' + guaranteeMonths + '-month guarantee period (' + mosLeft + ' months remaining). The customer is entitled to a 100% free replacement battery from the manufacturer. Customer payable: ₹0.';
+  } else if (diffMonths <= totalMonths) {
+    status = 'PRO_RATA';
+    var monthsUsedInProRata = diffMonths - guaranteeMonths;
+    discountPercent = proRataMonths > 0 ? Math.max(0, Math.round(100 - (monthsUsedInProRata / proRataMonths) * 100)) : 0;
+    payablePercent = 100 - discountPercent;
+    customerPayable = Math.round((mrp * payablePercent) / 100);
+    coverageLabel = 'Pro-Rata Warranty (' + discountPercent + '% Discount)';
+    badgeClass = 'step-blue';
+    explanation = 'Battery is in the pro-rata period (Month ' + diffMonths + ' of ' + totalMonths + '). Customer receives a ' + discountPercent + '% discount on the replacement battery MRP. Customer pays remaining ' + payablePercent + '% balance: ₹' + customerPayable + ' (on ₹' + mrp + ' MRP).';
+  } else {
+    status = 'EXPIRED';
+    discountPercent = 0;
+    payablePercent = 100;
+    customerPayable = mrp;
+    coverageLabel = 'Out of Warranty (Expired)';
+    badgeClass = 'step-danger';
+    var mosExpired = diffMonths - totalMonths;
+    explanation = 'Warranty expired on ' + formatDate(warrantyExpiry) + ' (' + (mosExpired > 0 ? mosExpired + ' months ago' : 'past expiry date') + '). Battery is outside manufacturer warranty. Standard scrap buyback or retail exchange can be offered.';
+  }
+
+  return {
+    hasDate: true,
+    model: model,
+    saleDate: saleDate,
+    refDate: refDate,
+    diffMonths: diffMonths,
+    diffDays: diffDays,
+    totalMonths: totalMonths,
+    guaranteeMonths: guaranteeMonths,
+    proRataMonths: proRataMonths,
+    guaranteeExpiry: guaranteeExpiry,
+    warrantyExpiry: warrantyExpiry,
+    status: status,
+    discountPercent: discountPercent,
+    payablePercent: payablePercent,
+    mrp: mrp,
+    customerPayable: customerPayable,
+    coverageLabel: coverageLabel,
+    badgeClass: badgeClass,
+    explanation: explanation
+  };
+}
+
+function runWarrantyCalculator(prefix) {
+  var modelVal = (document.getElementById(prefix + '-calc-model') ? document.getElementById(prefix + '-calc-model').value : '').trim();
+  var dosVal = document.getElementById(prefix + '-calc-dos') ? document.getElementById(prefix + '-calc-dos').value : '';
+  var mrpVal = document.getElementById(prefix + '-calc-mrp') ? document.getElementById(prefix + '-calc-mrp').value : '';
+  var resBox = document.getElementById(prefix + '-calc-result');
+  if (!resBox) return;
+
+  if (!modelVal) {
+    resBox.style.display = 'block';
+    resBox.innerHTML = '<div style="padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; color:#64748b; font-size:13px; text-align:center;">Please select a battery model to calculate warranty eligibility.</div>';
+    return;
+  }
+
+  var calc = calculateWarrantyDetails(modelVal, dosVal, null, mrpVal);
+  if (!calc.hasDate) {
+    resBox.style.display = 'block';
+    resBox.innerHTML =
+      '<div style="padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:13px;">' +
+      '  <div style="font-weight:700; color:#1e293b; margin-bottom:4px;">' + (calc.model ? calc.model.model_name : modelVal) + '</div>' +
+      '  <div style="color:#64748b; margin-bottom:8px;">Warranty: ' + calc.totalMonths + ' Months (' + calc.guaranteeMonths + 'M Free Guarantee + ' + calc.proRataMonths + 'M Pro-Rata)</div>' +
+      '  <div style="color:#0369a1; font-weight:600;">👉 Select Date of Purchase above to calculate exact free replacement or pro-rata discount percentage.</div>' +
+      '</div>';
+    return;
+  }
+
+  var verdictColor = calc.status === 'FULL_GUARANTEE' ? 'calc-verdict-green' : (calc.status === 'PRO_RATA' ? 'calc-verdict-blue' : 'calc-verdict-red');
+  var icon = calc.status === 'FULL_GUARANTEE' ? '🟢' : (calc.status === 'PRO_RATA' ? '⚖️' : '🔴');
+
+  var html =
+    '<div class="calc-verdict-box ' + verdictColor + '">' +
+    '  <div class="calc-verdict-header">' +
+    '    <div class="calc-verdict-headline">' + icon + ' ' + calc.coverageLabel + '</div>' +
+    '    <span class="next-action-pill ' + calc.badgeClass + '">' + calc.status.replace('_', ' ') + '</span>' +
+    '  </div>' +
+    '  <p style="font-size:13px; line-height:1.5; margin-bottom:12px;">' + calc.explanation + '</p>' +
+    '  <div class="calc-metrics-row">' +
+    '    <div class="calc-metric-card">' +
+    '      <div class="calc-metric-label">Battery Age</div>' +
+    '      <div class="calc-metric-val">' + calc.diffMonths + ' Months <span style="font-size:11px; font-weight:normal; color:#64748b;">(' + calc.diffDays + 'd)</span></div>' +
+    '    </div>' +
+    '    <div class="calc-metric-card">' +
+    '      <div class="calc-metric-label">Guarantee Expiry</div>' +
+    '      <div class="calc-metric-val">' + formatDate(calc.guaranteeExpiry) + '</div>' +
+    '    </div>' +
+    '    <div class="calc-metric-card">' +
+    '      <div class="calc-metric-label">Final Expiry</div>' +
+    '      <div class="calc-metric-val">' + formatDate(calc.warrantyExpiry) + '</div>' +
+    '    </div>' +
+    '    <div class="calc-metric-card">' +
+    '      <div class="calc-metric-label">Customer Discount</div>' +
+    '      <div class="calc-metric-val" style="color:' + (calc.discountPercent > 0 ? '#15803d' : '#b91c1c') + ';">' + calc.discountPercent + '% OFF</div>' +
+    '    </div>' +
+    '    <div class="calc-metric-card">' +
+    '      <div class="calc-metric-label">Customer Payable</div>' +
+    '      <div class="calc-metric-val" style="color:#0f172a;">₹' + calc.customerPayable.toLocaleString('en-IN') + '</div>' +
+    '    </div>' +
+    '  </div>' +
+    '  <div class="calc-actions-row">' +
+    '    <button type="button" class="btn btn-primary btn-sm" onclick="openIntakeWithCalcData(\'' + prefix + '\')">+ Create Intake Ticket for this Battery</button>' +
+    '  </div>' +
+    '</div>';
+
+  resBox.innerHTML = html;
+  resBox.style.display = 'block';
+}
+
+function resetWarrantyCalc(prefix) {
+  if (document.getElementById(prefix + '-calc-serial')) document.getElementById(prefix + '-calc-serial').value = '';
+  if (document.getElementById(prefix + '-calc-model')) document.getElementById(prefix + '-calc-model').value = '';
+  if (document.getElementById(prefix + '-calc-dos')) document.getElementById(prefix + '-calc-dos').value = '';
+  if (document.getElementById(prefix + '-calc-mrp')) document.getElementById(prefix + '-calc-mrp').value = '';
+  var statusEl = document.getElementById(prefix + '-calc-serial-status');
+  if (statusEl) statusEl.textContent = 'Enter serial number to lookup';
+  var resBox = document.getElementById(prefix + '-calc-result');
+  if (resBox) {
+    resBox.innerHTML = '';
+    resBox.style.display = 'none';
+  }
+}
+
+function lookupSerialInCalc(prefix) {
+  var serialInp = document.getElementById(prefix + '-calc-serial');
+  var statusEl = document.getElementById(prefix + '-calc-serial-status');
+  if (!serialInp) return;
+  var serial = serialInp.value.trim().toLowerCase();
+  if (!serial) {
+    if (statusEl) statusEl.textContent = 'Please enter a serial number to search';
+    return;
+  }
+
+  var tMatch = (BWMS.tickets || []).find(function(t) {
+    return t.original_serial_no && t.original_serial_no.toLowerCase() === serial;
+  });
+  var cMatch = (BWMS.claims || []).find(function(c) {
+    return (c.original_serial_no && c.original_serial_no.toLowerCase() === serial) ||
+           (c.replacement_serial_no && c.replacement_serial_no.toLowerCase() === serial);
+  });
+
+  if (tMatch || cMatch) {
+    var match = tMatch || cMatch;
+    var modelEl = document.getElementById(prefix + '-calc-model');
+    if (modelEl && match.battery_model) {
+      modelEl.value = match.battery_model;
+    }
+    var dosEl = document.getElementById(prefix + '-calc-dos');
+    if (dosEl && (match.date_of_sale || match.date_received)) {
+      var d = match.date_of_sale || match.date_received;
+      dosEl.value = d.indexOf('T') !== -1 ? d.split('T')[0] : d;
+    }
+    if (statusEl) {
+      statusEl.innerHTML = '<span style="color:#15803d; font-weight:bold;">✓ Found Record: ' + (match.ticket_no || match.claim_no) + ' (' + (match.customer_name || match.dealer_name || '') + ')</span>';
+    }
+    runWarrantyCalculator(prefix);
+  } else {
+    if (statusEl) {
+      statusEl.innerHTML = '<span style="color:#b45309;">⚠️ Serial not found in active records. Select model & sale date above to compute warranty.</span>';
+    }
+  }
+}
+
+function openWarrantyCalcModal(prefillModel, prefillSerial, prefillDos) {
+  populateDropdowns();
+  if (prefillModel && document.getElementById('modalcalc-model')) {
+    document.getElementById('modalcalc-model').value = prefillModel;
+  }
+  if (prefillSerial && document.getElementById('modalcalc-serial')) {
+    document.getElementById('modalcalc-serial').value = prefillSerial;
+  }
+  if (prefillDos && document.getElementById('modalcalc-dos')) {
+    document.getElementById('modalcalc-dos').value = prefillDos;
+  }
+  if (prefillModel || prefillSerial || prefillDos) {
+    runWarrantyCalculator('modal');
+  }
+  openModal('modal-warranty-calc');
+}
+
+function openIntakeWithCalcData(prefix) {
+  var modelVal = document.getElementById(prefix + '-calc-model') ? document.getElementById(prefix + '-calc-model').value : '';
+  var serialVal = document.getElementById(prefix + '-calc-serial') ? document.getElementById(prefix + '-calc-serial').value : '';
+  var dosVal = document.getElementById(prefix + '-calc-dos') ? document.getElementById(prefix + '-calc-dos').value : '';
+
+  if (prefix === 'modal') {
+    closeModal('modal-warranty-calc');
+  }
+
+  openIntakeModal({
+    model: modelVal,
+    serial: serialVal,
+    dos: dosVal
+  });
+}
+
+// ─── VISUAL WARRANTY PIPELINE ENGINE ─────────────────────────────────────────
+
+function renderWarrantyPipeline(containerId, activeFilter) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+
+  var tickets = BWMS.tickets || [];
+  var claims = BWMS.claims || [];
+
+  var countReceived = tickets.filter(function(t) { return t.status === 'RECEIVED' || t.status === 'TESTING'; }).length;
+  var countTested = tickets.filter(function(t) {
+    var s = (t.status || '').toUpperCase();
+    return s === 'PASSED' || s === 'TEST_PASSED' || s === 'REJECTED_RETURN_PENDING' || s === 'TEST_REJECTED';
+  }).length;
+  var countClaimRaised = claims.filter(function(c) {
+    var s = (c.status || '').toUpperCase();
+    return s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY';
+  }).length;
+  var countSent = claims.filter(function(c) { return c.status === 'SENT_TO_COMPANY'; }).length;
+  var countRepReceived = claims.filter(function(c) {
+    var s = (c.status || '').toUpperCase();
+    return s === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED';
+  }).length;
+  var countStockUpdated = claims.filter(function(c) {
+    var s = (c.status || '').toUpperCase();
+    return s === 'STOCK_UPDATED' || (s === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED');
+  }).length;
+  var countClosed = tickets.filter(function(t) { return t.status === 'CLOSED'; }).length;
+  var totalItems = tickets.length;
+
+  var currentActive = activeFilter || 'ALL';
+
+  var html =
+    '<div class="warranty-pipeline-card">' +
+    '  <div class="pipeline-header">' +
+    '    <div class="pipeline-title"><span>⚡</span> <span>Warranty Lifecycle Pipeline Tracker</span></div>' +
+    '    <div class="pipeline-subtitle">Click any stage to filter active items across the entire workflow</div>' +
+    '  </div>' +
+    '  <div class="pipeline-stages-bar">' +
+    '    <div class="pipeline-stage ' + (currentActive === 'ALL' ? 'active' : '') + '" onclick="filterPipelineStage(\'ALL\')" id="' + containerId + '-stage-all">' +
+    '      <div class="pstage-top"><span class="pstage-num">●</span><span class="pstage-count">' + totalItems + '</span></div>' +
+    '      <div class="pstage-name">All Items</div>' +
+    '      <div class="pstage-sub">Entire Registry</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'RECEIVED' ? 'active' : '') + '" onclick="filterPipelineStage(\'RECEIVED\')" id="' + containerId + '-stage-1">' +
+    '      <div class="pstage-top"><span class="pstage-num">1</span><span class="pstage-count">' + countReceived + '</span></div>' +
+    '      <div class="pstage-name">📥 Received</div>' +
+    '      <div class="pstage-sub">Testing Due</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'PASSED' || currentActive === 'TESTED' ? 'active' : '') + '" onclick="filterPipelineStage(\'TESTED\')" id="' + containerId + '-stage-2">' +
+    '      <div class="pstage-top"><span class="pstage-num">2</span><span class="pstage-count">' + countTested + '</span></div>' +
+    '      <div class="pstage-name">🔬 Tested</div>' +
+    '      <div class="pstage-sub">Claim / Challan</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'CLAIM_CREATED' || currentActive === 'CLAIM_RAISED' ? 'active' : '') + '" onclick="filterPipelineStage(\'CLAIM_RAISED\')" id="' + containerId + '-stage-3">' +
+    '      <div class="pstage-top"><span class="pstage-num">3</span><span class="pstage-count">' + countClaimRaised + '</span></div>' +
+    '      <div class="pstage-name">📋 Claim Raised</div>' +
+    '      <div class="pstage-sub">Dispatch Due</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'SENT_TO_COMPANY' ? 'active' : '') + '" onclick="filterPipelineStage(\'SENT_TO_COMPANY\')" id="' + containerId + '-stage-4">' +
+    '      <div class="pstage-top"><span class="pstage-num">4</span><span class="pstage-count">' + countSent + '</span></div>' +
+    '      <div class="pstage-name">🏭 Sent to Mfr</div>' +
+    '      <div class="pstage-sub">At Factory</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'REPLACEMENT_RECEIVED' ? 'active' : '') + '" onclick="filterPipelineStage(\'REPLACEMENT_RECEIVED\')" id="' + containerId + '-stage-5">' +
+    '      <div class="pstage-top"><span class="pstage-num">5</span><span class="pstage-count">' + countRepReceived + '</span></div>' +
+    '      <div class="pstage-name">⏳ Rep Received</div>' +
+    '      <div class="pstage-sub">Stock Task Due</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'STOCK_UPDATED' ? 'active' : '') + '" onclick="filterPipelineStage(\'STOCK_UPDATED\')" id="' + containerId + '-stage-6">' +
+    '      <div class="pstage-top"><span class="pstage-num">6</span><span class="pstage-count">' + countStockUpdated + '</span></div>' +
+    '      <div class="pstage-name">📦 Stock Updated</div>' +
+    '      <div class="pstage-sub">Handover Due</div>' +
+    '    </div>' +
+    '    <div class="pstage-arrow">➔</div>' +
+    '    <div class="pipeline-stage ' + (currentActive === 'CLOSED' ? 'active' : '') + '" onclick="filterPipelineStage(\'CLOSED\')" id="' + containerId + '-stage-7">' +
+    '      <div class="pstage-top"><span class="pstage-num">7</span><span class="pstage-count">' + countClosed + '</span></div>' +
+    '      <div class="pstage-name">✅ Completed</div>' +
+    '      <div class="pstage-sub">Closed</div>' +
+    '    </div>' +
+    '  </div>' +
+    '</div>';
+
+  el.innerHTML = html;
+}
+
+function filterPipelineStage(stageKey) {
+  var v = BWMS.activeView;
+  if (v === 'tickets') {
+    var statusSelect = document.getElementById('filter-tickets-status');
+    if (statusSelect) {
+      if (stageKey === 'TESTED') statusSelect.value = 'PASSED';
+      else if (stageKey === 'CLAIM_RAISED') statusSelect.value = 'CLAIM_CREATED';
+      else statusSelect.value = stageKey;
+      renderTicketsTable();
+    }
+  } else if (v === 'claims') {
+    var claimSelect = document.getElementById('filter-claims-status');
+    if (claimSelect) {
+      if (stageKey === 'CLAIM_RAISED') claimSelect.value = 'CLAIM_CREATED';
+      else if (stageKey === 'ALL') claimSelect.value = 'ALL';
+      else claimSelect.value = stageKey;
+      renderClaimsTable();
+    }
+  } else {
+    if (stageKey === 'RECEIVED') {
+      navigateTo('lab');
+    } else if (stageKey === 'TESTED') {
+      navigateTo('tickets');
+      var sel = document.getElementById('filter-tickets-status');
+      if (sel) { sel.value = 'PASSED'; renderTicketsTable(); }
+    } else if (stageKey === 'CLAIM_RAISED') {
+      navigateTo('pending-company');
+    } else if (stageKey === 'SENT_TO_COMPANY') {
+      navigateTo('replacement-pending');
+    } else if (stageKey === 'REPLACEMENT_RECEIVED') {
+      navigateTo('stock-tasks');
+    } else if (stageKey === 'STOCK_UPDATED') {
+      navigateTo('claims');
+      var cSel = document.getElementById('filter-claims-status');
+      if (cSel) { cSel.value = 'STOCK_UPDATED'; renderClaimsTable(); }
+    } else if (stageKey === 'CLOSED') {
+      navigateTo('tickets');
+      var tSel = document.getElementById('filter-tickets-status');
+      if (tSel) { tSel.value = 'CLOSED'; renderTicketsTable(); }
+    } else {
+      navigateTo('tickets');
+    }
+  }
+}
+
+// ─── FAST SEARCH SPOTLIGHT MODAL ─────────────────────────────────────────────
+
+function openFastSearchModal() {
+  var bd = document.getElementById('fast-search-backdrop');
+  if (bd) {
+    bd.style.display = 'flex';
+    var inp = document.getElementById('spotlight-search-input');
+    if (inp) {
+      inp.value = '';
+      inp.focus();
+      handleSpotlightSearch('');
+    }
+  }
+}
+
+function closeFastSearchModal() {
+  var bd = document.getElementById('fast-search-backdrop');
+  if (bd) bd.style.display = 'none';
+}
+
+function handleSpotlightSearch(query) {
+  var resEl = document.getElementById('spotlight-search-results');
+  if (!resEl) return;
+  query = (query || '').trim().toLowerCase();
+
+  if (!query) {
+    resEl.innerHTML = '<div style="padding:24px; text-align:center; color:#94a3b8; font-size:13px;">Type any serial number, customer name, mobile number, or ticket ID for instant zero-latency results.</div>';
+    return;
+  }
+
+  var matches = [];
+  (BWMS.tickets || []).forEach(function(t) {
+    var blob = [t.ticket_no, t.original_serial_no, t.customer_name, t.dealer_name, t.mobile, t.vehicle_number, t.battery_model].join(' ').toLowerCase();
+    if (blob.indexOf(query) !== -1) {
+      matches.push({ entityType: 'TICKET', data: t, id: t.ticket_no, serial: t.original_serial_no, title: t.ticket_no + ' • ' + (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name), model: t.battery_model, status: t.status });
+    }
+  });
+
+  (BWMS.claims || []).forEach(function(c) {
+    var blob = [c.claim_no, c.ticket_no, c.original_serial_no, c.replacement_serial_no, c.customer_name, c.dealer_name, c.mobile, c.battery_model].join(' ').toLowerCase();
+    if (blob.indexOf(query) !== -1) {
+      matches.push({ entityType: 'CLAIM', data: c, id: c.claim_no, serial: c.original_serial_no, title: c.claim_no + ' • ' + (c.customer_name || c.dealer_name), model: c.battery_model, status: c.status });
+    }
+  });
+
+  if (matches.length === 0) {
+    resEl.innerHTML =
+      '<div style="padding:20px; text-align:center;">' +
+      '  <div style="font-size:14px; color:#475569; margin-bottom:12px;">No active ticket or claim found for <strong>"' + query + '"</strong></div>' +
+      '  <div style="display:flex; justify-content:center; gap:10px;">' +
+      '    <button type="button" class="btn btn-primary btn-sm" onclick="closeFastSearchModal(); openWarrantyCalcModal(null, \'' + query + '\')">⚡ Check Warranty for this Serial</button>' +
+      '    <button type="button" class="btn btn-secondary btn-sm" onclick="closeFastSearchModal(); openIntakeModal({ serial: \'' + query + '\' })">+ New Intake Ticket</button>' +
+      '  </div>' +
+      '</div>';
+    return;
+  }
+
+  var html = '';
+  matches.slice(0, 10).forEach(function(m) {
+    var nextAction = m.entityType === 'TICKET' ? getTicketNextAction(m.data) : getClaimNextAction(m.data);
+    var actionBtn = m.entityType === 'TICKET' ? renderTicketActions(m.data) : renderClaimActions(m.data);
+
+    html +=
+      '<div class="fast-search-row">' +
+      '  <div style="flex:1;" onclick="closeFastSearchModal(); showTimeline(\'' + m.id + '\')">' +
+      '    <div style="display:flex; align-items:center; gap:8px;">' +
+      '      <span class="badge badge-gray">' + m.entityType + '</span>' +
+      '      <strong style="color:var(--accent); font-size:14px;">' + m.id + '</strong>' +
+      '      <span style="font-family:monospace; font-weight:bold; color:#1e293b; font-size:12px;">' + m.serial + '</span>' +
+      '      <span class="next-action-pill ' + nextAction.badgeClass + '">' + nextAction.stepLabel + '</span>' +
+      '    </div>' +
+      '    <div style="font-size:12px; color:#475569; margin-top:2px;">' + m.title + ' • ' + m.model + '</div>' +
+      '  </div>' +
+      '  <div style="display:flex; gap:6px; align-items:center;">' +
+      actionBtn +
+      '  </div>' +
+      '</div>';
+  });
+
+  resEl.innerHTML = html;
 }
 
 function renderChallanActions(item) {
