@@ -37,6 +37,10 @@ var ChallanService = (function () {
     var todayIso = Utils.toIsoDate(new Date());
     var recipientName = (ticket.source_type === 'DEALER' && ticket.dealer_name) ? ticket.dealer_name : ticket.customer_name;
 
+    var tests = BatteryTestService.getTestsByTicket(ticketNo);
+    var latestTest = (tests && tests.length > 0) ? tests[tests.length - 1] : null;
+    var returnReason = (latestTest && latestTest.test_remarks) ? latestTest.test_remarks : 'Returned battery rejected upon testing. Non-commercial movement.';
+
     var challanRecord = {
       challan_no: challanNo,
       challan_type: TYPE.BATTERY_RETURN,
@@ -52,7 +56,7 @@ var ChallanService = (function () {
       received_by_name: '',
       received_date: '',
       status: STATUS.GENERATED,
-      remarks: 'Returned battery rejected upon testing. Non-commercial movement.'
+      remarks: returnReason
     };
 
     Database.appendRow('Delivery_Challans', challanRecord);
@@ -194,6 +198,20 @@ var ChallanService = (function () {
       }
     }
 
+    // 3b. Try cross-referencing claim if ID was a claim number
+    if (!ticket && !challan) {
+      var allClaims = Database.getRows('Claims');
+      for (var cIdx = 0; cIdx < allClaims.length; cIdx++) {
+        if (allClaims[cIdx].claim_no === rawId || allClaims[cIdx].claim_no === cleanId) {
+          if (allClaims[cIdx].ticket_no) {
+            ticket = Database.getRowById('Tickets', 'ticket_no', allClaims[cIdx].ticket_no);
+            if (ticket) challan = getChallanForTicket(ticket.ticket_no);
+          }
+          break;
+        }
+      }
+    }
+
     // 4. If challan not yet created in DB but ticket exists, generate draft/preview challan data
     if (!challan && ticket) {
       var todayIso = Utils.toIsoDate(new Date());
@@ -243,7 +261,7 @@ var ChallanService = (function () {
     }
 
     var config = Config.getAll();
-    var gstVal = config.COMPANY_GST || '';
+    var gstVal = config.COMPANY_GST || config.COMPANY_GSTIN || '24AAACG1234A1Z5';
 
     return {
       company: {

@@ -22,8 +22,11 @@
     table.test-table th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 5px 8px; font-size: 10.5px; text-align: left; font-weight: 700; color: #334155; }
     table.test-table td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 10.5px; }
     .sig-container { display: flex; justify-content: space-between; margin-top: 25px; page-break-inside: avoid; }
-    .sig-box { width: 30%; text-align: center; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 10.5px; font-weight: 600; color: #334155; }
+    .sig-box { width: 30%; text-align: center; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 10.5px; font-weight: 600; color: #334155; page-break-inside: avoid; }
     .sig-sub { font-size: 9.5px; font-weight: normal; color: #64748b; margin-top: 2px; }
+    .grid-col, .section-title, table.test-table { page-break-inside: avoid; }
+    table.test-table thead, thead { display: table-header-group; }
+    table.test-table tr, tr { page-break-inside: avoid; }
     @media print {
       body { padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .no-print { display: none !important; }
@@ -67,15 +70,15 @@
       <div class="row"><div class="lbl">Date of Sale:</div><div class="val"><?= (data && data.claim && (data.claim.date_of_sale_formatted || data.claim.date_of_sale)) ? (data.claim.date_of_sale_formatted || data.claim.date_of_sale) : ((data && data.ticket && (data.ticket.date_of_sale_formatted || data.ticket.date_of_sale)) ? (data.ticket.date_of_sale_formatted || data.ticket.date_of_sale) : '-') ?></div></div>
       <div class="row"><div class="lbl">Warranty Period:</div><div class="val"><?= (data && data.claim && data.claim.warranty_months) ? data.claim.warranty_months + ' Months' : '36 Months' ?></div></div>
       <div class="row"><div class="lbl">Warranty Expiry Date:</div><div class="val"><?= (data && data.claim && (data.claim.warranty_expiry_formatted || data.claim.warranty_expiry_date)) ? (data.claim.warranty_expiry_formatted || data.claim.warranty_expiry_date) : '-' ?></div></div>
-      <div class="row"><div class="lbl">Warranty Status:</div><div class="val"><strong style="color: <?= (data && data.claim && data.claim.warranty_status === 'PRO_RATA') ? '#b45309' : '#16a34a' ?>;"><?= (data && data.claim && data.claim.warranty_status) ? data.claim.warranty_status : 'IN_WARRANTY' ?></strong></div></div>
-      <div class="row"><div class="lbl">Coverage Type:</div><div class="val"><?= (data && data.claim && data.claim.warranty_status === 'PRO_RATA') ? 'Pro-Rata Settlement Discount' : '100% Free Replacement Guarantee' ?></div></div>
+      <div class="row"><div class="lbl">Warranty Status:</div><div class="val"><strong style="color: <?= (data && data.claim && data.claim.warranty_status === 'PRO_RATA') ? '#b45309' : ((data && data.claim && data.claim.warranty_status === 'EXPIRED') ? '#dc2626' : '#16a34a') ?>;"><?= (data && data.claim && data.claim.warranty_status) ? data.claim.warranty_status : 'IN_WARRANTY' ?></strong></div></div>
+      <div class="row"><div class="lbl">Coverage Type:</div><div class="val"><?= (data && data.claim && data.claim.warranty_status === 'PRO_RATA') ? 'Pro-Rata Settlement Discount' : ((data && data.claim && data.claim.warranty_status === 'EXPIRED') ? 'Expired / No Warranty Coverage' : '100% Free Replacement Guarantee') ?></div></div>
     </div>
   </div>
 
   <div class="section-title">2. Customer & Origin Information</div>
   <div class="grid-2">
     <div class="grid-col">
-      <div class="row"><div class="lbl">Customer / Garage:</div><div class="val"><strong><?= (data && data.claim && data.claim.customer_name) ? data.claim.customer_name : ((data && data.ticket && data.ticket.customer_name) ? data.ticket.customer_name : '-') ?></strong></div></div>
+      <div class="row"><div class="lbl">Customer / Garage:</div><div class="val"><strong><?= (data && data.claim && data.claim.customer_name) ? data.claim.customer_name : ((data && data.ticket && data.ticket.customer_name) ? data.ticket.customer_name : ((data && data.claim && data.claim.dealer_name) ? data.claim.dealer_name : ((data && data.ticket && data.ticket.dealer_name) ? data.ticket.dealer_name : '-'))) ?></strong></div></div>
       <div class="row"><div class="lbl">Mobile Number:</div><div class="val"><?= (data && data.claim && data.claim.mobile) ? data.claim.mobile : ((data && data.ticket && data.ticket.mobile) ? data.ticket.mobile : '-') ?></div></div>
       <div class="row"><div class="lbl">Vehicle Registration:</div><div class="val"><?= (data && data.claim && data.claim.vehicle_number) ? data.claim.vehicle_number : ((data && data.ticket && data.ticket.vehicle_number) ? data.ticket.vehicle_number : '-') ?></div></div>
     </div>
@@ -99,7 +102,7 @@
         <td><strong><?= (data && data.test && data.test.open_circuit_voltage) ? data.test.open_circuit_voltage + ' V' : '-' ?></strong></td>
         <td><strong><?= (data && data.test && data.test.load_test_voltage) ? data.test.load_test_voltage + ' V' : '-' ?></strong></td>
         <td><?= (data && data.test && data.test.physical_condition) ? data.test.physical_condition : 'Intact / Normal' ?></td>
-        <td><strong style="color: <?= (data && data.test && data.test.test_result === 'PASS') ? '#16a34a' : '#dc2626' ?>;"><?= (data && data.test && data.test.test_result) ? data.test.test_result + ' (Eligible for Claim)' : 'PASS (Eligible for Replacement)' ?></strong></td>
+        <td><strong style="color: <?= (data && data.test && data.test.test_result === 'PASS') ? '#16a34a' : '#dc2626' ?>;"><?= (data && data.test && data.test.test_result === 'REJECT') ? 'REJECT (Ineligible / Defect Not Covered)' : ((data && data.test && data.test.test_result) ? data.test.test_result + ' (Eligible for Claim)' : 'PASS (Eligible for Replacement)') ?></strong></td>
       </tr>
     </table>
     <div style="margin-top: 7px; font-size: 10.5px;">

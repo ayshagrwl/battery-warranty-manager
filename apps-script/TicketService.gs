@@ -263,6 +263,28 @@ var TicketService = (function () {
         }
       }
     }
+    if (!ticket) {
+      var allClaims = Database.getRows('Claims');
+      for (var cIdx = 0; cIdx < allClaims.length; cIdx++) {
+        if (allClaims[cIdx].claim_no === rawId || allClaims[cIdx].claim_no === cleanId) {
+          if (allClaims[cIdx].ticket_no) {
+            ticket = getTicketByNo(allClaims[cIdx].ticket_no);
+          }
+          break;
+        }
+      }
+    }
+    if (!ticket) {
+      var allChallans = Database.getRows('Delivery_Challans');
+      for (var chIdx = 0; chIdx < allChallans.length; chIdx++) {
+        if (allChallans[chIdx].challan_no === rawId || allChallans[chIdx].challan_no === cleanId) {
+          if (allChallans[chIdx].ticket_no) {
+            ticket = getTicketByNo(allChallans[chIdx].ticket_no);
+          }
+          break;
+        }
+      }
+    }
     if (!ticket) throw new Error('Ticket ' + ticketNo + ' not found');
 
     if (ticket.date_received && !ticket.date_received_formatted) {
@@ -276,7 +298,7 @@ var TicketService = (function () {
     }
 
     var config = Config.getAll();
-    var gstVal = config.COMPANY_GST || '';
+    var gstVal = config.COMPANY_GST || config.COMPANY_GSTIN || '24AAACG1234A1Z5';
 
     return {
       company: {

@@ -1069,7 +1069,7 @@ function renderDispatchTables() {
           '<td>' + formatDate(b.dispatch_date) + '</td>' +
           '<td>' + (b.created_by || 'Staff') + '</td>' +
           '<td><div style="display:flex; gap:6px;">' +
-          '  <button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + b.company_challan_no + '\')">🖨️ Challan</button>' +
+          '  <button class="btn btn-secondary btn-sm" onclick="printCompanyChallan(\'' + (b.company_challan_no || b.dispatch_batch_no) + '\')">🖨️ Challan</button>' +
           '  <button class="btn btn-secondary btn-sm" onclick="openBatchItemsModal(\'' + b.dispatch_batch_no + '\')">👁️ Items</button>' +
           '</div></td>';
         tbodyBatches.appendChild(tr);
@@ -2294,7 +2294,7 @@ function buildDocumentStyles() {
   return '<style>' +
     '@page { size: A4 portrait; margin: 10mm 12mm 10mm 12mm; }' +
     '* { box-sizing: border-box; }' +
-    'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; font-size: 11.5px; line-height: 1.45; background: #ffffff; }' +
+    'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; font-size: 11px; line-height: 1.45; background: #ffffff; }' +
     '.no-print { margin-bottom: 14px; display: flex; justify-content: flex-end; gap: 8px; }' +
     '.btn-print-action { padding: 8px 18px; background: #0f172a; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 12px; }' +
     '.btn-print-action:hover { background: #1e293b; }' +
@@ -2306,26 +2306,29 @@ function buildDocumentStyles() {
     '.doc-badge.purple { background: #f3e8ff; color: #7e22ce; border-color: #c084fc; }' +
     '.doc-badge.blue { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }' +
     '.doc-meta { font-size: 10.5px; margin-top: 6px; color: #334155; line-height: 1.5; }' +
-    '.statutory-notice { background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; color: #0369a1; padding: 6px 12px; font-size: 10px; margin-bottom: 12px; font-weight: 500; }' +
+    '.statutory-notice { background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; color: #0369a1; padding: 6px 12px; font-size: 10px; margin-bottom: 12px; font-weight: 500; page-break-inside: avoid; }' +
     '.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }' +
-    '.panel { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 12px; background: #f8fafc; }' +
+    '.panel { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 12px; background: #f8fafc; page-break-inside: avoid; }' +
     '.panel-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #475569; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; letter-spacing: 0.3px; }' +
-    '.section-title { background: #0f172a; color: #ffffff; padding: 4px 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 6px; border-radius: 3px; letter-spacing: 0.3px; }' +
+    '.section-title { background: #0f172a; color: #ffffff; padding: 4px 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 6px; border-radius: 3px; letter-spacing: 0.3px; page-break-inside: avoid; }' +
     '.info-row { margin-bottom: 3.5px; display: flex; }' +
     '.info-label { width: 120px; color: #64748b; font-weight: 600; font-size: 10.5px; }' +
     '.info-val { font-weight: 600; color: #0f172a; flex: 1; font-size: 10.5px; }' +
     'table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }' +
+    'table.data-table thead, thead { display: table-header-group; }' +
+    'table.data-table tfoot, tfoot { display: table-footer-group; }' +
+    'table.data-table tr, tr { page-break-inside: avoid; }' +
     'table.data-table th, table.data-table td { border: 1px solid #cbd5e1; padding: 6px 9px; text-align: left; }' +
     'table.data-table th { background: #f1f5f9; font-weight: 700; font-size: 10.5px; text-transform: uppercase; color: #334155; }' +
-    '.test-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 12px; background: #ffffff; margin-bottom: 12px; }' +
+    '.test-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 12px; background: #ffffff; margin-bottom: 12px; page-break-inside: avoid; }' +
     '.test-box-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; border-bottom: 1px solid #fecaca; padding-bottom: 3px; display: flex; justify-content: space-between; }' +
     '.test-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }' +
     '.test-cell { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 8px; }' +
     '.test-cell-lbl { font-size: 9.5px; color: #64748b; font-weight: 600; text-transform: uppercase; }' +
     '.test-cell-val { font-size: 11px; font-weight: 700; color: #0f172a; margin-top: 2px; }' +
-    '.terms-box { font-size: 9.5px; color: #475569; line-height: 1.45; margin-bottom: 12px; border-left: 3px solid #cbd5e1; padding-left: 8px; }' +
+    '.terms-box { font-size: 9.5px; color: #475569; line-height: 1.45; margin-bottom: 12px; border-left: 3px solid #cbd5e1; padding-left: 8px; page-break-inside: avoid; }' +
     '.ack-box { border: 1.5px dashed #94a3b8; border-radius: 4px; padding: 10px 12px; background: #fafaf9; page-break-inside: avoid; }' +
-    '.loaner-box { border: 1.5px solid #0284c7; background: #f0f9ff; border-radius: 4px; padding: 8px 12px; margin-top: 6px; margin-bottom: 10px; }' +
+    '.loaner-box { border: 1.5px solid #0284c7; background: #f0f9ff; border-radius: 4px; padding: 8px 12px; margin-top: 6px; margin-bottom: 10px; page-break-inside: avoid; }' +
     '.sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; page-break-inside: avoid; }' +
     '.sig-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px; page-break-inside: avoid; }' +
     '.sig-line { border-top: 1px solid #475569; padding-top: 4px; font-size: 10.5px; color: #334155; }' +
@@ -2342,11 +2345,13 @@ function buildReturnChallanHTML(challanOrTicketId) {
   var challans = BWMS.challans || [];
   var tickets = BWMS.tickets || [];
   var tests = BWMS.tests || [];
+  var claims = BWMS.claims || [];
   var comp = getPrintCompanyInfo();
 
-  // Find challan
+  // 1. Find challan by challan_no or battery_serial_no
   var challan = challans.find(function(ch) {
-    return (ch.challan_no === rawId || ch.challan_no === cleanId) && ch.challan_type !== 'COMPANY_DISPATCH';
+    return (ch.challan_no === rawId || ch.challan_no === cleanId || ch.battery_serial_no === rawId || ch.battery_serial_no === cleanId) &&
+      ch.challan_type !== 'COMPANY_DISPATCH';
   });
   if (!challan) {
     challan = challans.find(function(ch) {
@@ -2354,7 +2359,7 @@ function buildReturnChallanHTML(challanOrTicketId) {
     });
   }
 
-  // Find ticket
+  // 2. Find ticket
   var ticket = null;
   if (challan && challan.ticket_no) {
     ticket = tickets.find(function(t) { return t.ticket_no === challan.ticket_no; });
@@ -2365,7 +2370,25 @@ function buildReturnChallanHTML(challanOrTicketId) {
     });
   }
 
-  // Find test
+  // 2b. Cross-reference with Claims table if rawId is a claim
+  if (!ticket && !challan) {
+    var matchedClaim = claims.find(function(c) {
+      return c.claim_no === rawId || c.claim_no === cleanId || c.ticket_no === rawId || c.ticket_no === cleanId;
+    });
+    if (matchedClaim && matchedClaim.ticket_no) {
+      ticket = tickets.find(function(t) { return t.ticket_no === matchedClaim.ticket_no; });
+    }
+  }
+
+  // If challan wasn't matched initially but ticket was found, look up challan by ticket_no
+  if (!challan && ticket) {
+    challan = challans.find(function(ch) {
+      return (ch.ticket_no === ticket.ticket_no || (ticket.original_serial_no && ch.battery_serial_no === ticket.original_serial_no)) &&
+        ch.challan_type !== 'COMPANY_DISPATCH';
+    });
+  }
+
+  // 3. Find diagnostic test
   var ticketNo = (challan && challan.ticket_no) ? challan.ticket_no : (ticket ? ticket.ticket_no : cleanId);
   var serialNo = (ticket && ticket.original_serial_no) ? ticket.original_serial_no : (challan ? challan.battery_serial_no : '');
   var matchedTests = tests.filter(function(tst) {
@@ -2411,7 +2434,7 @@ function buildReturnChallanHTML(challanOrTicketId) {
     };
   }
 
-  var partyName = (challan && challan.recipient_name) ? challan.recipient_name : (ticket ? (ticket.dealer_name || ticket.customer_name) : 'Customer');
+  var partyName = (challan && challan.recipient_name) ? challan.recipient_name : (ticket ? ((ticket.source_type === 'DEALER' && ticket.dealer_name) ? ticket.dealer_name : (ticket.customer_name || 'Customer')) : 'Customer');
   var partyType = (challan && challan.recipient_type) ? challan.recipient_type : (ticket ? ticket.source_type : 'CUSTOMER');
   var partyMobile = (challan && challan.mobile) ? challan.mobile : (ticket ? ticket.mobile : '-');
   var partyAddress = (challan && challan.address) ? challan.address : (ticket ? ticket.address : '-');
@@ -2420,7 +2443,7 @@ function buildReturnChallanHTML(challanOrTicketId) {
   var battSerial = (challan && challan.battery_serial_no) ? challan.battery_serial_no : (ticket ? ticket.original_serial_no : '-');
   var intakeDate = (ticket && ticket.date_received) ? formatDate(ticket.date_received) : '-';
   var challanDate = (challan && challan.challan_date) ? formatDate(challan.challan_date) : formatDate(new Date());
-  var rejectionReason = (challan && challan.remarks) ? challan.remarks : ((test && test.test_remarks) ? test.test_remarks : 'Test findings outside manufacturer warranty terms');
+  var rejectionReason = (test && test.test_remarks) ? test.test_remarks : ((challan && challan.remarks) ? challan.remarks : 'Test findings outside manufacturer warranty terms');
   var isAck = (challan && (challan.status === 'ACKNOWLEDGED' || challan.received_by_name));
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Battery Return Challan — ' + escapeHtml(challan.challan_no) + '</title>' +
@@ -2449,7 +2472,7 @@ function buildReturnChallanHTML(challanOrTicketId) {
     '<div class="grid-2">' +
     '  <div class="panel">' +
     '    <div class="panel-title">Returned To (Customer / Dealer)</div>' +
-    '    <div class="info-row"><span class="info-label">Name:</span><span class="info-val">' + escapeHtml(partyName) + '</span></div>' +
+    '    <div class="info-row"><span class="info-label">Name:</span><span class="info-val"><strong>' + escapeHtml(partyName) + '</strong></span></div>' +
     '    <div class="info-row"><span class="info-label">Party Type:</span><span class="info-val">' + escapeHtml(partyType) + '</span></div>' +
     '    <div class="info-row"><span class="info-label">Mobile:</span><span class="info-val">' + escapeHtml(partyMobile) + '</span></div>' +
     '    <div class="info-row"><span class="info-label">Address:</span><span class="info-val">' + escapeHtml(partyAddress) + '</span></div>' +
@@ -2465,19 +2488,30 @@ function buildReturnChallanHTML(challanOrTicketId) {
     '</div>' +
     '<table class="data-table">' +
     '  <thead><tr>' +
-    '    <th style="width:35px; text-align:center;">#</th>' +
+    '    <th style="width:30px; text-align:center;">#</th>' +
     '    <th>Battery Model Description</th>' +
     '    <th>Battery Serial Number</th>' +
-    '    <th style="width:75px; text-align:center;">Qty</th>' +
-    '    <th>Return Reason / Condition Remarks</th>' +
+    '    <th style="width:65px; text-align:center;">HSN</th>' +
+    '    <th style="width:45px; text-align:center;">Qty</th>' +
+    '    <th style="width:75px; text-align:right;">Taxable Val</th>' +
+    '    <th style="width:70px; text-align:center;">GST Rate</th>' +
+    '    <th style="width:75px; text-align:right;">Total Val</th>' +
     '  </tr></thead>' +
     '  <tbody><tr>' +
     '    <td style="text-align:center; font-weight:bold;">1</td>' +
-    '    <td><strong>' + escapeHtml(battModel) + '</strong></td>' +
-    '    <td><span style="font-family:monospace; font-size:13px; font-weight:800; color:#0f172a;">' + escapeHtml(battSerial) + '</span></td>' +
+    '    <td><strong>' + escapeHtml(battModel) + '</strong><br><span style="font-size:10px; color:#64748b;">Remarks: ' + escapeHtml(rejectionReason) + '</span></td>' +
+    '    <td><span style="font-family:monospace; font-size:12.5px; font-weight:800; color:#0f172a;">' + escapeHtml(battSerial) + '</span></td>' +
+    '    <td style="text-align:center; font-family:monospace;">8507</td>' +
     '    <td style="text-align:center; font-weight:bold;">1 No.</td>' +
-    '    <td>' + escapeHtml(rejectionReason) + '</td>' +
+    '    <td style="text-align:right; font-family:monospace;">₹0.00</td>' +
+    '    <td style="text-align:center;">0% (NIL)</td>' +
+    '    <td style="text-align:right; font-family:monospace; font-weight:bold;">₹0.00</td>' +
     '  </tr></tbody>' +
+    '  <tfoot><tr style="background:#f8fafc; font-weight:bold;">' +
+    '    <td colspan="4" style="text-align:right;">Total Commercial Value for GST:</td>' +
+    '    <td style="text-align:center;">1 No.</td>' +
+    '    <td colspan="3" style="text-align:right; color:#0369a1;">₹0.00 (NIL Value — Non-Supply Rule 55)</td>' +
+    '  </tr></tfoot>' +
     '</table>' +
     '<div class="test-box">' +
     '  <div class="test-box-title">' +
@@ -2586,13 +2620,31 @@ function buildCompanyChallanHTML(companyChallanOrBatchId) {
     return it.dispatch_batch_no === batchNo || (dispatch && it.dispatch_batch_no === dispatch.dispatch_batch_no);
   });
 
+  items = items.map(function(it) {
+    var clm = claims.find(function(c) {
+      return c.claim_no === it.claim_no || (it.original_serial_no && c.original_serial_no === it.original_serial_no);
+    });
+    return {
+      item_id: it.item_id,
+      dispatch_batch_no: it.dispatch_batch_no,
+      claim_no: it.claim_no,
+      ticket_no: it.ticket_no || (clm ? clm.ticket_no : '-'),
+      customer_name: it.customer_name || (clm ? (clm.customer_name || clm.dealer_name) : 'Customer'),
+      battery_model: it.battery_model || (clm ? clm.battery_model : '-'),
+      original_serial_no: it.original_serial_no || (clm ? clm.original_serial_no : '-'),
+      warranty_status: it.warranty_status || (clm ? clm.warranty_status : 'IN_WARRANTY')
+    };
+  });
+
   if (items.length === 0) {
     var matchedClaims = claims.filter(function(c) {
       return (dispatch && dispatch.dispatch_batch_no && c.dispatch_batch_no === dispatch.dispatch_batch_no) ||
         (challan && challan.challan_no && c.company_challan_no === challan.challan_no) ||
         (dispatch && dispatch.company_challan_no && c.company_challan_no === dispatch.company_challan_no) ||
         c.company_challan_no === rawId || c.company_challan_no === cleanId ||
-        c.dispatch_batch_no === rawId || c.dispatch_batch_no === cleanId;
+        c.dispatch_batch_no === rawId || c.dispatch_batch_no === cleanId ||
+        c.claim_no === rawId || c.claim_no === cleanId ||
+        c.ticket_no === rawId || c.ticket_no === cleanId;
     });
     items = matchedClaims.map(function(clm, idx) {
       return {
@@ -2638,6 +2690,7 @@ function buildCompanyChallanHTML(companyChallanOrBatchId) {
       '<td>' + escapeHtml(it.customer_name || '-') + '</td>' +
       '<td>' + escapeHtml(it.battery_model || '-') + '</td>' +
       '<td><span style="font-family:monospace; font-size:12px; font-weight:800;">' + escapeHtml(it.original_serial_no || '-') + '</span></td>' +
+      '<td style="text-align:center; font-family:monospace;">8507</td>' +
       '<td>' + escapeHtml(it.warranty_status || 'IN_WARRANTY') + '</td>' +
       '<td style="text-align:center; font-weight:bold;">1</td>' +
       '</tr>';
@@ -2682,18 +2735,19 @@ function buildCompanyChallanHTML(companyChallanOrBatchId) {
     '</div>' +
     '<table class="data-table">' +
     '  <thead><tr>' +
-    '    <th style="width:30px; text-align:center;">#</th>' +
-    '    <th style="width:110px;">Claim No</th>' +
-    '    <th style="width:110px;">Ticket Ref</th>' +
+    '    <th style="width:25px; text-align:center;">#</th>' +
+    '    <th style="width:105px;">Claim No</th>' +
+    '    <th style="width:105px;">Ticket Ref</th>' +
     '    <th>Customer / Dealer</th>' +
     '    <th>Battery Model</th>' +
     '    <th>Original Serial Number</th>' +
-    '    <th style="width:80px;">Warranty</th>' +
-    '    <th style="width:45px; text-align:center;">Qty</th>' +
+    '    <th style="width:50px; text-align:center;">HSN</th>' +
+    '    <th style="width:75px;">Warranty</th>' +
+    '    <th style="width:40px; text-align:center;">Qty</th>' +
     '  </tr></thead>' +
     '  <tbody>' + rowsHtml + '</tbody>' +
     '  <tfoot><tr style="background:#f8fafc; font-weight:bold;">' +
-    '    <td colspan="7" style="text-align:right;">Total Batteries Dispatched in Batch:</td>' +
+    '    <td colspan="8" style="text-align:right;">Total Batteries Dispatched in Batch (HSN 8507):</td>' +
     '    <td style="text-align:center; font-size:12.5px;">' + items.length + '</td>' +
     '  </tr></tfoot>' +
     '</table>' +
@@ -2801,9 +2855,9 @@ function buildClaimFormHTML(claimOrTicketId) {
   var wMonths = claim.warranty_months ? claim.warranty_months + ' Months' : '36 Months';
   var wExp = claim.warranty_expiry_date ? formatDate(claim.warranty_expiry_date) : '-';
   var wStatus = claim.warranty_status || 'IN_WARRANTY';
-  var covType = (wStatus === 'PRO_RATA') ? 'Pro-Rata Settlement Discount' : '100% Free Replacement Guarantee';
+  var covType = (wStatus === 'PRO_RATA') ? 'Pro-Rata Settlement Discount' : ((wStatus === 'EXPIRED') ? 'Expired / No Warranty Coverage' : '100% Free Replacement Guarantee');
 
-  var custName = claim.customer_name || (ticket ? ticket.customer_name : 'Customer');
+  var custName = claim.customer_name || (ticket ? ticket.customer_name : '') || claim.dealer_name || (ticket ? ticket.dealer_name : '') || 'Customer';
   var custMobile = claim.mobile || (ticket ? ticket.mobile : '-');
   var vehicleNum = claim.vehicle_number || (ticket ? ticket.vehicle_number : '-');
   var srcType = claim.source_type || (ticket ? ticket.source_type : 'CUSTOMER');
@@ -2816,6 +2870,7 @@ function buildClaimFormHTML(claimOrTicketId) {
   var testRes = (test && test.test_result) ? test.test_result : 'PASS';
   var sgVal = (test && test.specific_gravity) ? test.specific_gravity : '-';
   var testRem = (test && test.test_remarks) ? test.test_remarks : 'Internal failure confirmed upon diagnostic evaluation. Battery forwarded for manufacturer replacement credit.';
+  var testVerdictLabel = (testRes === 'PASS') ? 'PASS (Eligible for Replacement)' : 'REJECT (Ineligible / Defect Not Covered)';
   var testedBy = (test && test.tested_by) ? test.tested_by : 'Technician';
   var testDate = (test && test.test_date) ? formatDate(test.test_date) : formatDate(new Date());
   var testId = (test && test.test_id) ? test.test_id : 'TST-LAB';
@@ -2874,7 +2929,7 @@ function buildClaimFormHTML(claimOrTicketId) {
     '      <td><strong>' + escapeHtml(ocvVal) + '</strong></td>' +
     '      <td><strong>' + escapeHtml(loadVal) + '</strong></td>' +
     '      <td>' + escapeHtml(physVal) + '</td>' +
-    '      <td><strong style="color:' + (testRes === 'PASS' ? '#16a34a' : '#dc2626') + ';">' + escapeHtml(testRes) + ' (Eligible for Replacement)</strong></td>' +
+    '      <td><strong style="color:' + (testRes === 'PASS' ? '#16a34a' : '#dc2626') + ';">' + escapeHtml(testVerdictLabel) + '</strong></td>' +
     '    </tr>' +
     '  </table>' +
     '  <div style="margin-top:7px; font-size:10.5px;"><strong>Specific Gravity Readings across Cells:</strong> <span style="font-family:monospace; font-size:11px; font-weight:bold;">' + escapeHtml(sgVal) + '</span></div>' +
@@ -2901,12 +2956,34 @@ function buildIntakeSlipHTML(ticketNo) {
   var cleanId = rawId.replace(/^PENDING\s*\((.*?)\)$/i, '$1').trim();
 
   var tickets = BWMS.tickets || [];
+  var claims = BWMS.claims || [];
+  var challans = BWMS.challans || [];
   var comp = getPrintCompanyInfo();
 
   var ticket = tickets.find(function(t) {
     return t.ticket_no === cleanId || t.ticket_no === rawId ||
       t.original_serial_no === cleanId || t.original_serial_no === rawId;
   });
+
+  // Cross-reference with Claims if claim_no was passed
+  if (!ticket) {
+    var clm = claims.find(function(c) {
+      return c.claim_no === rawId || c.claim_no === cleanId || c.original_serial_no === rawId || c.original_serial_no === cleanId;
+    });
+    if (clm && clm.ticket_no) {
+      ticket = tickets.find(function(t) { return t.ticket_no === clm.ticket_no; });
+    }
+  }
+
+  // Cross-reference with Delivery_Challans if challan_no was passed
+  if (!ticket) {
+    var ch = challans.find(function(c) {
+      return c.challan_no === rawId || c.challan_no === cleanId || c.battery_serial_no === rawId || c.battery_serial_no === cleanId;
+    });
+    if (ch && ch.ticket_no) {
+      ticket = tickets.find(function(t) { return t.ticket_no === ch.ticket_no; });
+    }
+  }
 
   if (!ticket) {
     ticket = {
@@ -2928,7 +3005,9 @@ function buildIntakeSlipHTML(ticketNo) {
   var tNo = ticket.ticket_no || 'TKT-NEW';
   var dateRec = ticket.date_received ? formatDate(ticket.date_received) : formatDate(new Date());
   var partyName = (ticket.source_type === 'DEALER' && ticket.dealer_name) ? ticket.dealer_name : (ticket.customer_name || 'Customer');
-  var hasLoaner = (ticket.service_battery_issued === true || ticket.service_battery_issued === 'YES' || ticket.service_battery_issued === 'true' || ticket.service_battery_serial);
+  var isLoanerIssued = (ticket.service_battery_issued === true || ticket.service_battery_issued === 'YES' || ticket.service_battery_issued === 'true');
+  var hasLoanerSerial = ticket.service_battery_serial && ticket.service_battery_serial !== '-' && ticket.service_battery_serial !== 'N/A' && ticket.service_battery_serial !== 'None';
+  var hasLoaner = isLoanerIssued || hasLoanerSerial;
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Customer Intake Slip — ' + escapeHtml(tNo) + '</title>' +
     buildDocumentStyles() + '</head><body>' +
@@ -3423,9 +3502,7 @@ function renderTicketActions(t) {
       }
     }
   } else if (s === 'REJECTED_RETURNED' || s === 'REJECTED — RETURNED') {
-    if (retChallan) {
-      html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + retChallan.challan_no + '\')">🖨️ Challan</button>';
-    }
+    html += '<button class="btn btn-secondary btn-sm" onclick="printReturnChallan(\'' + (retChallan ? retChallan.challan_no : t.ticket_no) + '\')">🖨️ Challan</button>';
   } else if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
     html += '<button class="btn btn-warning btn-sm" onclick="navigateTo(\'pending-company\')">🚚 Dispatch</button>';
   }
@@ -3439,9 +3516,8 @@ function renderTicketActions(t) {
       html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>';
     } else if (cs === 'STOCK_UPDATED' || (cs === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED')) {
       html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">🤝 Close Claim</button>';
-    } else if (cs === 'CLOSED') {
-      html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
     }
+    html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')" title="Print Official Battery Warranty Claim Form">🖨️ Form</button>';
   }
 
   html += '<button class="btn btn-secondary btn-sm" onclick="printIntakeSlip(\'' + t.ticket_no + '\')" title="Print Customer Intake Acknowledgement Slip">🖨️ Slip</button>';

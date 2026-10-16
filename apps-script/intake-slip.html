@@ -134,6 +134,7 @@
       color: #64748b;
       margin-top: 2px;
     }
+    .grid-col, .section-title, .loaner-box, .terms-box { page-break-inside: avoid; }
     @media print {
       body { padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .no-print { display: none !important; }
@@ -207,7 +208,7 @@
   </div>
 
   <!-- 4. Service / Loaner Battery Undertaking -->
-  <? var hasLoaner = (data && data.ticket && (data.ticket.service_battery_issued === true || data.ticket.service_battery_issued === 'YES' || data.ticket.service_battery_issued === 'true' || data.ticket.service_battery_serial)); ?>
+  <? var hasLoaner = (data && data.ticket && (data.ticket.service_battery_issued === true || data.ticket.service_battery_issued === 'YES' || data.ticket.service_battery_issued === 'true' || (data.ticket.service_battery_serial && data.ticket.service_battery_serial !== '-' && data.ticket.service_battery_serial !== 'NONE'))); ?>
   <? if (hasLoaner) { ?>
   <div class="loaner-box">
     <div class="loaner-title">

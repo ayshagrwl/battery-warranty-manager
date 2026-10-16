@@ -199,8 +199,11 @@
       font-size: 11px;
       color: #334155;
     }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    .panel, .test-box, .no-price-banner, .terms-box, .ack-box, .sig-grid { page-break-inside: avoid; }
     @media print {
-      body { padding: 0; }
+      body { padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .no-print { display: none !important; }
     }
   </style>
@@ -258,19 +261,32 @@
         <th style="width: 35px; text-align: center;">#</th>
         <th>Battery Model Description</th>
         <th>Battery Serial Number</th>
-        <th style="width: 75px; text-align: center;">Qty</th>
-        <th>Return Reason / Condition Remarks</th>
+        <th style="width: 65px; text-align: center;">HSN</th>
+        <th style="width: 55px; text-align: center;">Qty</th>
+        <th style="width: 80px; text-align: right;">Taxable Val</th>
+        <th style="width: 75px; text-align: center;">GST Rate</th>
+        <th style="width: 80px; text-align: right;">Total Val</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td style="text-align: center; font-weight: bold;">1</td>
-        <td><strong><?= (data && data.challan && data.challan.battery_model) ? data.challan.battery_model : ((data && data.ticket && data.ticket.battery_model) ? data.ticket.battery_model : 'Automotive Battery') ?></strong></td>
-        <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 13px; font-weight: 800; color: #0f172a;"><?= (data && data.challan && data.challan.battery_serial_no) ? data.challan.battery_serial_no : ((data && data.ticket && data.ticket.original_serial_no) ? data.ticket.original_serial_no : '-') ?></span></td>
+        <td><strong><?= (data && data.challan && data.challan.battery_model) ? data.challan.battery_model : ((data && data.ticket && data.ticket.battery_model) ? data.ticket.battery_model : 'Automotive Battery') ?></strong><br><span style="font-size: 10px; color: #64748b;">Remarks: <?= (data && data.challan && data.challan.remarks) ? data.challan.remarks : ((data && data.test && data.test.test_remarks) ? data.test.test_remarks : 'Warranty claim rejected after electrical bench test') ?></span></td>
+        <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 12.5px; font-weight: 800; color: #0f172a;"><?= (data && data.challan && data.challan.battery_serial_no) ? data.challan.battery_serial_no : ((data && data.ticket && data.ticket.original_serial_no) ? data.ticket.original_serial_no : '-') ?></span></td>
+        <td style="text-align: center; font-family: monospace;">8507</td>
         <td style="text-align: center; font-weight: bold;">1 No.</td>
-        <td><?= (data && data.challan && data.challan.remarks) ? data.challan.remarks : ((data && data.test && data.test.test_remarks) ? data.test.test_remarks : 'Warranty claim rejected after electrical bench test') ?></td>
+        <td style="text-align: right; font-family: monospace;">₹0.00</td>
+        <td style="text-align: center;">0% (NIL)</td>
+        <td style="text-align: right; font-family: monospace; font-weight: bold;">₹0.00</td>
       </tr>
     </tbody>
+    <tfoot>
+      <tr style="background: #f8fafc; font-weight: bold;">
+        <td colspan="4" style="text-align: right;">Total Commercial Value for GST:</td>
+        <td style="text-align: center;">1 No.</td>
+        <td colspan="3" style="text-align: right; color: #0369a1;">₹0.00 (NIL Value — Non-Supply Rule 55)</td>
+      </tr>
+    </tfoot>
   </table>
 
   <!-- Laboratory Diagnostic Test Findings Box -->

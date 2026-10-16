@@ -138,8 +138,11 @@
       text-align: center;
       font-weight: 600;
     }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    .panel, .no-price-banner, .sig-grid { page-break-inside: avoid; }
     @media print {
-      body { padding: 0; }
+      body { padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .no-print { display: none !important; }
     }
   </style>
@@ -191,14 +194,15 @@
   <table class="data-table">
     <thead>
       <tr>
-        <th style="width: 30px; text-align: center;">#</th>
+        <th style="width: 25px; text-align: center;">#</th>
         <th style="width: 105px;">Claim No</th>
         <th style="width: 105px;">Ticket Ref</th>
         <th>Customer / Dealer</th>
         <th>Battery Model</th>
         <th>Original Battery Serial Number</th>
-        <th style="width: 80px;">Warranty</th>
-        <th style="width: 45px; text-align: center;">Qty</th>
+        <th style="width: 50px; text-align: center;">HSN</th>
+        <th style="width: 75px;">Warranty</th>
+        <th style="width: 40px; text-align: center;">Qty</th>
       </tr>
     </thead>
     <tbody>
@@ -211,6 +215,7 @@
         <td><?= (data && data.challan && data.challan.recipient_name) ? data.challan.recipient_name : 'Customer' ?></td>
         <td><?= (data && data.challan && data.challan.battery_model) ? data.challan.battery_model : 'Battery Batch' ?></td>
         <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 13px; font-weight: 800;"><?= (data && data.challan && data.challan.battery_serial_no) ? data.challan.battery_serial_no : '-' ?></span></td>
+        <td style="text-align: center; font-family: monospace;">8507</td>
         <td>IN_WARRANTY</td>
         <td style="text-align: center; font-weight: bold;">1</td>
       </tr>
@@ -223,6 +228,7 @@
         <td><?= itemsList[i].customer_name || '-' ?></td>
         <td><?= itemsList[i].battery_model || '-' ?></td>
         <td><span style="font-family: 'Consolas', 'Menlo', monospace; font-size: 13px; font-weight: 800;"><?= itemsList[i].original_serial_no || '-' ?></span></td>
+        <td style="text-align: center; font-family: monospace;">8507</td>
         <td><?= itemsList[i].warranty_status || 'IN_WARRANTY' ?></td>
         <td style="text-align: center; font-weight: bold;">1</td>
       </tr>
@@ -231,7 +237,7 @@
     </tbody>
     <tfoot>
       <tr style="background: #f8fafc; font-weight: bold;">
-        <td colspan="7" style="text-align: right;">Total Batteries Dispatched in Batch:</td>
+        <td colspan="8" style="text-align: right;">Total Batteries Dispatched in Batch (HSN 8507):</td>
         <td style="text-align: center; font-size: 13px;"><?= itemsList.length > 0 ? itemsList.length : 1 ?></td>
       </tr>
     </tfoot>

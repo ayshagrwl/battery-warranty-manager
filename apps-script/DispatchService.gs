@@ -262,9 +262,21 @@ var DispatchService = (function () {
     var allItems = Database.getRows('Company_Dispatch_Items');
     var batchNo = dispatch ? dispatch.dispatch_batch_no : (challan ? challan.challan_no : rawId);
 
+    var claimsCache = null;
     for (var m = 0; m < allItems.length; m++) {
       if (allItems[m].dispatch_batch_no === batchNo || (dispatch && allItems[m].dispatch_batch_no === dispatch.dispatch_batch_no)) {
-        items.push(allItems[m]);
+        var itm = allItems[m];
+        if (!itm.ticket_no || !itm.customer_name) {
+          if (!claimsCache) claimsCache = Database.getRows('Claims');
+          for (var clIdx = 0; clIdx < claimsCache.length; clIdx++) {
+            if (claimsCache[clIdx].claim_no === itm.claim_no) {
+              if (!itm.ticket_no) itm.ticket_no = claimsCache[clIdx].ticket_no;
+              if (!itm.customer_name) itm.customer_name = claimsCache[clIdx].customer_name || claimsCache[clIdx].dealer_name || 'Customer';
+              break;
+            }
+          }
+        }
+        items.push(itm);
       }
     }
 
@@ -351,7 +363,7 @@ var DispatchService = (function () {
     }
 
     var config = Config.getAll();
-    var gstVal = config.COMPANY_GST || '';
+    var gstVal = config.COMPANY_GST || config.COMPANY_GSTIN || '24AAACG1234A1Z5';
 
     return {
       company: {

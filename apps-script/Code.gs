@@ -522,6 +522,7 @@ function executeApiAction(action, args) {
     'apiSaveModel': function(a) { return apiSaveModel(a[0]); },
     'apiSaveDealer': function(a) { return apiSaveDealer(a[0]); },
     'apiCheckConnection': function() { return apiCheckConnection(); },
+    'apiGetPrintData': function(a) { return apiGetPrintData(a[0], a[1]); },
     'apiGetAuditLog': function() { return apiGetAuditLog(); }
   };
 

@@ -572,7 +572,7 @@ var ClaimService = (function () {
     }
 
     var config = Config.getAll();
-    var gstVal = config.COMPANY_GST || '';
+    var gstVal = config.COMPANY_GST || config.COMPANY_GSTIN || '24AAACG1234A1Z5';
 
     return {
       company: {

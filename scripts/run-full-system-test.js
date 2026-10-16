@@ -584,29 +584,49 @@ async function runTests() {
   assert(retChallanHtml1.includes('Delivery Challan — Battery Return') &&
          retChallanHtml1.includes('Rule 55 of CGST Rules, 2017') &&
          retChallanHtml1.includes('Commercial Value: NIL') &&
+         retChallanHtml1.includes('8507') &&
+         retChallanHtml1.includes('₹0.00') &&
          retChallanHtml1.includes('001236') &&
          retChallanHtml1.includes('10.2 V') &&
          retChallanHtml1.includes('REJECT'),
-         'Return Challan: Generates statutory zero-price layout with diagnostic test values and exact serial');
+         'Return Challan: Generates statutory zero-price layout with diagnostic test values, HSN 8507, and exact serial');
 
   // Verify resolution via ticket_no and PENDING wrapper
   const retChallanHtml2 = vmContext.buildReturnChallanHTML('PENDING (TKT-0003)');
-  assert(retChallanHtml2.includes('001236') && retChallanHtml2.includes('Suresh'),
+  assert(retChallanHtml2.includes('001236') && retChallanHtml2.includes('Suresh') && retChallanHtml2.includes('DC-RET-0001'),
          'Return Challan: Resolves accurately from PENDING ticket wrapper without error');
+
+  // Verify resolution via battery serial number retrieves actual challan (not preview)
+  const retChallanFromSerial = vmContext.buildReturnChallanHTML('001236');
+  assert(retChallanFromSerial.includes('DC-RET-0001') && !retChallanFromSerial.includes('DC-PREVIEW-'),
+         'Return Challan: Resolves existing challan directly by battery serial number');
 
   // 8.2 Manufacturer Company Dispatch Challan Tests
   const compChallanHtml = vmContext.buildCompanyChallanHTML('DC-COM-0001');
   assert(compChallanHtml.includes('Delivery Challan (Company Dispatch)') &&
          compChallanHtml.includes('VRL Logistics') &&
+         compChallanHtml.includes('8507') &&
          compChallanHtml.includes('001238') &&
          compChallanHtml.includes('001235') &&
          compChallanHtml.includes('Deepak') &&
          compChallanHtml.includes('Anita'),
-         'Company Challan: Formats batched consignment with carrier, destination, and all batched serials');
+         'Company Challan: Formats batched consignment with carrier, destination, HSN 8507, and all batched serials');
 
   const compChallanFromClaim = vmContext.buildCompanyChallanHTML('CLM-0001');
   assert(compChallanFromClaim.includes('DC-COM-0001') || compChallanFromClaim.includes('DSP-0001'),
          'Company Challan: Resolves batch from associated claim ID without mismatch');
+
+  // Company Challan resolves ticket_no and customer_name when items table lacks them
+  vmContext.BWMS.dispatchItems.push({
+    item_id: 'DPI-003',
+    dispatch_batch_no: 'DSP-0001',
+    claim_no: 'CLM-0001',
+    original_serial_no: '001238'
+    // ticket_no and customer_name deliberately omitted to test cross-reference join
+  });
+  const compChallanJoined = vmContext.buildCompanyChallanHTML('DSP-0001');
+  assert(compChallanJoined.includes('TKT-0005') && compChallanJoined.includes('Deepak'),
+         'Company Challan: Resolves ticket_no and customer_name from Claims table for bare dispatch items');
 
   // 8.3 Official Battery Warranty Claim Form Tests
   const claimFormHtml = vmContext.buildClaimFormHTML('CLM-0002');
@@ -624,6 +644,43 @@ async function runTests() {
   const claimFormFromTicket = vmContext.buildClaimFormHTML('TKT-0002');
   assert(claimFormFromTicket.includes('001235') && claimFormFromTicket.includes('Anita'),
          'Claim Form: Resolves accurately when queried by ticket ID');
+
+  // Claim Form for EXPIRED warranty and REJECT diagnostic verdict
+  vmContext.BWMS.tickets.push({
+    ticket_no: 'TKT-EXP-01',
+    customer_name: 'Harish Kumar',
+    battery_model: 'AAM-FL-00042B20L',
+    original_serial_no: 'SER-EXP-999',
+    status: 'REJECTED_RETURNED',
+    date_received: '2026-10-15'
+  });
+  vmContext.BWMS.claims.push({
+    claim_no: 'CLM-EXP-01',
+    ticket_no: 'TKT-EXP-01',
+    customer_name: 'Harish Kumar',
+    battery_model: 'AAM-FL-00042B20L',
+    original_serial_no: 'SER-EXP-999',
+    warranty_status: 'EXPIRED',
+    status: 'REJECTED'
+  });
+  if (!vmContext.BWMS.tests) vmContext.BWMS.tests = [];
+  vmContext.BWMS.tests.push({
+    test_id: 'TST-EXP-01',
+    ticket_no: 'TKT-EXP-01',
+    original_serial_no: 'SER-EXP-999',
+    open_circuit_voltage: '10.1',
+    load_test_voltage: '8.4',
+    specific_gravity: '1.140',
+    physical_condition: 'Discharged / Aged',
+    test_result: 'REJECT',
+    test_remarks: 'Warranty expired and deep sulphation'
+  });
+  const claimFormExp = vmContext.buildClaimFormHTML('CLM-EXP-01');
+  assert(claimFormExp.includes('Expired / No Warranty Coverage') &&
+         !claimFormExp.includes('100% Free Replacement Guarantee') &&
+         claimFormExp.includes('REJECT (Ineligible / Defect Not Covered)') &&
+         !claimFormExp.includes('REJECT (Eligible for Replacement)'),
+         'Claim Form: Correctly designates expired warranty and ineligible defect verdict');
 
   // 8.4 Customer Intake Acknowledgement Slip Tests
   const intakeSlipWithLoaner = vmContext.buildIntakeSlipHTML('TKT-0001');
@@ -651,7 +708,26 @@ async function runTests() {
          intakeSlipLoaner.includes('Loaner Undertaking'),
          'Intake Slip: Accurately formats loaner standby battery undertaking when issued');
 
-  // 8.5 Apps Script Production Template Integrity
+  // Intake slip with dummy/dash loaner serial does not trigger false loaner box
+  vmContext.BWMS.tickets.push({
+    ticket_no: 'TKT-NO-LOANER',
+    customer_name: 'Vikas Sharma',
+    battery_model: 'AAM-FL-00042B20L',
+    original_serial_no: 'ORIG-7766',
+    service_battery_issued: false,
+    service_battery_serial: '-',
+    status: 'RECEIVED'
+  });
+  const intakeSlipNoLoaner = vmContext.buildIntakeSlipHTML('TKT-NO-LOANER');
+  assert(!intakeSlipNoLoaner.includes('STANDBY SERVICE / LOANER BATTERY ISSUED') &&
+         intakeSlipNoLoaner.includes('None issued for this intake ticket'),
+         'Intake Slip: Sanitized loaner check suppresses loaner box when service serial is dash');
+
+  // 8.5 Apps Script Production Template & Backend API Integrity
+  const codeGsPrintCheck = fs.readFileSync(path.join(appsScriptDir, 'Code.gs'), 'utf8');
+  assert(codeGsPrintCheck.includes("'apiGetPrintData'") && codeGsPrintCheck.includes('apiGetPrintData(a[0], a[1])'),
+         'Backend Gateway: Code.gs correctly registers apiGetPrintData in executeApiAction');
+
   const templateClaimForm = fs.readFileSync(path.join(appsScriptDir, 'templates', 'claim-form.html'), 'utf8');
   assert(templateClaimForm.includes('<?=') && !templateClaimForm.includes('CLM-2026-001001') && !templateClaimForm.includes('Rahul S. Verma'),
          'Apps Script Templates: claim-form.html uses dynamic scriptlet tags without hardcoded placeholders');
@@ -659,6 +735,14 @@ async function runTests() {
   const templateIntakeSlip = fs.readFileSync(path.join(appsScriptDir, 'templates', 'intake-slip.html'), 'utf8');
   assert(templateIntakeSlip.includes('CUSTOMER INTAKE ACKNOWLEDGEMENT SLIP') && templateIntakeSlip.includes('<?='),
          'Apps Script Templates: intake-slip.html created and validated with dynamic scriptlet tags');
+
+  const templateReturnChallan = fs.readFileSync(path.join(appsScriptDir, 'templates', 'return-challan.html'), 'utf8');
+  assert(templateReturnChallan.includes('8507') && templateReturnChallan.includes('Rule 55') && templateReturnChallan.includes('₹0.00'),
+         'Apps Script Templates: return-challan.html verified with HSN 8507 and zero-price statutory table');
+
+  const templateCompanyChallan = fs.readFileSync(path.join(appsScriptDir, 'templates', 'company-challan.html'), 'utf8');
+  assert(templateCompanyChallan.includes('8507') && templateCompanyChallan.includes('Total Batteries Dispatched'),
+         'Apps Script Templates: company-challan.html verified with HSN 8507 and batch summary');
 
   // 8.6 Client Print Engine Navigation & Actions
   let printRendered = false;
