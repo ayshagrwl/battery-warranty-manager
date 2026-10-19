@@ -259,7 +259,7 @@
                 <div class="attention-count" id="att-lab-count">0</div>
                 <div class="attention-desc">Batteries received but not tested yet</div>
               </div>
-              <div class="attention-item" onclick="navigateTo('challans', { filter: 'REJECTED — RETURN PENDING' })">
+              <div class="attention-item" onclick="navigateTo('challans', { tab: 'ret', filter: '' })">
                 <div class="attention-count" id="att-return-count">0</div>
                 <div class="attention-desc">Rejected batteries waiting for return challan & customer pickup</div>
               </div>
@@ -602,7 +602,7 @@
           <div id="container-dsp-queue">
             <div class="view-toolbar">
               <div class="view-toolbar-left">
-                <input type="text" id="filter-dispatch-search" class="table-search-input" placeholder="🔍 Search pending claims..." oninput="renderDispatchQueueTable()">
+                <input type="text" id="filter-dispatch-search" class="table-search-input" placeholder="🔍 Search pending claims..." oninput="renderDispatchTables()">
               </div>
               <div class="view-toolbar-right">
                 <span id="selected-dispatch-count" style="font-weight:600; color:var(--accent);">0 selected</span>
@@ -686,8 +686,8 @@
           <div id="container-rep-pending">
             <div class="view-toolbar">
               <div class="view-toolbar-left">
-                <input type="text" id="filter-rep-search" class="table-search-input" placeholder="🔍 Search by claim #, serial, party, model, challan..." oninput="renderReplacementsTable()">
-                <select id="filter-rep-ageing" class="form-select" style="width:190px;" onchange="renderReplacementsTable()">
+                <input type="text" id="filter-rep-search" class="table-search-input" placeholder="🔍 Search by claim #, serial, party, model, challan..." oninput="renderReplacementsTables()">
+                <select id="filter-rep-ageing" class="form-select" style="width:190px;" onchange="renderReplacementsTables()">
                   <option value="ALL">All Ageing Windows</option>
                   <option value="0-7">0–7 Days (Normal)</option>
                   <option value="8-15">8–15 Days (Routine)</option>
@@ -776,7 +776,7 @@
           <div id="container-stock-pending">
             <div class="view-toolbar">
               <div class="view-toolbar-left">
-                <input type="text" id="filter-stock-search" class="table-search-input" placeholder="🔍 Search by replacement serial, claim #, model..." oninput="renderStockTasksTable()">
+                <input type="text" id="filter-stock-search" class="table-search-input" placeholder="🔍 Search by replacement serial, claim #, model..." oninput="renderStockTasksTables()">
               </div>
               <div class="view-toolbar-right">
                 <span id="stock-count-badge" class="tab-counter">0 pending</span>
@@ -1652,7 +1652,7 @@
       </div>
       <div class="modal-body">
         <div id="timeline-meta-box" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:20px;"></div>
-        <div class="timeline-container" id="timeline-nodes-list"></div>
+        <div class="timeline" id="timeline-nodes-list"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modal-timeline')">Close</button>

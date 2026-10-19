@@ -32,7 +32,7 @@ var DispatchService = (function () {
    * Consolidate selected claims into a company dispatch batch and generate delivery challan.
    */
   function createCompanyDispatch(data) {
-    var claimNos = data.claim_nos;
+    var claimNos = data ? data.claim_nos : null;
     if (!claimNos || !Array.isArray(claimNos) || claimNos.length === 0) {
       throw new Error('At least one claim must be selected for company dispatch');
     }
@@ -47,7 +47,8 @@ var DispatchService = (function () {
 
     var batchNo = Utils.getNextId('DISPATCH_PREFIX', 'DISPATCH_SEQ', 6);
     var challanNo = Utils.getNextId('COMPANY_CHALLAN_PREFIX', 'COMPANY_CHALLAN_SEQ', 6);
-    var todayIso = Utils.toIsoDate(new Date());
+    var dispatchDateIso = data.dispatch_date ? Utils.toIsoDate(data.dispatch_date) : Utils.toIsoDate(new Date());
+    if (!dispatchDateIso) dispatchDateIso = Utils.toIsoDate(new Date());
     var nowIso = new Date().toISOString();
     var userEmail = Utils.getCurrentUserEmail();
 
@@ -56,7 +57,7 @@ var DispatchService = (function () {
       company_name: companyName,
       destination: destination,
       company_challan_no: challanNo,
-      dispatch_date: todayIso,
+      dispatch_date: dispatchDateIso,
       carrier_transporter: transporter,
       lr_docket_no: lrDocket,
       claim_count: claimNos.length,
@@ -68,11 +69,10 @@ var DispatchService = (function () {
     Database.appendRow('Company_Dispatches', batchRecord);
 
     // Also record consolidated company delivery challan
-    var config = Config.getAll();
     var challanRecord = {
       challan_no: challanNo,
       challan_type: ChallanService.TYPE.COMPANY_DISPATCH,
-      challan_date: todayIso,
+      challan_date: dispatchDateIso,
       recipient_type: 'COMPANY',
       recipient_name: companyName,
       mobile: '',
@@ -102,7 +102,7 @@ var DispatchService = (function () {
         item_id: itemId,
         dispatch_batch_no: batchNo,
         claim_no: claim.claim_no,
-        customer_name: claim.customer_name,
+        customer_name: claim.customer_name || claim.dealer_name || '',
         battery_model: claim.battery_model,
         original_serial_no: claim.original_serial_no,
         warranty_status: claim.warranty_status
@@ -113,7 +113,7 @@ var DispatchService = (function () {
         status: 'SENT_TO_COMPANY',
         dispatch_batch_no: batchNo,
         company_challan_no: challanNo,
-        company_dispatch_date: todayIso,
+        company_dispatch_date: dispatchDateIso,
         updated_at: nowIso
       });
 
@@ -150,7 +150,9 @@ var DispatchService = (function () {
     return {
       dispatch_batch_no: batchNo,
       company_challan_no: challanNo,
+      claim_count: processedClaims.length,
       claims_count: processedClaims.length,
+      battery_count: processedClaims.length,
       claims: processedClaims
     };
   }
@@ -268,10 +270,10 @@ var DispatchService = (function () {
         var itm = allItems[m];
         if (!itm.ticket_no || !itm.customer_name) {
           if (!claimsCache) claimsCache = Database.getRows('Claims');
-          for (var clIdx = 0; clIdx < claimsCache.length; clIdx++) {
-            if (claimsCache[clIdx].claim_no === itm.claim_no) {
-              if (!itm.ticket_no) itm.ticket_no = claimsCache[clIdx].ticket_no;
-              if (!itm.customer_name) itm.customer_name = claimsCache[clIdx].customer_name || claimsCache[clIdx].dealer_name || 'Customer';
+          for (var clIdx2 = 0; clIdx2 < claimsCache.length; clIdx2++) {
+            if (claimsCache[clIdx2].claim_no === itm.claim_no) {
+              if (!itm.ticket_no) itm.ticket_no = claimsCache[clIdx2].ticket_no;
+              if (!itm.customer_name) itm.customer_name = claimsCache[clIdx2].customer_name || claimsCache[clIdx2].dealer_name || 'Customer';
               break;
             }
           }

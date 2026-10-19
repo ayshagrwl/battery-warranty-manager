@@ -17,11 +17,11 @@ var ClaimService = (function () {
    * Create an official manufacturer warranty claim from a passed ticket.
    */
   function createClaim(data) {
-    if (!data.ticket_no) throw new Error('Ticket number is required');
+    if (!data || !data.ticket_no) throw new Error('Ticket number is required');
     var ticket = Database.getRowById('Tickets', 'ticket_no', data.ticket_no);
     if (!ticket) throw new Error('Ticket ' + data.ticket_no + ' not found');
 
-    if (ticket.status !== 'PASSED' && ticket.status !== STATUS.CLAIM_CREATED && ticket.status !== STATUS.READY_FOR_COMPANY) {
+    if (ticket.status !== 'PASSED' && ticket.status !== 'TEST_PASSED' && ticket.status !== STATUS.CLAIM_CREATED && ticket.status !== STATUS.READY_FOR_COMPANY) {
       throw new Error('Claim can only be generated for tickets that have PASSED testing (current status: ' + ticket.status + ')');
     }
 
@@ -31,13 +31,26 @@ var ClaimService = (function () {
       return existingClaim;
     }
 
-    var dateOfSale = data.date_of_sale ? Utils.toIsoDate(data.date_of_sale) : '';
-    var warrantyCalc = WarrantyService.calculateWarranty(ticket.battery_model, dateOfSale);
+    var rawSaleDate = data.date_of_sale || ticket.date_of_sale || '';
+    if (!rawSaleDate && ticket.remarks && String(ticket.remarks).indexOf('Purchase Date:') !== -1) {
+      var mDos = String(ticket.remarks).match(/Purchase Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/);
+      if (mDos) rawSaleDate = mDos[1];
+    }
+
+    var dateOfSale = rawSaleDate ? Utils.toIsoDate(rawSaleDate) : '';
+    var todayIso = Utils.toIsoDate(new Date());
+    var refDate = ticket.date_received || todayIso;
+    var warrantyCalc = WarrantyService.calculateWarranty(ticket.battery_model, dateOfSale, refDate);
 
     var claimNo = Utils.getNextId('CLAIM_PREFIX', 'CLAIM_SEQ', 6);
-    var todayIso = Utils.toIsoDate(new Date());
     var nowIso = new Date().toISOString();
     var userEmail = Utils.getCurrentUserEmail();
+
+    var extraMeta = [];
+    if (data.invoice_number) extraMeta.push('Invoice: ' + String(data.invoice_number).trim());
+    if (data.km_reading) extraMeta.push('KM: ' + String(data.km_reading).trim());
+    var baseRemarks = String(data.remarks || ticket.remarks || '').trim();
+    var combinedRemarks = (extraMeta.length > 0 ? '[' + extraMeta.join(' | ') + '] ' : '') + baseRemarks;
 
     var claimRecord = {
       claim_no: claimNo,
@@ -67,7 +80,7 @@ var ClaimService = (function () {
       stock_updated_date: '',
       stock_updated_by: '',
       closed_date: '',
-      remarks: String(data.remarks || ticket.remarks || '').trim(),
+      remarks: combinedRemarks.trim(),
       created_at: nowIso,
       updated_at: nowIso
     };
@@ -198,7 +211,7 @@ var ClaimService = (function () {
         (t.ticket_no && t.ticket_no.toLowerCase().indexOf(q) !== -1) ||
         (t.customer_name && t.customer_name.toLowerCase().indexOf(q) !== -1) ||
         (t.dealer_name && t.dealer_name.toLowerCase().indexOf(q) !== -1) ||
-        (t.mobile && t.mobile.indexOf(q) !== -1) ||
+        (t.mobile && String(t.mobile).indexOf(q) !== -1) ||
         (t.vehicle_number && t.vehicle_number.toLowerCase().indexOf(q) !== -1) ||
         (t.battery_model && t.battery_model.toLowerCase().indexOf(q) !== -1) ||
         (tSerial && tSerial.indexOf(cleanSerial) !== -1) ||
@@ -220,7 +233,7 @@ var ClaimService = (function () {
         (c.ticket_no && c.ticket_no.toLowerCase().indexOf(q) !== -1) ||
         (c.customer_name && c.customer_name.toLowerCase().indexOf(q) !== -1) ||
         (c.dealer_name && c.dealer_name.toLowerCase().indexOf(q) !== -1) ||
-        (c.mobile && c.mobile.indexOf(q) !== -1) ||
+        (c.mobile && String(c.mobile).indexOf(q) !== -1) ||
         (c.battery_model && c.battery_model.toLowerCase().indexOf(q) !== -1) ||
         (c.dispatch_batch_no && c.dispatch_batch_no.toLowerCase().indexOf(q) !== -1) ||
         (c.company_challan_no && c.company_challan_no.toLowerCase().indexOf(q) !== -1) ||
@@ -243,7 +256,7 @@ var ClaimService = (function () {
       if (
         (ch.challan_no && ch.challan_no.toLowerCase().indexOf(q) !== -1) ||
         (ch.recipient_name && ch.recipient_name.toLowerCase().indexOf(q) !== -1) ||
-        (ch.mobile && ch.mobile.indexOf(q) !== -1) ||
+        (ch.mobile && String(ch.mobile).indexOf(q) !== -1) ||
         (ch.ticket_no && ch.ticket_no.toLowerCase().indexOf(q) !== -1) ||
         (chSerial && chSerial.indexOf(cleanSerial) !== -1)
       ) {
@@ -513,7 +526,7 @@ var ClaimService = (function () {
 
     // 4. If claim not yet created but ticket exists, build preview claim data from ticket
     if (!claim && ticket) {
-      var wCalc = WarrantyService.evaluateWarranty(ticket.battery_model, ticket.date_of_sale || ticket.date_received, ticket.date_received);
+      var wCalc = WarrantyService.calculateWarranty(ticket.battery_model, ticket.date_of_sale || ticket.date_received, ticket.date_received);
       var todayIso = Utils.toIsoDate(new Date());
       claim = {
         claim_no: 'CLM-PREVIEW-' + ticket.ticket_no,
@@ -528,10 +541,10 @@ var ClaimService = (function () {
         original_serial_no: ticket.original_serial_no || '',
         date_of_sale: ticket.date_of_sale || '',
         date_of_sale_formatted: Utils.formatDateIndian(ticket.date_of_sale),
-        warranty_months: wCalc.totalWarrantyMonths || 36,
-        warranty_expiry_date: wCalc.expiryDate || '',
-        warranty_expiry_formatted: Utils.formatDateIndian(wCalc.expiryDate),
-        warranty_status: wCalc.status || 'IN_WARRANTY',
+        warranty_months: wCalc.warranty_months || 36,
+        warranty_expiry_date: wCalc.warranty_expiry_date || '',
+        warranty_expiry_formatted: Utils.formatDateIndian(wCalc.warranty_expiry_date),
+        warranty_status: wCalc.warranty_status || 'IN_WARRANTY',
         claim_date: todayIso,
         claim_date_formatted: Utils.formatDateIndian(todayIso),
         status: 'DRAFT',

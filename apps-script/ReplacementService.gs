@@ -10,7 +10,7 @@ var ReplacementService = (function () {
    * STRICT RULE: Original serial number is NEVER overwritten. Replacement serial is stored in a separate column.
    */
   function recordReplacementReceived(data) {
-    if (!data.claim_no) throw new Error('Claim number is required');
+    if (!data || !data.claim_no) throw new Error('Claim number is required');
     var claim = Database.getRowById('Claims', 'claim_no', data.claim_no);
     if (!claim) throw new Error('Claim ' + data.claim_no + ' not found');
 
@@ -18,21 +18,39 @@ var ReplacementService = (function () {
     var cleanReplSerial = Utils.sanitizeSerial(data.replacement_serial_no);
     if (!cleanReplSerial) throw new Error('Valid replacement serial number is required');
 
+    var origSerial = Utils.sanitizeSerial(claim.original_serial_no);
+    if (origSerial && cleanReplSerial.toLowerCase() === origSerial.toLowerCase()) {
+      throw new Error('Replacement serial number cannot match the defective original serial number (' + origSerial + ')');
+    }
+
     var replModel = String(data.replacement_model || claim.battery_model || '').trim();
     var receivedDate = data.received_date ? Utils.toIsoDate(data.received_date) : Utils.toIsoDate(new Date());
+    var invoiceRef = String(data.company_invoice_ref || data.stock_ref_no || '').trim();
     var userEmail = Utils.getCurrentUserEmail();
     var nowIso = new Date().toISOString();
 
+    var remarksText = String(data.remarks || '').trim();
+    if (invoiceRef && remarksText.indexOf(invoiceRef) === -1) {
+      remarksText = (remarksText ? remarksText + ' | ' : '') + 'Company CN/Invoice: ' + invoiceRef;
+    }
+
     // 1. Update Claim with separate replacement serial
     var oldStatus = claim.status;
-    Database.updateRow('Claims', 'claim_no', claim.claim_no, {
+    var claimUpdate = {
       replacement_model: replModel,
       replacement_serial_no: cleanReplSerial, // Saved as strict text
       replacement_received_date: receivedDate,
       status: 'REPLACEMENT_RECEIVED',
       stock_status: 'UPDATE_REQUIRED',
       updated_at: nowIso
-    });
+    };
+    if (invoiceRef) {
+      claimUpdate.stock_ref_no = invoiceRef;
+    }
+    if (remarksText) {
+      claimUpdate.remarks = remarksText;
+    }
+    Database.updateRow('Claims', 'claim_no', claim.claim_no, claimUpdate);
 
     // 2. Update originating Ticket
     if (claim.ticket_no) {
@@ -53,7 +71,7 @@ var ReplacementService = (function () {
       replacement_serial_no: cleanReplSerial,
       received_date: receivedDate,
       stock_status: 'UPDATE_REQUIRED',
-      accounting_ref_no: '',
+      accounting_ref_no: invoiceRef,
       updated_at: '',
       updated_by: '',
       remarks: 'Automated task generated upon receiving replacement from company. Physical stock voucher entry required in Tally/Busy/ERP.'
@@ -70,7 +88,7 @@ var ReplacementService = (function () {
         replacement_serial_no: cleanReplSerial,
         received_date: receivedDate,
         received_by: userEmail,
-        remarks: String(data.remarks || 'Replacement battery inward')
+        remarks: remarksText || 'Replacement battery inward'
       });
     } catch (e) {
       // Non-blocking
@@ -132,8 +150,14 @@ var ReplacementService = (function () {
    * Mark physical stock reconciled by entering the ERP/Tally/Busy voucher reference.
    */
   function markStockUpdated(data) {
-    if (!data.claim_no) throw new Error('Claim number is required');
-    var voucherRef = String(data.accounting_ref_no || '').trim();
+    if (!data || !data.claim_no) throw new Error('Claim number is required');
+    var voucherRef = String(
+      data.accounting_ref_no ||
+      data.voucher_number ||
+      data.voucher_ref ||
+      data.stock_ref_no ||
+      ''
+    ).trim();
     if (!voucherRef) throw new Error('ERP/Tally voucher reference number is required');
 
     var claim = Database.getRowById('Claims', 'claim_no', data.claim_no);
@@ -142,9 +166,16 @@ var ReplacementService = (function () {
     var nowIso = new Date().toISOString();
     var todayIso = Utils.toIsoDate(new Date());
     var userEmail = data.updated_by || Utils.getCurrentUserEmail();
+    var erpSoftware = String(data.software || data.erp_software || '').trim();
+    var rawRemarks = String(data.remarks || '').trim();
+    var formattedRemarks = rawRemarks;
+    if (erpSoftware && formattedRemarks.indexOf('ERP:') === -1) {
+      formattedRemarks = 'ERP: ' + erpSoftware + (formattedRemarks ? '; ' + formattedRemarks : '');
+    }
 
     // 1. Update Stock_Update_Log
     var tasks = Database.getRows('Stock_Update_Log');
+    var updatedTask = false;
     for (var i = 0; i < tasks.length; i++) {
       if (tasks[i].claim_no === data.claim_no && tasks[i].stock_status === 'UPDATE_REQUIRED') {
         Database.updateRow('Stock_Update_Log', 'stock_task_id', tasks[i].stock_task_id, {
@@ -152,9 +183,27 @@ var ReplacementService = (function () {
           accounting_ref_no: voucherRef,
           updated_at: nowIso,
           updated_by: userEmail,
-          remarks: String(data.remarks || tasks[i].remarks)
+          remarks: formattedRemarks || tasks[i].remarks
         });
+        updatedTask = true;
       }
+    }
+
+    if (!updatedTask) {
+      var currentYear = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy');
+      var newTaskId = 'STK-' + currentYear + '-' + Utilities.getUuid().substring(0, 6).toUpperCase();
+      Database.appendRow('Stock_Update_Log', {
+        stock_task_id: newTaskId,
+        claim_no: claim.claim_no,
+        replacement_model: claim.replacement_model || claim.battery_model || '',
+        replacement_serial_no: claim.replacement_serial_no || '',
+        received_date: claim.replacement_received_date || todayIso,
+        stock_status: 'UPDATED',
+        accounting_ref_no: voucherRef,
+        updated_at: nowIso,
+        updated_by: userEmail,
+        remarks: formattedRemarks || ('Reconciled in ' + (erpSoftware || 'ERP'))
+      });
     }
 
     // 2. Update Claim
@@ -183,7 +232,7 @@ var ReplacementService = (function () {
       claim.claim_no,
       oldStatus,
       'STOCK_UPDATED',
-      'Stock reconciled with ERP voucher: ' + voucherRef + ' by ' + userEmail,
+      'Stock reconciled with ' + (erpSoftware || 'ERP') + ' voucher: ' + voucherRef + ' by ' + userEmail,
       userEmail
     );
 
@@ -198,16 +247,16 @@ var ReplacementService = (function () {
    * Final handover of replacement battery to customer/dealer and claim closure.
    */
   function closeClaim(data) {
-    if (!data.claim_no) throw new Error('Claim number is required');
+    if (!data || !data.claim_no) throw new Error('Claim number is required');
     var claim = Database.getRowById('Claims', 'claim_no', data.claim_no);
     if (!claim) throw new Error('Claim ' + data.claim_no + ' not found');
 
     // Verified Closure Gate: Block closure if stock reconciliation is pending
-    if (claim.stock_status === 'UPDATE_REQUIRED') {
+    if (claim.stock_status === 'UPDATE_REQUIRED' || (claim.status === 'REPLACEMENT_RECEIVED' && claim.stock_status !== 'UPDATED')) {
       throw new Error('Cannot close claim ' + data.claim_no + ': Physical stock reconciliation is pending (STOCK_UPDATE_REQUIRED). Please log accounting voucher reference first.');
     }
 
-    var todayIso = Utils.toIsoDate(new Date());
+    var closedDate = data.delivery_date ? Utils.toIsoDate(data.delivery_date) : Utils.toIsoDate(new Date());
     var nowIso = new Date().toISOString();
     var userEmail = Utils.getCurrentUserEmail();
     var receiver = String(data.receiver_name || data.received_by_name || '').trim();
@@ -217,7 +266,7 @@ var ReplacementService = (function () {
     var oldStatus = claim.status;
     Database.updateRow('Claims', 'claim_no', claim.claim_no, {
       status: 'CLOSED',
-      closed_date: todayIso,
+      closed_date: closedDate,
       remarks: closureNotes,
       updated_at: nowIso
     });
@@ -242,7 +291,7 @@ var ReplacementService = (function () {
     return {
       claim_no: claim.claim_no,
       status: 'CLOSED',
-      closed_date: todayIso
+      closed_date: closedDate
     };
   }
 

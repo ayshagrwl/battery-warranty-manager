@@ -39,13 +39,13 @@ var ReportService = (function () {
       var tStatus = String(tickets[i].status).toUpperCase();
       if (tStatus === 'RECEIVED' || tStatus === 'TESTING') {
         summary.underTesting++;
-      } else if (tStatus === 'REJECTED_RETURN_PENDING') {
+      } else if (tStatus === 'REJECTED_RETURN_PENDING' || tStatus === 'TEST_REJECTED') {
         summary.rejectedTotal++;
         summary.rejectedReturnPending++;
       } else if (tStatus === 'REJECTED_RETURNED') {
         summary.rejectedTotal++;
         summary.rejectedReturned++;
-      } else if (tStatus === 'PASSED') {
+      } else if (tStatus === 'PASSED' || tStatus === 'TEST_PASSED') {
         summary.passed++;
       }
     }
@@ -73,7 +73,7 @@ var ReportService = (function () {
         if (claim.stock_status !== 'UPDATED') {
           summary.stockUpdatePending++;
         }
-      } else if (cStatus === 'CLOSED') {
+      } else if (cStatus === 'CLOSED' || cStatus === 'CLAIM_CLOSED') {
         summary.closed++;
       }
     }
@@ -158,11 +158,12 @@ var ReportService = (function () {
     var modelMap = {};
     for (var i = 0; i < claims.length; i++) {
       var m = claims[i].battery_model || 'Unknown';
-      if (!modelMap[m]) modelMap[m] = { total: 0, inWarranty: 0, outWarranty: 0, replacementReceived: 0 };
+      if (!modelMap[m]) modelMap[m] = { total: 0, inWarranty: 0, proRata: 0, outWarranty: 0, replacementReceived: 0 };
       modelMap[m].total++;
-      if (claims[i].warranty_status === 'IN_WARRANTY') modelMap[m].inWarranty++;
-      if (claims[i].warranty_status === 'OUT_OF_WARRANTY') modelMap[m].outWarranty++;
-      if (claims[i].status === 'REPLACEMENT_RECEIVED' || claims[i].status === 'CLOSED') modelMap[m].replacementReceived++;
+      if (claims[i].warranty_status === 'IN_WARRANTY' || claims[i].warranty_status === 'PRO_RATA') modelMap[m].inWarranty++;
+      if (claims[i].warranty_status === 'PRO_RATA') modelMap[m].proRata++;
+      if (claims[i].warranty_status === 'OUT_OF_WARRANTY' || claims[i].warranty_status === 'EXPIRED') modelMap[m].outWarranty++;
+      if (claims[i].status === 'REPLACEMENT_RECEIVED' || claims[i].status === 'STOCK_UPDATED' || claims[i].status === 'CLOSED') modelMap[m].replacementReceived++;
     }
 
     // Dealer breakdown

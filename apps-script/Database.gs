@@ -60,6 +60,21 @@ var Database = (function () {
     ]
   };
 
+  function serializeCellValue(val) {
+    if (val instanceof Date) {
+      try {
+        return Utilities.formatDate(val, 'Asia/Kolkata', 'yyyy-MM-dd');
+      } catch (e) {
+        try {
+          return val.toISOString().split('T')[0];
+        } catch (err) {
+          return String(val);
+        }
+      }
+    }
+    return val;
+  }
+
   function getSpreadsheet() {
     var props = PropertiesService.getScriptProperties();
     var sheetId = props.getProperty('SPREADSHEET_ID') || '1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08';
@@ -98,7 +113,7 @@ var Database = (function () {
       var hasData = false;
       for (var c = 0; c < headers.length; c++) {
         var key = headers[c];
-        var val = data[r][c];
+        var val = serializeCellValue(data[r][c]);
         if (val !== '' && val !== null && val !== undefined) {
           hasData = true;
         }
@@ -134,14 +149,9 @@ var Database = (function () {
         var hasData = false;
         for (var c = 0; c < headers.length; c++) {
           var key = headers[c];
-          var val = data[r][c];
+          var val = serializeCellValue(data[r][c]);
           if (val !== '' && val !== null && val !== undefined) {
             hasData = true;
-          }
-          if (val instanceof Date) {
-            try {
-              val = val.toISOString().split('T')[0];
-            } catch (e) {}
           }
           row[key] = val;
         }
@@ -369,7 +379,7 @@ var Database = (function () {
       });
 
       // Sample Ticket 2: Under Testing
-      var tkt2 = TicketService.createTicket({
+      TicketService.createTicket({
         source_type: 'CUSTOMER',
         customer_name: 'Mehul Trivedi',
         mobile: '9879055443',
@@ -411,7 +421,7 @@ var Database = (function () {
         remarks: 'Rejected battery collected with delivery challan'
       });
 
-      // Sample Ticket 4 & Passed Claim Sent to Company
+      // Sample Ticket 4 & Passed Claim Ready for Company
       var tkt4 = TicketService.createTicket({
         source_type: 'CUSTOMER',
         customer_name: 'Deepak Patel',
@@ -437,7 +447,7 @@ var Database = (function () {
         physical_condition: 'Clean, no damage',
         test_remarks: 'Internal cell #3 open-circuit failure. Eligible for full replacement.'
       });
-      var claim4 = ClaimService.createClaim({
+      ClaimService.createClaim({
         ticket_no: tkt4.ticket_no,
         date_of_sale: '2025-04-15'
       });
@@ -483,7 +493,7 @@ var Database = (function () {
         remarks: 'New replacement battery received from company depot'
       });
 
-      AuditService.log('SYSTEM', 'SEED_DEMO', 'SYSTEM', 'SYSTEM', '', '', 'Demo database seeded successfully');
+      AuditService.log('SEED_DEMO', AuditService.RECORD_TYPE.SYSTEM, 'SYSTEM', '', 'READY', 'Demo database seeded successfully');
       return true;
     });
   }

@@ -67,24 +67,38 @@ var Utils = (function () {
     });
   }
 
+  function generateId(length) {
+    var len = length || 6;
+    try {
+      return Utilities.getUuid().replace(/-/g, '').substring(0, len).toUpperCase();
+    } catch (e) {
+      var chars = '0123456789ABCDEF';
+      var out = '';
+      for (var i = 0; i < len; i++) {
+        out += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return out;
+    }
+  }
+
   function sanitizeSerial(serial) {
     if (serial === null || serial === undefined) return '';
     var str = String(serial).trim();
-    // Normalize and remove special hidden non-printables
-    return str.replace(/[\u200B-\u200D\uFEFF]/g, '');
+    // Normalize and remove special hidden non-printables and leading spreadsheet quote
+    return str.replace(/^'+/, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
   }
 
   function formatDateIndian(dateInput) {
     if (!dateInput) return '-';
-    var d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    if (isNaN(d.getTime())) return String(dateInput);
+    var d = typeof dateInput === 'string' ? parseDate(dateInput) : dateInput;
+    if (!d || isNaN(d.getTime())) return String(dateInput);
     return Utilities.formatDate(d, TIMEZONE, 'dd/MM/yyyy');
   }
 
   function formatDateTimeIndian(dateInput) {
     if (!dateInput) return '-';
     var d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    if (isNaN(d.getTime())) return String(dateInput);
+    if (!d || isNaN(d.getTime())) return String(dateInput);
     return Utilities.formatDate(d, TIMEZONE, 'dd/MM/yyyy hh:mm a');
   }
 
@@ -160,10 +174,12 @@ var Utils = (function () {
   }
 
   function error(message, errorCode) {
+    var msg = message || 'An unexpected error occurred';
     return {
       success: false,
       errorCode: errorCode || 'ERROR',
-      message: message || 'An unexpected error occurred'
+      error: msg,
+      message: msg
     };
   }
 
@@ -183,6 +199,7 @@ var Utils = (function () {
   return {
     withLock: withLock,
     getNextId: getNextId,
+    generateId: generateId,
     sanitizeSerial: sanitizeSerial,
     formatDateIndian: formatDateIndian,
     formatDateTimeIndian: formatDateTimeIndian,

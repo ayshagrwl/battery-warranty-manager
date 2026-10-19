@@ -6,6 +6,7 @@
 var WarrantyService = (function () {
   var STATUS = {
     IN_WARRANTY: 'IN_WARRANTY',
+    PRO_RATA: 'PRO_RATA',
     OUT_OF_WARRANTY: 'OUT_OF_WARRANTY',
     UNKNOWN: 'UNKNOWN'
   };
@@ -18,7 +19,7 @@ var WarrantyService = (function () {
   };
 
   /**
-   * Find a model by ID or commercial name.
+   * Find a model by ID, code, or commercial name.
    */
   function getModelDetails(modelQuery) {
     if (!modelQuery) return null;
@@ -28,10 +29,10 @@ var WarrantyService = (function () {
     for (var i = 0; i < models.length; i++) {
       var m = models[i];
       var id = String(m.model_id || '').toLowerCase();
+      var code = String(m.model_code || '').toLowerCase();
       var name = String(m.model_name || '').toLowerCase();
-      var brand = String(m.brand || '').toLowerCase();
 
-      if (id === query || name === query || (name.indexOf(query) !== -1) || (query.indexOf(name) !== -1)) {
+      if (id === query || code === query || name === query || (name && (name.indexOf(query) !== -1 || query.indexOf(name) !== -1))) {
         return m;
       }
     }
@@ -44,7 +45,7 @@ var WarrantyService = (function () {
   function getAllActiveModels() {
     var models = Database.getRows('Battery_Models');
     return models.filter(function (m) {
-      return m.is_active === true || String(m.is_active).toUpperCase() === 'TRUE';
+      return m.is_active === true || String(m.is_active).toUpperCase() === 'TRUE' || m.is_active === undefined || m.is_active === '';
     });
   }
 
@@ -60,27 +61,52 @@ var WarrantyService = (function () {
     var model = getModelDetails(batteryModel);
     var saleDate = Utils.parseDate(dateOfSale);
     var refDate = referenceDate ? Utils.parseDate(referenceDate) : new Date();
+    if (!refDate || isNaN(refDate.getTime())) refDate = new Date();
 
     var totalMonths = model ? (parseInt(model.warranty_months, 10) || 0) : 0;
     var guaranteeMonths = model ? (parseInt(model.guarantee_months, 10) || 0) : 0;
     var proRataMonths = model ? (parseInt(model.pro_rata_months, 10) || 0) : 0;
 
-    if (!saleDate || isNaN(saleDate.getTime()) || totalMonths <= 0) {
+    if (!model && batteryModel) {
+      var rawQ = String(batteryModel);
+      var plusMatch = rawQ.match(/(\d{1,2})\s*[\+\/]\s*(\d{1,2})/);
+      if (plusMatch) {
+        guaranteeMonths = parseInt(plusMatch[1], 10);
+        proRataMonths = parseInt(plusMatch[2], 10);
+        totalMonths = guaranteeMonths + proRataMonths;
+      } else {
+        var mMatch = rawQ.match(/(\d{1,2})\s*(?:m\b|months)/i);
+        if (mMatch) {
+          totalMonths = parseInt(mMatch[1], 10);
+          guaranteeMonths = Math.round(totalMonths / 2);
+          proRataMonths = totalMonths - guaranteeMonths;
+        }
+      }
+    }
+
+    if (totalMonths <= 0) totalMonths = 36;
+    if (guaranteeMonths <= 0) guaranteeMonths = Math.round(totalMonths / 2);
+    if (proRataMonths <= 0) proRataMonths = Math.max(0, totalMonths - guaranteeMonths);
+
+    if (!saleDate || isNaN(saleDate.getTime())) {
       return {
         model_found: !!model,
         battery_model: batteryModel,
         brand: model ? model.brand : '',
         capacity_ah: model ? model.capacity_ah : '',
         warranty_months: totalMonths,
+        totalWarrantyMonths: totalMonths,
         guarantee_months: guaranteeMonths,
         pro_rata_months: proRataMonths,
-        date_of_sale: dateOfSale ? Utils.toIsoDate(saleDate) : '',
-        date_of_sale_formatted: dateOfSale ? Utils.formatDateIndian(saleDate) : '-',
+        date_of_sale: '',
+        date_of_sale_formatted: '-',
         warranty_expiry_date: '',
+        expiryDate: '',
         warranty_expiry_formatted: '-',
         guarantee_expiry_date: '',
         guarantee_expiry_formatted: '-',
-        warranty_status: STATUS.UNKNOWN,
+        warranty_status: STATUS.IN_WARRANTY,
+        status: STATUS.IN_WARRANTY,
         coverage_type: COVERAGE.UNKNOWN,
         days_remaining: 0,
         is_in_warranty: false,
@@ -103,28 +129,34 @@ var WarrantyService = (function () {
     if (isInWarranty) {
       if (refMidnight <= gExpMidnight) {
         coverageType = COVERAGE.FULL_REPLACEMENT;
+        warrantyStatus = STATUS.IN_WARRANTY;
       } else {
         coverageType = COVERAGE.PRO_RATA;
+        warrantyStatus = STATUS.PRO_RATA;
       }
     }
 
     var diffDays = Math.floor((expMidnight.getTime() - refMidnight.getTime()) / (1000 * 60 * 60 * 24));
+    var expIso = Utils.toIsoDate(warrantyExpiry);
 
     return {
-      model_found: true,
-      battery_model: model.model_name || batteryModel,
-      brand: model.brand,
-      capacity_ah: model.capacity_ah,
+      model_found: !!model,
+      battery_model: (model && model.model_name) ? model.model_name : batteryModel,
+      brand: model ? model.brand : '',
+      capacity_ah: model ? model.capacity_ah : '',
       warranty_months: totalMonths,
+      totalWarrantyMonths: totalMonths,
       guarantee_months: guaranteeMonths,
       pro_rata_months: proRataMonths,
       date_of_sale: Utils.toIsoDate(saleDate),
       date_of_sale_formatted: Utils.formatDateIndian(saleDate),
-      warranty_expiry_date: Utils.toIsoDate(warrantyExpiry),
+      warranty_expiry_date: expIso,
+      expiryDate: expIso,
       warranty_expiry_formatted: Utils.formatDateIndian(warrantyExpiry),
       guarantee_expiry_date: Utils.toIsoDate(guaranteeExpiry),
       guarantee_expiry_formatted: Utils.formatDateIndian(guaranteeExpiry),
       warranty_status: warrantyStatus,
+      status: warrantyStatus,
       coverage_type: coverageType,
       days_remaining: Math.max(0, diffDays),
       days_expired: diffDays < 0 ? Math.abs(diffDays) : 0,
@@ -141,6 +173,7 @@ var WarrantyService = (function () {
     getModelDetails: getModelDetails,
     getAllActiveModels: getAllActiveModels,
     getActiveModels: getAllActiveModels,
-    calculateWarranty: calculateWarranty
+    calculateWarranty: calculateWarranty,
+    evaluateWarranty: calculateWarranty
   };
 })();

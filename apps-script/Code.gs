@@ -276,7 +276,8 @@ function apiMarkChallanReturned(data) {
 function apiCreateCompanyDispatch(data) {
   try {
     var dispatch = DispatchService.createCompanyDispatch(data);
-    return Utils.success(dispatch, 'Dispatched ' + dispatch.claim_count + ' batteries. Challan: ' + dispatch.company_challan_no);
+    var count = dispatch.claim_count || dispatch.claims_count || 1;
+    return Utils.success(dispatch, 'Dispatched ' + count + ' batteries. Challan: ' + dispatch.company_challan_no);
   } catch (err) {
     return Utils.error(err.message);
   }
@@ -354,9 +355,9 @@ function apiGetReports() {
   }
 }
 
-function apiCalculateWarranty(modelName, dateOfSale) {
+function apiCalculateWarranty(modelName, dateOfSale, referenceDate) {
   try {
-    return Utils.success(WarrantyService.calculateWarranty(modelName, dateOfSale));
+    return Utils.success(WarrantyService.calculateWarranty(modelName, dateOfSale, referenceDate));
   } catch (err) {
     return Utils.error(err.message);
   }
@@ -397,6 +398,7 @@ function apiGetBulkState() {
       'Users',
       'Battery_Models',
       'Dealers',
+      'Customers',
       'Tickets',
       'Battery_Tests',
       'Claims',
@@ -404,6 +406,7 @@ function apiGetBulkState() {
       'Delivery_Challans',
       'Company_Dispatches',
       'Company_Dispatch_Items',
+      'Replacement_Receipts',
       'Stock_Update_Log',
       'Audit_Log'
     ];
@@ -439,7 +442,6 @@ function apiGetBulkState() {
 function apiSaveModel(modelData) {
   try {
     if (!modelData || !modelData.model_name) return Utils.error('Model name is required.');
-    var modelCode = modelData.model_code || modelData.model_name.replace(/[^A-Za-z0-9]/g, '-').toUpperCase();
     var existing = Database.getRowById('Battery_Models', 'model_name', modelData.model_name);
     var row = {
       model_id: existing ? existing.model_id : ('MOD-' + Utils.generateId(6)),
@@ -516,7 +518,7 @@ function executeApiAction(action, args) {
     'apiUploadDocument': function(a) { return apiUploadDocument(a[0]); },
     'apiDownloadClaimZip': function(a) { return apiDownloadClaimZip(a[0]); },
     'apiSearchUniversal': function(a) { return apiSearchUniversal(a[0]); },
-    'apiGetReports': function() { return apiGetReports(); },
+    'apiGetReports': function(a) { return apiGetReports(); },
     'apiCalculateWarranty': function(a) { return apiCalculateWarranty(a[0], a[1], a[2]); },
     'apiSaveConfig': function(a) { return apiSaveConfig(a[0]); },
     'apiSaveModel': function(a) { return apiSaveModel(a[0]); },
@@ -552,8 +554,8 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
       error: err.message,
+      message: err.message,
       data: null
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
-
