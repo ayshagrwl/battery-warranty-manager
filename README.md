@@ -3,7 +3,8 @@
 > **Enterprise-grade, zero-cost operational platform for Indian battery distributors, service centers, and authorized dealers.**
 > Built on Google Workspace (Google Sheets, Drive, Apps Script) and deployed directly to production.
 
-[![Live Production Web App](https://img.shields.io/badge/Live_Production-Google_Workspace-2563eb?style=for-the-badge&logo=google)](https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec)
+[![Live Production Web App](https://img.shields.io/badge/Live_Production-Firebase_Hosting-f59e0b?style=for-the-badge&logo=firebase)](https://battery-warranty-hub-26.web.app)
+[![Apps Script Backend](https://img.shields.io/badge/Live_Production-Google_Workspace-2563eb?style=for-the-badge&logo=google)](https://script.google.com/macros/s/AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE/exec)
 [![Master Google Sheet](https://img.shields.io/badge/Database-Google_Sheets-34a853?style=for-the-badge&logo=googlesheets)](https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit)
 
 ---
@@ -169,7 +170,8 @@ npm run clasp:deploy
 
 ## 🌐 Live Production Links
 
-* **Live Web App:** [https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec](https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec)
+* **Firebase Hosting Web App:** [https://battery-warranty-hub-26.web.app](https://battery-warranty-hub-26.web.app)
+* **Apps Script Web App:** [https://script.google.com/macros/s/AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE/exec](https://script.google.com/macros/s/AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE/exec)
 * **Master Google Sheet Database:** [https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit](https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit)
 * **Apps Script Project:** [https://script.google.com/d/1W69fIh938IkP6IX7zh4vpIINQZe24l86q6xKSJHpsqKyYcODMT2bsieg/edit](https://script.google.com/d/1W69fIh938IkP6IX7zh4vpIINQZe24l86q6xKSJHpsqKyYcODMT2bsieg/edit)
 

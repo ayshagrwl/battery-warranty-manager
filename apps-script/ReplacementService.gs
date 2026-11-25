@@ -276,6 +276,18 @@ var ReplacementService = (function () {
         status: 'CLOSED',
         updated_at: nowIso
       });
+
+      if (data.return_service_battery && typeof ServiceBatteryService !== 'undefined') {
+        try {
+          ServiceBatteryService.returnServiceBattery({
+            ticket_no: claim.ticket_no,
+            returned_date: closedDate,
+            remarks: 'Recovered on claim closure (' + claim.claim_no + ')'
+          });
+        } catch (sbErr) {
+          Logger.log('Non-blocking service battery return warning: ' + sbErr.message);
+        }
+      }
     }
 
     AuditService.log(

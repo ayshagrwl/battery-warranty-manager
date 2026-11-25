@@ -587,6 +587,29 @@
     border-radius: 6px;
     background: #fff;
   }
+  #modal-print { z-index: 100050 !important; }
+  #modal-print .modal-backdrop { z-index: 100051 !important; }
+  #modal-print .modal-content { z-index: 100052 !important; }
+  #direct-print-root { display: none; }
+
+  /* Service Battery Badges */
+  .badge-sb-available { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .badge-sb-assigned { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+  .badge-sb-blocked { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+  .rotation-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+  .rotation-pill.active-out { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .rotation-pill.rotated { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
 
   /* Tabs */
   .tab-bar {
@@ -1185,10 +1208,14 @@
   }
 
   @media print {
+    html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; margin: 0 !important; padding: 0 !important; }
     .sidebar, .topbar, .modal-footer, .no-print, .floating-quick-bar { display: none !important; }
-    .app-container { display: block; height: auto; }
+    .app-container { display: block; height: auto; overflow: visible; }
     .main-wrapper { display: block; overflow: visible; }
     .content-area { padding: 0; overflow: visible; }
+    body.has-print-doc > *:not(#direct-print-root) { display: none !important; }
+    body.has-print-doc #direct-print-root { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
+    body.has-print-doc #direct-print-root .no-print { display: none !important; }
   }
 </style>
 
@@ -1247,6 +1274,11 @@
         <a class="nav-item" data-view="challans" onclick="navigateTo('challans')">
           <span class="nav-icon">🚚</span>
           <span>Delivery Challans</span>
+        </a>
+        <a class="nav-item" data-view="service-batteries" onclick="navigateTo('service-batteries')">
+          <span class="nav-icon">🔋</span>
+          <span>Service Batteries</span>
+          <span class="nav-badge" id="badge-service-batteries">0</span>
         </a>
 
         <div class="nav-section-title" style="margin-top:14px;">Governance & Master</div>
@@ -1333,6 +1365,9 @@
             </div>
             <div class="quick-action-chip" onclick="navigateTo('stock-tasks')">
               <span class="chip-icon">📦</span> <span>ERP Stock Inward</span>
+            </div>
+            <div class="quick-action-chip" onclick="navigateTo('service-batteries')">
+              <span class="chip-icon">🔋</span> <span>Service Battery Stock</span>
             </div>
             <div class="quick-action-chip" onclick="navigateTo('reports')">
               <span class="chip-icon">📈</span> <span>Ageing Analytics</span>
@@ -1429,6 +1464,13 @@
               <div>
                 <div class="kpi-val" id="kpi-stock-tasks">0</div>
                 <div class="kpi-label">Pending ERP Stock Update</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('service-batteries')">
+              <div class="kpi-icon blue">🔋</div>
+              <div>
+                <div class="kpi-val" id="kpi-sb-available">0 / 0</div>
+                <div class="kpi-label">Service Batteries Ready / Total</div>
               </div>
             </div>
           </div>
@@ -2074,6 +2116,188 @@
           </div>
         </section>
 
+        <!-- 8B. SERVICE BATTERIES POOL & ROTATION VIEW -->
+        <section id="view-service-batteries" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Service / Standby Battery Stock &amp; Rotation</h1>
+              <p class="view-subtitle">Manage available loaner stock, assign &amp; block batteries for customers, and track rotation history</p>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="exportServiceBatteriesCSV()">📥 Export Stock CSV</button>
+              <button class="btn btn-primary" onclick="openAddServiceBatteryModal()">+ Add Service Battery</button>
+            </div>
+          </div>
+
+          <!-- Service Battery KPI Summary -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon blue">🔋</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-total">0</div>
+                <div class="kpi-label">Total Service Stock</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon green">✅</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-available">0</div>
+                <div class="kpi-label">Available to Assign</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon amber">🔒</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-assigned">0</div>
+                <div class="kpi-label">Assigned &amp; Locked Out</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">🚫</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-blocked">0</div>
+                <div class="kpi-label">Manually Blocked</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon purple">🔄</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-rotations">0</div>
+                <div class="kpi-label">Total Customer Rotations</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Triple Tabs for Service Batteries -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-sb-pool" onclick="switchSbTab('pool')">
+              🔋 Stock Pool &amp; Assignment <span class="tab-counter" id="sb-pool-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-sb-rotation" onclick="switchSbTab('rotation')">
+              🔄 Rotation Tracker <span class="tab-counter" id="sb-rotation-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-sb-logs" onclick="switchSbTab('logs')">
+              📜 Custody &amp; Rotation Log <span class="tab-counter" id="sb-logs-count">0</span>
+            </button>
+          </div>
+
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-sb-search" class="table-search-input" placeholder="🔍 Search by SB serial, model, customer, mobile, ticket..." oninput="renderServiceBatteriesView()">
+              <select id="filter-sb-status" class="form-select" style="width:180px;" onchange="renderServiceBatteriesView()">
+                <option value="ALL">All Stock Statuses</option>
+                <option value="AVAILABLE">AVAILABLE (Ready)</option>
+                <option value="ASSIGNED">ASSIGNED (Locked Out)</option>
+                <option value="BLOCKED">BLOCKED (On Hold)</option>
+              </select>
+              <select id="filter-sb-rotation" class="form-select" style="width:200px;" onchange="renderServiceBatteriesView()">
+                <option value="ALL">All Rotation States</option>
+                <option value="CURRENTLY_OUT">🔄 Currently Out (In Rotation)</option>
+                <option value="ROTATED">✅ Has Rotated (1+ times)</option>
+                <option value="NEVER_ROTATED">⏸️ Never Rotated (0 times)</option>
+              </select>
+            </div>
+            <div class="view-toolbar-right">
+              <span id="sb-count-badge" class="tab-counter">0 units</span>
+            </div>
+          </div>
+
+          <!-- Tab 1: Stock Pool & Assignment -->
+          <div id="container-sb-pool" class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Service Battery Stock Inventory &amp; Customer Custody</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Serial No.</th>
+                    <th>Brand &amp; Model</th>
+                    <th>Status / Lock</th>
+                    <th>Current Customer / Ticket</th>
+                    <th>Rotation &amp; Days Out</th>
+                    <th>Condition / Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="sb-pool-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading service battery pool...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Rotation Tracker & Analytics -->
+          <div id="container-sb-rotation" style="display:none;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:18px;">
+              <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px;">
+                <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">🔄 Currently Out With Customers</div>
+                <div id="sb-currently-out-summary" style="font-size:14px; font-weight:700; color:#0f172a; margin-top:6px;">None currently out</div>
+              </div>
+              <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px;">
+                <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">🏆 Most Rotated Service Battery</div>
+                <div id="sb-most-rotated-summary" style="font-size:14px; font-weight:700; color:#0369a1; margin-top:6px;">No rotations recorded yet</div>
+              </div>
+              <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px;">
+                <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">⏸️ Idle / Never Rotated Stock</div>
+                <div id="sb-never-rotated-summary" style="font-size:14px; font-weight:700; color:#475569; margin-top:6px;">0 idle batteries</div>
+              </div>
+            </div>
+
+            <div class="card-table">
+              <div class="table-header-bar">
+                <div class="table-title">Service Battery Rotation Matrix (Sorted by Rotation Activity)</div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>SB Serial</th>
+                      <th>Model</th>
+                      <th>Times Rotated</th>
+                      <th>Rotation Status</th>
+                      <th>Current Holder / Ticket</th>
+                      <th>Last Rotated Date</th>
+                      <th>Total Days Rotated</th>
+                      <th>Quick Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sb-rotation-body">
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">No rotation analytics available yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Custody & Rotation Log -->
+          <div id="container-sb-logs" class="card-table" style="display:none;">
+            <div class="table-header-bar">
+              <div class="table-title">Chronological Service Battery Rotation &amp; Custody Audit Log</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date / Time</th>
+                    <th>Action</th>
+                    <th>SB Serial</th>
+                    <th>Model</th>
+                    <th>Customer / Mobile</th>
+                    <th>Ticket #</th>
+                    <th>Out / In Dates</th>
+                    <th>Days Out</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody id="sb-logs-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">No service battery logs recorded yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <!-- 9. REPORTS VIEW -->
         <section id="view-reports" class="app-view" style="display:none;">
           <div class="view-header">
@@ -2267,9 +2491,12 @@
 
           <!-- Tab 2: Battery Models Master -->
           <div id="container-cfg-models" class="card-table" style="display:none;">
-            <div class="table-header-bar">
+            <div class="table-header-bar" style="flex-wrap:wrap; gap:10px;">
               <div class="table-title">Registered Battery Models & Warranty Durations</div>
-              <button class="btn btn-primary btn-sm" onclick="openAddModelModal()">+ Add New Battery Model</button>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="filter-cfg-models-search" class="table-search-input" style="min-width:200px;" placeholder="🔍 Filter models..." oninput="renderSettingsView()">
+                <button class="btn btn-primary btn-sm" onclick="openAddModelModal()">+ Add New Battery Model</button>
+              </div>
             </div>
             <div class="table-responsive">
               <table class="data-table">
@@ -2283,10 +2510,11 @@
                     <th>Guarantee (M)</th>
                     <th>Pro-Rata (M)</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="cfg-models-body">
-                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading battery models...</td></tr>
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading battery models...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2399,7 +2627,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Battery Model *</label>
+              <label class="form-label">Battery Model * <a href="javascript:void(0)" onclick="openAddModelModal()" style="float:right; font-size:11px; color:var(--accent); font-weight:600; text-decoration:none;">+ Add Model</a></label>
               <select id="intake-model" class="form-select" required>
                 <option value="">-- Select Battery Model --</option>
               </select>
@@ -2422,6 +2650,14 @@
                 <option value="NO">No</option>
                 <option value="YES">Yes (Standby Lent)</option>
               </select>
+            </div>
+
+            <div class="form-group" id="group-sb-select" style="display:none; grid-column: span 2;">
+              <label class="form-label">Select Available Service Battery from Stock</label>
+              <select id="intake-sb-select" class="form-select" onchange="handleIntakeSbSelect(this.value)">
+                <option value="">-- Enter Custom / Unlisted Serial Below --</option>
+              </select>
+              <small id="intake-sb-stock-hint" style="color:#64748b;">Assigning from pool automatically blocks that service battery from other customers.</small>
             </div>
 
             <div class="form-group" id="group-sb-model" style="display:none;">
@@ -2611,6 +2847,12 @@
               <label class="form-label">Return Time</label>
               <input type="time" id="ret-time" class="form-control">
             </div>
+            <div class="form-group" id="ret-sb-recover-group" style="display:none; grid-column: span 2; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#1e40af;">
+                <input type="checkbox" id="ret-recover-sb" checked>
+                <span>🔋 Recover &amp; Return Service Battery (<span id="ret-recover-sb-serial" style="font-family:monospace;"></span>) back to Available Stock</span>
+              </label>
+            </div>
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Handover Remarks</label>
               <textarea id="ret-remarks" class="form-control" rows="2" placeholder="e.g. Signed Delivery Challan collected in file. Standby battery recovered."></textarea>
@@ -2776,6 +3018,12 @@
               <label class="form-label">Receiver Name *</label>
               <input type="text" id="close-receiver-name" class="form-control" required placeholder="Name of party">
             </div>
+            <div class="form-group" id="close-sb-recover-group" style="display:none; grid-column: span 2; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#1e40af;">
+                <input type="checkbox" id="close-recover-sb" checked>
+                <span>🔋 Recover &amp; Return Service Battery (<span id="close-recover-sb-serial" style="font-family:monospace;"></span>) back to Available Stock</span>
+              </label>
+            </div>
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Closure Remarks</label>
               <textarea id="close-remarks" class="form-control" rows="2" placeholder="e.g. Replacement battery handed over. Service loaner returned in good condition."></textarea>
@@ -2864,16 +3112,17 @@
     </div>
   </div>
 
-  <!-- 12. ADD BATTERY MODEL MODAL -->
+  <!-- 12. ADD / EDIT BATTERY MODEL MODAL -->
   <div class="modal" id="modal-add-model">
     <div class="modal-backdrop" onclick="closeModal('modal-add-model')"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title">Add New Battery Model to Master</h2>
+        <h2 class="modal-title" id="modal-model-title">Add New Battery Model to Master</h2>
         <button class="modal-close" onclick="closeModal('modal-add-model')">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-add-model" onsubmit="handleAddModelSubmit(event)">
+          <input type="hidden" id="edit-model-id">
           <div class="form-grid form-grid-2">
             <div class="form-group">
               <label class="form-label">Brand *</label>
@@ -3065,6 +3314,182 @@
     </div>
   </div>
 
+  <!-- 17. ADD SERVICE BATTERY STOCK MODAL -->
+  <div class="modal" id="modal-sb-add">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-add')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-sb-add-title">Add Service Battery to Available Stock</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-add')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-add" onsubmit="handleAddServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-edit-id">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Service Battery Serial No. *</label>
+              <input type="text" id="sb-add-serial" class="form-control" required placeholder="e.g. SB-8045" style="font-family:monospace; font-weight:bold;">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Brand *</label>
+              <input type="text" id="sb-add-brand" class="form-control" required value="Amaron">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Model Name / Type *</label>
+              <input type="text" id="sb-add-model" class="form-control" required placeholder="e.g. Standby Go 35Ah">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Capacity (Ah)</label>
+              <input type="number" id="sb-add-ah" class="form-control" value="35">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Condition / Notes</label>
+              <input type="text" id="sb-add-notes" class="form-control" placeholder="e.g. Fully charged, healthy standby unit">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                <input type="checkbox" id="sb-add-blocked" onchange="document.getElementById('sb-add-block-reason-group').style.display=this.checked?'block':'none'">
+                <span>Block immediately (not ready for lending yet)</span>
+              </label>
+            </div>
+            <div class="form-group" id="sb-add-block-reason-group" style="display:none; grid-column: span 2;">
+              <label class="form-label">Block Reason</label>
+              <input type="text" id="sb-add-block-reason" class="form-control" placeholder="e.g. Charging in progress">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-add')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Service Battery</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 18. ASSIGN SERVICE BATTERY MODAL -->
+  <div class="modal" id="modal-sb-assign">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-assign')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Assign Service Battery to Customer</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-assign')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-assign" onsubmit="handleAssignServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-assign-id">
+          <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div><strong>Battery Serial:</strong> <span id="sb-assign-view-serial" style="font-family:monospace; font-weight:800; color:#0369a1;"></span> | <strong>Model:</strong> <span id="sb-assign-view-model"></span></div>
+            <div style="font-size:11px; color:#0369a1; margin-top:4px;">🔒 Assigning automatically blocks this service battery from being issued to anyone else until returned.</div>
+          </div>
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Link Open Intake Ticket (Optional — auto-fills customer)</label>
+              <select id="sb-assign-ticket" class="form-select" onchange="handleAssignServiceBatterySelectTicket(this.value)">
+                <option value="">-- Direct Customer Assignment (No Ticket) --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Customer / Dealer Name *</label>
+              <input type="text" id="sb-assign-customer" class="form-control" required placeholder="Full Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mobile Number</label>
+              <input type="tel" id="sb-assign-mobile" class="form-control" placeholder="10-digit Mobile">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Issue Date *</label>
+              <input type="date" id="sb-assign-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Remarks</label>
+              <input type="text" id="sb-assign-remarks" class="form-control" placeholder="e.g. Standby battery issued">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-assign')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Assign &amp; Lock Battery</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 19. RETURN SERVICE BATTERY MODAL -->
+  <div class="modal" id="modal-sb-return">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-return')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Mark Service Battery Returned</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-return')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-return" onsubmit="handleReturnServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-return-id">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div><strong>Battery Serial:</strong> <span id="sb-return-view-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+            <div><strong>Returning From:</strong> <span id="sb-return-view-customer"></span></div>
+          </div>
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Return Date *</label>
+              <input type="date" id="sb-return-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Stock Status After Return *</label>
+              <select id="sb-return-action" class="form-select" onchange="document.getElementById('sb-return-block-group').style.display=(this.value==='BLOCKED')?'block':'none'">
+                <option value="AVAILABLE">AVAILABLE (Ready for next customer)</option>
+                <option value="BLOCKED">BLOCKED (Needs Charging / Check)</option>
+              </select>
+            </div>
+            <div class="form-group" id="sb-return-block-group" style="display:none; grid-column: span 2;">
+              <label class="form-label">Block Reason</label>
+              <input type="text" id="sb-return-block-reason" class="form-control" placeholder="e.g. Needs overnight bench recharge">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Condition &amp; Return Remarks</label>
+              <input type="text" id="sb-return-remarks" class="form-control" placeholder="e.g. Returned in healthy condition">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-return')">Cancel</button>
+            <button type="submit" class="btn btn-success">Confirm Return to Stock</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 20. BLOCK / UNBLOCK SERVICE BATTERY MODAL -->
+  <div class="modal" id="modal-sb-block">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-block')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="sb-block-modal-title">Block Service Battery</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-block')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-block" onsubmit="handleBlockServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-block-id">
+          <input type="hidden" id="sb-block-mode">
+          <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px; margin-bottom:14px;" id="sb-block-info-box">
+            <strong>Battery Serial:</strong> <span id="sb-block-view-serial" style="font-family:monospace; font-weight:bold;"></span>
+          </div>
+          <div class="form-group" id="sb-block-reason-group">
+            <label class="form-label">Block Reason *</label>
+            <input type="text" id="sb-block-reason" class="form-control" placeholder="e.g. Battery weak / Under charging / Reserved / Customer dispute">
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-block')">Cancel</button>
+            <button type="submit" class="btn btn-danger" id="sb-block-submit-btn">Block Battery</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direct Print Mount (Hidden on screen, visible only in @media print) -->
+  <div id="direct-print-root" aria-hidden="true"></div>
+
   <!-- Notification Toast -->
   <div id="toast" class="toast">
     <span id="toast-icon">ℹ️</span>
@@ -3091,6 +3516,8 @@ window.BWMS = {
   dispatches: [],
   dispatchItems: [],
   stockUpdates: [],
+  serviceBatteries: [],
+  serviceBatteryLogs: [],
   auditLog: [],
   dashboard: {},
   reports: {},
@@ -3101,6 +3528,7 @@ window.BWMS = {
   repTab: 'pending',
   stockTab: 'pending',
   challansTab: 'all',
+  sbTab: 'pool',
   settingsTab: 'profile',
   isSyncing: false,
   lastSyncedAt: null
@@ -3196,6 +3624,8 @@ function saveStateToLocalCache() {
         Company_Dispatches: BWMS.dispatches,
         Company_Dispatch_Items: BWMS.dispatchItems,
         Stock_Update_Log: BWMS.stockUpdates,
+        Service_Batteries: BWMS.serviceBatteries,
+        Service_Battery_Logs: BWMS.serviceBatteryLogs,
         Audit_Log: BWMS.auditLog
       },
       config: BWMS.config,
@@ -3208,6 +3638,8 @@ function saveStateToLocalCache() {
       dispatches: BWMS.dispatches,
       dispatchItems: BWMS.dispatchItems,
       stockUpdates: BWMS.stockUpdates,
+      serviceBatteries: BWMS.serviceBatteries,
+      serviceBatteryLogs: BWMS.serviceBatteryLogs,
       auditLog: BWMS.auditLog,
       currentUser: BWMS.currentUser,
       syncedAt: new Date().toISOString()
@@ -3263,6 +3695,8 @@ function applyStateData(data) {
   BWMS.dispatches = data.dispatches || t.Company_Dispatches || [];
   BWMS.dispatchItems = data.dispatchItems || t.Company_Dispatch_Items || [];
   BWMS.stockUpdates = data.stockUpdates || t.Stock_Update_Log || [];
+  BWMS.serviceBatteries = data.serviceBatteries || t.Service_Batteries || [];
+  BWMS.serviceBatteryLogs = data.serviceBatteryLogs || t.Service_Battery_Logs || [];
   BWMS.auditLog = data.auditLog || t.Audit_Log || [];
   BWMS.currentUser = data.currentUser || BWMS.currentUser;
   BWMS.dashboard = data.dashboard || {};
@@ -3324,6 +3758,7 @@ function populateDropdowns() {
     var defaultText = selId.startsWith('filter') ? 'All Battery Models' : '-- Select Battery Model --';
     sel.innerHTML = '<option value="' + (selId.startsWith('filter') ? 'ALL' : '') + '">' + defaultText + '</option>';
     (BWMS.models || []).forEach(function(m) {
+      if (m.is_active === false || String(m.is_active).toUpperCase() === 'FALSE') return;
       var opt = document.createElement('option');
       opt.value = m.model_name || m.model_code;
       var gM = m.guarantee_months || 12;
@@ -3334,6 +3769,32 @@ function populateDropdowns() {
     });
     if (currentVal) sel.value = currentVal;
   });
+
+  // Service Battery Stock Select (only AVAILABLE & not blocked)
+  var sbSel = document.getElementById('intake-sb-select');
+  if (sbSel) {
+    var curSb = sbSel.value;
+    sbSel.innerHTML = '<option value="">-- Enter Custom / Unlisted Serial Below --</option>';
+    var allSb = BWMS.serviceBatteries || [];
+    var availSb = allSb.filter(function(sb) {
+      var st = String(sb.status || 'AVAILABLE').toUpperCase();
+      var blk = (sb.is_blocked === true || String(sb.is_blocked).toUpperCase() === 'TRUE');
+      return st === 'AVAILABLE' && !blk;
+    });
+    availSb.forEach(function(sb) {
+      var opt = document.createElement('option');
+      opt.value = sb.sb_id || sb.serial_no;
+      opt.textContent = sb.serial_no + ' — ' + (sb.model_name || 'Service Battery') + (sb.capacity_ah ? ' (' + sb.capacity_ah + 'Ah)' : '') + ' [' + (sb.rotation_count || 0) + ' rotations]';
+      sbSel.appendChild(opt);
+    });
+    if (curSb) sbSel.value = curSb;
+    var hintEl = document.getElementById('intake-sb-stock-hint');
+    if (hintEl) {
+      var outCnt = allSb.filter(function(s) { return String(s.status).toUpperCase() === 'ASSIGNED'; }).length;
+      var blkCnt = allSb.filter(function(s) { return String(s.status).toUpperCase() === 'BLOCKED' || s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE'; }).length;
+      hintEl.textContent = availSb.length + ' available in stock (' + outCnt + ' assigned/out, ' + blkCnt + ' blocked). Picking a battery locks it for this customer.';
+    }
+  }
 
   // Dealer Selects
   var dealerSelects = ['intake-dealer-name'];
@@ -3458,6 +3919,7 @@ function renderCurrentView(params) {
   else if (v === 'replacement-pending') renderReplacementsTables();
   else if (v === 'stock-tasks') renderStockTasksTables();
   else if (v === 'challans') renderChallansTable(params);
+  else if (v === 'service-batteries') renderServiceBatteriesView();
   else if (v === 'reports') renderReportsView();
   else if (v === 'audit') renderAuditTable();
   else if (v === 'settings') renderSettingsView();
@@ -3493,11 +3955,16 @@ function renderDashboard() {
   renderWarrantyPipeline('dashboard-pipeline-container');
 
   // KPI Elements
+  var sbList = BWMS.serviceBatteries || [];
+  var sbAvailCount = sbList.filter(function(s) {
+    return String(s.status || 'AVAILABLE').toUpperCase() === 'AVAILABLE' && !(s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE');
+  }).length;
   setElText('kpi-total-tickets', tickets.length);
   setElText('kpi-pending-tests', underTesting);
   setElText('kpi-pending-company', readyForCompany);
   setElText('kpi-replacement-due', sentToCompany);
   setElText('kpi-stock-tasks', stockTasksPending);
+  setElText('kpi-sb-available', sbAvailCount + ' / ' + sbList.length);
 
   // Sidebar Badges
   setElText('badge-tickets', tickets.length);
@@ -3506,6 +3973,7 @@ function renderDashboard() {
   setElText('badge-pending-company', readyForCompany);
   setElText('badge-replacement-due', sentToCompany);
   setElText('badge-stock-tasks', stockTasksPending);
+  setElText('badge-service-batteries', sbAvailCount);
 
   // Attention Counts
   setElText('att-lab-count', underTesting);
@@ -3667,10 +4135,25 @@ function toggleSourceFields() {
 function toggleServiceBatteryFields() {
   var val = document.getElementById('intake-service-issued').value;
   var show = (val === 'YES');
+  var selGroup = document.getElementById('group-sb-select');
   var mGroup = document.getElementById('group-sb-model');
   var sGroup = document.getElementById('group-sb-serial');
+  if (selGroup) selGroup.style.display = show ? 'block' : 'none';
   if (mGroup) mGroup.style.display = show ? 'block' : 'none';
   if (sGroup) sGroup.style.display = show ? 'block' : 'none';
+}
+
+function handleIntakeSbSelect(val) {
+  if (!val) return;
+  var sb = (BWMS.serviceBatteries || []).find(function(s) {
+    return s.sb_id === val || s.serial_no === val;
+  });
+  if (sb) {
+    var mEl = document.getElementById('intake-sb-model');
+    var sEl = document.getElementById('intake-sb-serial');
+    if (mEl) mEl.value = sb.model_name || '';
+    if (sEl) sEl.value = sb.serial_no || '';
+  }
 }
 
 function handleIntakeSubmit(e) {
@@ -3686,6 +4169,26 @@ function handleIntakeSubmit(e) {
     return;
   }
 
+  var sbIssued = document.getElementById('intake-service-issued').value === 'YES';
+  var sbSerialVal = document.getElementById('intake-sb-serial').value.trim();
+  if (sbIssued && sbSerialVal) {
+    var existingSb = (BWMS.serviceBatteries || []).find(function(s) {
+      return String(s.serial_no || '').trim().toLowerCase() === sbSerialVal.toLowerCase();
+    });
+    if (existingSb) {
+      var sbStatus = String(existingSb.status || 'AVAILABLE').toUpperCase();
+      var sbBlocked = existingSb.is_blocked === true || String(existingSb.is_blocked).toUpperCase() === 'TRUE';
+      if (sbBlocked || sbStatus === 'BLOCKED') {
+        showToast('Service battery ' + sbSerialVal + ' is BLOCKED (' + (existingSb.block_reason || 'Unavailable') + '). Pick an available battery.', 'error');
+        return;
+      }
+      if (sbStatus === 'ASSIGNED') {
+        showToast('Service battery ' + sbSerialVal + ' is already ASSIGNED to ' + (existingSb.current_customer_name || existingSb.current_ticket_no) + ' and locked.', 'error');
+        return;
+      }
+    }
+  }
+
   var ticketData = {
     source_type: document.getElementById('intake-source').value,
     dealer_name: document.getElementById('intake-dealer-name').value,
@@ -3696,9 +4199,9 @@ function handleIntakeSubmit(e) {
     battery_model: document.getElementById('intake-model').value,
     original_serial_no: cleanSerial,
     date_received: document.getElementById('intake-date').value,
-    service_battery_issued: document.getElementById('intake-service-issued').value === 'YES',
+    service_battery_issued: sbIssued,
     service_battery_model: document.getElementById('intake-sb-model').value,
-    service_battery_serial: document.getElementById('intake-sb-serial').value,
+    service_battery_serial: sbSerialVal,
     remarks: document.getElementById('intake-remarks').value
   };
 
@@ -3719,6 +4222,12 @@ function handleIntakeSubmit(e) {
   callServer('apiCreateTicket', [ticketData], function(res) {
     BWMS.tickets = (BWMS.tickets || []).filter(function(t) { return t.ticket_no !== tempTicketNo; });
     if (res && res.success) {
+      if (res.data && res.data.ticket_no) {
+        BWMS.tickets.push(res.data);
+        saveStateToLocalCache();
+        renderTicketsTable();
+        renderDashboard();
+      }
       showToast(res.message || 'Ticket generated successfully!', 'success');
       syncAllData(false);
 
@@ -4106,6 +4615,14 @@ function handleClaimSubmit(e) {
 
   callServer('apiCreateClaim', [claimData], function(res) {
     if (res && res.success) {
+      if (res.data && res.data.claim_no) {
+        var idx = (BWMS.claims || []).findIndex(function(c) { return c.claim_no === res.data.claim_no; });
+        if (idx === -1) BWMS.claims.push(res.data);
+        else BWMS.claims[idx] = res.data;
+        var tkt = (BWMS.tickets || []).find(function(t) { return t.ticket_no === res.data.ticket_no; });
+        if (tkt) tkt.status = 'CLAIM_CREATED';
+        saveStateToLocalCache();
+      }
       showToast(res.message || 'Warranty claim created!', 'success');
       syncAllData(false);
       if (confirm('Claim ' + res.data.claim_no + ' generated! Print official Claim Form for battery company?')) {
@@ -4266,6 +4783,49 @@ function handleDispatchSubmit(e) {
 
   callServer('apiCreateCompanyDispatch', [data], function(res) {
     if (res && res.success) {
+      if (res.data && res.data.company_challan_no) {
+        var bNo = res.data.dispatch_batch_no;
+        var cChNo = res.data.company_challan_no;
+        if (!(BWMS.dispatches || []).some(function(d) { return d.dispatch_batch_no === bNo; })) {
+          BWMS.dispatches.push({
+            dispatch_batch_no: bNo,
+            company_name: data.company_name,
+            destination: data.destination,
+            company_challan_no: cChNo,
+            dispatch_date: data.dispatch_date,
+            carrier_transporter: data.transporter,
+            lr_docket_no: data.lr_docket_no,
+            claim_count: (data.claim_nos || []).length,
+            battery_count: (data.claim_nos || []).length,
+            created_by: (BWMS.currentUser && BWMS.currentUser.name) || 'Staff',
+            remarks: data.remarks || ''
+          });
+        }
+        if (!(BWMS.challans || []).some(function(ch) { return ch.challan_no === cChNo; })) {
+          BWMS.challans.push({
+            challan_no: cChNo,
+            challan_type: 'COMPANY_DISPATCH',
+            challan_date: data.dispatch_date,
+            recipient_type: 'COMPANY',
+            recipient_name: data.company_name,
+            address: data.destination,
+            battery_model: 'Consolidated Batch (' + (data.claim_nos || []).length + ' Batteries)',
+            battery_serial_no: 'BATCH-' + bNo,
+            quantity: (data.claim_nos || []).length,
+            status: 'GENERATED'
+          });
+        }
+        (data.claim_nos || []).forEach(function(cNo) {
+          var clm = (BWMS.claims || []).find(function(c) { return c.claim_no === cNo; });
+          if (clm) {
+            clm.status = 'SENT_TO_COMPANY';
+            clm.dispatch_batch_no = bNo;
+            clm.company_challan_no = cChNo;
+            clm.company_dispatch_date = data.dispatch_date;
+          }
+        });
+        saveStateToLocalCache();
+      }
       BWMS.selectedDispatchClaims.clear();
       showToast(res.message || 'Company dispatch batch created!', 'success');
       syncAllData(false);
@@ -4598,16 +5158,39 @@ function openCloseClaimModal(claimNo) {
   if (c && document.getElementById('close-receiver-name')) {
     document.getElementById('close-receiver-name').value = c.customer_name || c.dealer_name || '';
   }
+  var sbGroup = document.getElementById('close-sb-recover-group');
+  var sbChk = document.getElementById('close-recover-sb');
+  var sbSerEl = document.getElementById('close-recover-sb-serial');
+  var tkt = c && c.ticket_no ? (BWMS.tickets || []).find(function(t) { return t.ticket_no === c.ticket_no; }) : null;
+  var assignedSb = (BWMS.serviceBatteries || []).find(function(s) {
+    return String(s.status).toUpperCase() === 'ASSIGNED' &&
+      ((tkt && s.current_ticket_no === tkt.ticket_no) || (tkt && tkt.service_battery_serial && s.serial_no === tkt.service_battery_serial));
+  });
+  var sbSerial = (assignedSb && assignedSb.serial_no) || (tkt && tkt.service_battery_issued && tkt.service_battery_serial) || '';
+  if (sbGroup && sbChk) {
+    if (sbSerial) {
+      sbGroup.style.display = 'block';
+      sbChk.checked = true;
+      if (sbSerEl) sbSerEl.textContent = sbSerial;
+    } else {
+      sbGroup.style.display = 'none';
+      sbChk.checked = false;
+    }
+  }
   openModal('modal-close-claim');
 }
 
 function handleCloseClaimSubmit(e) {
   e.preventDefault();
+  var sbGroup = document.getElementById('close-sb-recover-group');
+  var sbChk = document.getElementById('close-recover-sb');
+  var recoverSb = (sbGroup && sbGroup.style.display !== 'none' && sbChk && sbChk.checked);
   var data = {
     claim_no: document.getElementById('close-claim-no').value,
     delivery_date: document.getElementById('close-del-date').value,
     receiver_name: document.getElementById('close-receiver-name').value,
-    remarks: document.getElementById('close-remarks').value
+    remarks: document.getElementById('close-remarks').value,
+    return_service_battery: recoverSb
   };
 
   closeModal('modal-close-claim');
@@ -4757,6 +5340,12 @@ function renderChallansTable(params) {
 function createReturnChallan(ticketNo) {
   callServer('apiCreateReturnChallan', [ticketNo], function(res) {
     if (res && res.success) {
+      if (res.data && res.data.challan_no) {
+        if (!(BWMS.challans || []).some(function(ch) { return ch.challan_no === res.data.challan_no; })) {
+          BWMS.challans.push(res.data);
+          saveStateToLocalCache();
+        }
+      }
       showToast(res.message || 'Return Delivery Challan generated.', 'success');
       syncAllData(false);
       if (confirm('Challan ' + res.data.challan_no + ' created! Would you like to view/print it now?')) {
@@ -4774,6 +5363,28 @@ function openMarkReturnedModal(challanNo) {
   document.getElementById('ret-date').value = new Date().toISOString().split('T')[0];
   var now = new Date();
   document.getElementById('ret-time').value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+  var sbGroup = document.getElementById('ret-sb-recover-group');
+  var sbChk = document.getElementById('ret-recover-sb');
+  var sbSerEl = document.getElementById('ret-recover-sb-serial');
+  var ch = (BWMS.challans || []).find(function(c) { return c.challan_no === challanNo; });
+  var tkt = ch && ch.ticket_no ? (BWMS.tickets || []).find(function(t) { return t.ticket_no === ch.ticket_no; }) : null;
+  var assignedSb = (BWMS.serviceBatteries || []).find(function(s) {
+    return String(s.status).toUpperCase() === 'ASSIGNED' &&
+      ((tkt && s.current_ticket_no === tkt.ticket_no) || (tkt && tkt.service_battery_serial && s.serial_no === tkt.service_battery_serial));
+  });
+  var sbSerial = (assignedSb && assignedSb.serial_no) || (tkt && tkt.service_battery_issued && tkt.service_battery_serial) || '';
+  if (sbGroup && sbChk) {
+    if (sbSerial) {
+      sbGroup.style.display = 'block';
+      sbChk.checked = true;
+      if (sbSerEl) sbSerEl.textContent = sbSerial;
+    } else {
+      sbGroup.style.display = 'none';
+      sbChk.checked = false;
+    }
+  }
+
   openModal('modal-mark-returned');
 }
 
@@ -4781,6 +5392,9 @@ function handleMarkReturnedSubmit(e) {
   e.preventDefault();
   var recName = document.getElementById('ret-receiver-name').value;
   var retDate = document.getElementById('ret-date').value;
+  var sbGroup = document.getElementById('ret-sb-recover-group');
+  var sbChk = document.getElementById('ret-recover-sb');
+  var recoverSb = (sbGroup && sbGroup.style.display !== 'none' && sbChk && sbChk.checked);
   var data = {
     challan_no: document.getElementById('ret-challan-no').value,
     received_by_name: recName,
@@ -4789,7 +5403,8 @@ function handleMarkReturnedSubmit(e) {
     return_date: retDate,
     receiver_mobile: document.getElementById('ret-receiver-mobile').value,
     return_time: document.getElementById('ret-time').value,
-    remarks: document.getElementById('ret-remarks').value
+    remarks: document.getElementById('ret-remarks').value,
+    return_service_battery: recoverSb
   };
 
   closeModal('modal-mark-returned');
@@ -4802,6 +5417,509 @@ function handleMarkReturnedSubmit(e) {
       showToast((res && res.error) ? res.error : 'Failed to confirm return', 'error');
     }
   });
+}
+
+// ─── SERVICE BATTERIES STOCK, ASSIGNMENT, BLOCKING & ROTATION TRACKER ─────────
+
+function switchSbTab(tab) {
+  BWMS.sbTab = tab;
+  var tabs = ['pool', 'rotation', 'logs'];
+  tabs.forEach(function(t) {
+    var btn = document.getElementById('tab-btn-sb-' + t);
+    var cont = document.getElementById('container-sb-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (cont) cont.style.display = (t === tab) ? 'block' : 'none';
+  });
+  renderServiceBatteriesView();
+}
+
+function renderServiceBatteriesView() {
+  var pool = BWMS.serviceBatteries || [];
+  var logs = BWMS.serviceBatteryLogs || [];
+
+  var total = pool.length;
+  var availList = pool.filter(function(s) {
+    var st = String(s.status || 'AVAILABLE').toUpperCase();
+    var blk = s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE';
+    return st === 'AVAILABLE' && !blk;
+  });
+  var assignedList = pool.filter(function(s) {
+    return String(s.status || '').toUpperCase() === 'ASSIGNED';
+  });
+  var blockedList = pool.filter(function(s) {
+    var st = String(s.status || '').toUpperCase();
+    var blk = s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE';
+    return st === 'BLOCKED' || blk;
+  });
+  var totalRotations = pool.reduce(function(sum, s) {
+    return sum + (parseInt(s.rotation_count, 10) || 0);
+  }, 0);
+
+  setElText('sb-kpi-total', total);
+  setElText('sb-kpi-available', availList.length);
+  setElText('sb-kpi-assigned', assignedList.length);
+  setElText('sb-kpi-blocked', blockedList.length);
+  setElText('sb-kpi-rotations', totalRotations);
+  setElText('badge-service-batteries', availList.length);
+
+  setElText('sb-pool-count', total);
+  setElText('sb-rotation-count', total);
+  setElText('sb-logs-count', logs.length);
+
+  var search = (document.getElementById('filter-sb-search') ? document.getElementById('filter-sb-search').value : '').toLowerCase().trim();
+  var statusFilter = document.getElementById('filter-sb-status') ? document.getElementById('filter-sb-status').value : 'ALL';
+  var rotFilter = document.getElementById('filter-sb-rotation') ? document.getElementById('filter-sb-rotation').value : 'ALL';
+
+  var filtered = pool.filter(function(s) {
+    var st = String(s.status || 'AVAILABLE').toUpperCase();
+    var blk = s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE';
+    var rotCnt = parseInt(s.rotation_count, 10) || 0;
+
+    if (statusFilter === 'AVAILABLE' && (st !== 'AVAILABLE' || blk)) return false;
+    if (statusFilter === 'ASSIGNED' && st !== 'ASSIGNED') return false;
+    if (statusFilter === 'BLOCKED' && st !== 'BLOCKED' && !blk) return false;
+
+    if (rotFilter === 'CURRENTLY_OUT' && st !== 'ASSIGNED') return false;
+    if (rotFilter === 'ROTATED' && rotCnt < 1) return false;
+    if (rotFilter === 'NEVER_ROTATED' && rotCnt > 0) return false;
+
+    if (search) {
+      var blob = [s.sb_id, s.serial_no, s.brand, s.model_name, s.current_customer_name, s.current_mobile, s.current_ticket_no, s.block_reason, s.condition_notes].join(' ').toLowerCase();
+      if (blob.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+
+  setElText('sb-count-badge', filtered.length + ' of ' + total + ' units');
+
+  // Tab 1: Stock Pool & Assignment
+  var tbodyPool = document.getElementById('sb-pool-body');
+  if (tbodyPool) {
+    tbodyPool.innerHTML = '';
+    if (filtered.length === 0) {
+      tbodyPool.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#94a3b8;">No service batteries match the current filter. Click "+ Add Service Battery" to record available stock.</td></tr>';
+    } else {
+      filtered.forEach(function(s) {
+        var st = String(s.status || 'AVAILABLE').toUpperCase();
+        var blk = s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE';
+        var rotCnt = parseInt(s.rotation_count, 10) || 0;
+        var daysOut = (st === 'ASSIGNED' && s.assigned_date) ? calcDaysElapsed(s.assigned_date) : 0;
+
+        var statusHtml = '';
+        if (st === 'ASSIGNED') {
+          statusHtml = '<span class="badge badge-sb-assigned">🔒 ASSIGNED (LOCKED)</span>';
+          if (blk) statusHtml += '<br><span class="badge badge-sb-blocked" style="margin-top:4px;">🚫 BLOCKED: ' + escapeHtml(s.block_reason || 'Hold') + '</span>';
+        } else if (blk || st === 'BLOCKED') {
+          statusHtml = '<span class="badge badge-sb-blocked">🚫 BLOCKED</span>' + (s.block_reason ? '<br><small style="color:#b91c1c;">' + escapeHtml(s.block_reason) + '</small>' : '');
+        } else {
+          statusHtml = '<span class="badge badge-sb-available">✅ AVAILABLE</span>';
+        }
+
+        var custodyHtml = '<span style="color:#94a3b8;">In Shop Stock</span>';
+        if (st === 'ASSIGNED') {
+          custodyHtml = '<strong>' + escapeHtml(s.current_customer_name || 'Customer') + '</strong>' +
+            (s.current_mobile ? '<br><small style="color:#64748b;">📞 ' + escapeHtml(s.current_mobile) + '</small>' : '') +
+            (s.current_ticket_no ? '<br><small style="color:var(--accent); cursor:pointer; font-weight:700;" onclick="showTimeline(\'' + escapeHtml(s.current_ticket_no) + '\')">🎫 ' + escapeHtml(s.current_ticket_no) + '</small>' : '');
+        }
+
+        var rotHtml = '<span class="rotation-pill ' + (st === 'ASSIGNED' ? 'active-out' : (rotCnt > 0 ? 'rotated' : '')) + '">🔄 ' + rotCnt + ' rotation' + (rotCnt === 1 ? '' : 's') + '</span>';
+        if (st === 'ASSIGNED') {
+          rotHtml += '<br><small style="color:#b45309; font-weight:700;">Out ' + daysOut + 'd (since ' + formatDate(s.assigned_date) + ')</small>';
+        } else if (s.last_rotated_date) {
+          rotHtml += '<br><small style="color:#64748b;">Last: ' + formatDate(s.last_rotated_date) + '</small>';
+        }
+
+        var actHtml = '<div style="display:flex; gap:6px; flex-wrap:wrap;">';
+        if (st === 'AVAILABLE' && !blk) {
+          actHtml += '<button class="btn btn-primary btn-sm" onclick="openAssignServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\')">🤝 Assign</button>';
+          actHtml += '<button class="btn btn-secondary btn-sm" onclick="openBlockServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', true)">🚫 Block</button>';
+          actHtml += '<button class="btn btn-danger btn-sm" onclick="deleteServiceBattery(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', \'' + escapeHtml(s.serial_no) + '\')">🗑️</button>';
+        } else if (st === 'ASSIGNED') {
+          actHtml += '<button class="btn btn-success btn-sm" onclick="openReturnServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\')">↩️ Return</button>';
+          if (!blk) {
+            actHtml += '<button class="btn btn-secondary btn-sm" onclick="openBlockServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', true)">🚫 Block</button>';
+          } else {
+            actHtml += '<button class="btn btn-secondary btn-sm" onclick="openBlockServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', false)">🔓 Unblock</button>';
+          }
+        } else {
+          actHtml += '<button class="btn btn-success btn-sm" onclick="openBlockServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', false)">🔓 Unblock</button>';
+          actHtml += '<button class="btn btn-danger btn-sm" onclick="deleteServiceBattery(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', \'' + escapeHtml(s.serial_no) + '\')">🗑️</button>';
+        }
+        actHtml += '</div>';
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><span class="serial-badge">' + escapeHtml(s.serial_no) + '</span><br><small style="color:#94a3b8;">' + escapeHtml(s.sb_id || '') + '</small></td>' +
+          '<td><strong>' + escapeHtml(s.brand || 'Amaron') + '</strong> — ' + escapeHtml(s.model_name || '-') + '<br><small style="color:#64748b;">' + (s.capacity_ah ? s.capacity_ah + ' Ah' : '') + '</small></td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td>' + custodyHtml + '</td>' +
+          '<td>' + rotHtml + '</td>' +
+          '<td><small>' + escapeHtml(s.condition_notes || '-') + '</small></td>' +
+          '<td>' + actHtml + '</td>';
+        tbodyPool.appendChild(tr);
+      });
+    }
+  }
+
+  // Tab 2: Rotation Tracker & Analytics
+  var outNames = assignedList.map(function(s) {
+    return s.serial_no + ' (' + (s.current_customer_name || 'Cust') + ', ' + calcDaysElapsed(s.assigned_date) + 'd)';
+  });
+  setElText('sb-currently-out-summary', outNames.length > 0 ? outNames.slice(0, 3).join(' • ') + (outNames.length > 3 ? ' +' + (outNames.length - 3) + ' more' : '') : 'All service batteries in shop');
+
+  var sortedRot = pool.slice().sort(function(a, b) {
+    var aOut = String(a.status).toUpperCase() === 'ASSIGNED' ? 1 : 0;
+    var bOut = String(b.status).toUpperCase() === 'ASSIGNED' ? 1 : 0;
+    if (aOut !== bOut) return bOut - aOut;
+    return (parseInt(b.rotation_count, 10) || 0) - (parseInt(a.rotation_count, 10) || 0);
+  });
+  var topRot = sortedRot.length > 0 && (parseInt(sortedRot[0].rotation_count, 10) || 0) > 0 ? sortedRot[0] : null;
+  setElText('sb-most-rotated-summary', topRot ? (topRot.serial_no + ' — ' + topRot.rotation_count + ' rotations') : 'No rotations recorded yet');
+  var neverCnt = pool.filter(function(s) { return (parseInt(s.rotation_count, 10) || 0) === 0; }).length;
+  setElText('sb-never-rotated-summary', neverCnt + ' idle unit' + (neverCnt === 1 ? '' : 's') + ' (0 rotations)');
+
+  // Sum total days rotated per battery from logs
+  var daysBySerial = {};
+  logs.forEach(function(l) {
+    if (l.action_type === 'RETURNED' && l.serial_no) {
+      daysBySerial[l.serial_no] = (daysBySerial[l.serial_no] || 0) + (parseInt(l.days_rotated, 10) || 0);
+    }
+  });
+
+  var tbodyRot = document.getElementById('sb-rotation-body');
+  if (tbodyRot) {
+    tbodyRot.innerHTML = '';
+    if (sortedRot.length === 0) {
+      tbodyRot.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#94a3b8;">No service batteries in stock pool yet.</td></tr>';
+    } else {
+      sortedRot.forEach(function(s) {
+        var st = String(s.status || 'AVAILABLE').toUpperCase();
+        var rotCnt = parseInt(s.rotation_count, 10) || 0;
+        var daysOut = (st === 'ASSIGNED' && s.assigned_date) ? calcDaysElapsed(s.assigned_date) : 0;
+        var totalDays = (daysBySerial[s.serial_no] || 0) + daysOut;
+        var rotStateBadge = st === 'ASSIGNED'
+          ? '<span class="badge badge-amber">🔄 Currently Rotated Out (' + daysOut + 'd)</span>'
+          : (rotCnt > 0 ? '<span class="badge badge-green">✅ Rotated (' + rotCnt + 'x)</span>' : '<span class="badge badge-gray">⏸️ Never Rotated</span>');
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><span class="serial-badge">' + escapeHtml(s.serial_no) + '</span></td>' +
+          '<td>' + escapeHtml(s.model_name || '-') + '</td>' +
+          '<td><strong>' + rotCnt + '</strong></td>' +
+          '<td>' + rotStateBadge + '</td>' +
+          '<td>' + (st === 'ASSIGNED' ? ('<strong>' + escapeHtml(s.current_customer_name || '-') + '</strong>' + (s.current_ticket_no ? ' (' + escapeHtml(s.current_ticket_no) + ')' : '')) : '<span style="color:#94a3b8;">In Stock</span>') + '</td>' +
+          '<td>' + (s.last_rotated_date ? formatDate(s.last_rotated_date) : '-') + '</td>' +
+          '<td><strong>' + totalDays + ' day' + (totalDays === 1 ? '' : 's') + '</strong></td>' +
+          '<td>' + (st === 'ASSIGNED'
+            ? '<button class="btn btn-success btn-sm" onclick="openReturnServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\')">↩️ Mark Returned</button>'
+            : (st === 'AVAILABLE' && !(s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE')
+              ? '<button class="btn btn-primary btn-sm" onclick="openAssignServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\')">🤝 Assign</button>'
+              : '<button class="btn btn-secondary btn-sm" onclick="openBlockServiceBatteryModal(\'' + escapeHtml(s.sb_id || s.serial_no) + '\', false)">🔓 Unblock</button>')) + '</td>';
+        tbodyRot.appendChild(tr);
+      });
+    }
+  }
+
+  // Tab 3: Custody & Rotation Log
+  var tbodyLogs = document.getElementById('sb-logs-body');
+  if (tbodyLogs) {
+    tbodyLogs.innerHTML = '';
+    var filteredLogs = logs.filter(function(l) {
+      if (!search) return true;
+      var blob = [l.serial_no, l.model_name, l.action_type, l.customer_name, l.mobile, l.ticket_no, l.remarks].join(' ').toLowerCase();
+      return blob.indexOf(search) !== -1;
+    });
+    if (filteredLogs.length === 0) {
+      tbodyLogs.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No rotation or custody events logged yet.</td></tr>';
+    } else {
+      filteredLogs.slice().reverse().slice(0, 150).forEach(function(l) {
+        var actBadgeClass = l.action_type === 'ASSIGNED' ? 'badge-blue' : (l.action_type === 'RETURNED' ? 'badge-green' : (l.action_type === 'BLOCKED' || l.action_type === 'REMOVED' ? 'badge-red' : 'badge-gray'));
+        var datesText = (l.assigned_date ? 'Out: ' + formatDate(l.assigned_date) : '') + (l.returned_date ? '<br>In: ' + formatDate(l.returned_date) : '');
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><small style="color:#64748b;">' + formatDate(l.created_at) + '</small></td>' +
+          '<td><span class="badge ' + actBadgeClass + '">' + escapeHtml(l.action_type || '-') + '</span></td>' +
+          '<td><span class="serial-badge">' + escapeHtml(l.serial_no || '-') + '</span></td>' +
+          '<td>' + escapeHtml(l.model_name || '-') + '</td>' +
+          '<td>' + (l.customer_name ? ('<strong>' + escapeHtml(l.customer_name) + '</strong>' + (l.mobile ? '<br><small>' + escapeHtml(l.mobile) + '</small>' : '')) : '-') + '</td>' +
+          '<td>' + (l.ticket_no ? '<strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + escapeHtml(l.ticket_no) + '\')">' + escapeHtml(l.ticket_no) + '</strong>' : '-') + '</td>' +
+          '<td><small>' + (datesText || '-') + '</small></td>' +
+          '<td>' + (l.days_rotated !== '' && l.days_rotated !== undefined && l.action_type === 'RETURNED' ? ('<strong>' + l.days_rotated + 'd</strong>') : '-') + '</td>' +
+          '<td><small>' + escapeHtml(l.remarks || '-') + '</small></td>';
+        tbodyLogs.appendChild(tr);
+      });
+    }
+  }
+}
+
+function openAddServiceBatteryModal(sbId) {
+  document.getElementById('form-sb-add').reset();
+  document.getElementById('sb-edit-id').value = sbId || '';
+  document.getElementById('sb-add-block-reason-group').style.display = 'none';
+  if (sbId) {
+    var sb = (BWMS.serviceBatteries || []).find(function(s) { return s.sb_id === sbId || s.serial_no === sbId; });
+    if (sb) {
+      document.getElementById('modal-sb-add-title').textContent = 'Edit Service Battery';
+      document.getElementById('sb-add-serial').value = sb.serial_no || '';
+      document.getElementById('sb-add-brand').value = sb.brand || 'Amaron';
+      document.getElementById('sb-add-model').value = sb.model_name || '';
+      document.getElementById('sb-add-ah').value = sb.capacity_ah || 35;
+      document.getElementById('sb-add-notes').value = sb.condition_notes || '';
+    }
+  } else {
+    document.getElementById('modal-sb-add-title').textContent = 'Add Service Battery to Available Stock';
+    document.getElementById('sb-add-brand').value = 'Amaron';
+    document.getElementById('sb-add-ah').value = '35';
+  }
+  openModal('modal-sb-add');
+}
+
+function handleAddServiceBatterySubmit(e) {
+  e.preventDefault();
+  var payload = {
+    sb_id: document.getElementById('sb-edit-id').value || '',
+    serial_no: document.getElementById('sb-add-serial').value.trim(),
+    brand: document.getElementById('sb-add-brand').value.trim(),
+    model_name: document.getElementById('sb-add-model').value.trim(),
+    capacity_ah: document.getElementById('sb-add-ah').value,
+    condition_notes: document.getElementById('sb-add-notes').value.trim(),
+    is_blocked: document.getElementById('sb-add-blocked').checked,
+    block_reason: document.getElementById('sb-add-block-reason').value.trim()
+  };
+
+  closeModal('modal-sb-add');
+
+  callServer('apiAddServiceBattery', [payload], function(res) {
+    if (res && res.success) {
+      if (res.data && res.data.sb_id) {
+        var idx = (BWMS.serviceBatteries || []).findIndex(function(s) { return s.sb_id === res.data.sb_id; });
+        if (idx === -1) BWMS.serviceBatteries.push(res.data);
+        else BWMS.serviceBatteries[idx] = res.data;
+        saveStateToLocalCache();
+        populateDropdowns();
+        renderServiceBatteriesView();
+        renderDashboard();
+      }
+      showToast(res.message || 'Service battery added to stock.', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to save service battery', 'error');
+    }
+  });
+}
+
+function openAssignServiceBatteryModal(sbIdOrSerial, prefillTicketNo) {
+  document.getElementById('form-sb-assign').reset();
+  document.getElementById('sb-assign-date').value = new Date().toISOString().split('T')[0];
+
+  var sb = (BWMS.serviceBatteries || []).find(function(s) {
+    return s.sb_id === sbIdOrSerial || s.serial_no === sbIdOrSerial;
+  });
+  if (!sb && !sbIdOrSerial) {
+    sb = (BWMS.serviceBatteries || []).find(function(s) {
+      return String(s.status || 'AVAILABLE').toUpperCase() === 'AVAILABLE' && !(s.is_blocked === true || String(s.is_blocked).toUpperCase() === 'TRUE');
+    });
+  }
+  if (!sb) {
+    showToast('No available service battery found in stock. Please add one first.', 'warning');
+    navigateTo('service-batteries');
+    return;
+  }
+
+  document.getElementById('sb-assign-id').value = sb.sb_id || sb.serial_no;
+  document.getElementById('sb-assign-view-serial').textContent = sb.serial_no;
+  document.getElementById('sb-assign-view-model').textContent = sb.model_name || 'Service Battery';
+
+  // Populate open tickets dropdown
+  var tktSel = document.getElementById('sb-assign-ticket');
+  if (tktSel) {
+    tktSel.innerHTML = '<option value="">-- Direct Customer Assignment (No Ticket) --</option>';
+    (BWMS.tickets || []).forEach(function(t) {
+      var st = String(t.status || '').toUpperCase();
+      if (st === 'CLOSED' || st === 'CLAIM_CLOSED' || st === 'REJECTED_RETURNED') return;
+      var opt = document.createElement('option');
+      opt.value = t.ticket_no;
+      opt.textContent = t.ticket_no + ' — ' + (t.customer_name || t.dealer_name) + ' (' + t.original_serial_no + ')';
+      tktSel.appendChild(opt);
+    });
+    if (prefillTicketNo) {
+      tktSel.value = prefillTicketNo;
+      handleAssignServiceBatterySelectTicket(prefillTicketNo);
+    }
+  }
+
+  openModal('modal-sb-assign');
+}
+
+function handleAssignServiceBatterySelectTicket(ticketNo) {
+  if (!ticketNo) return;
+  var t = (BWMS.tickets || []).find(function(item) { return item.ticket_no === ticketNo; });
+  if (t) {
+    document.getElementById('sb-assign-customer').value = (t.source_type === 'DEALER' && t.dealer_name) ? t.dealer_name : (t.customer_name || '');
+    document.getElementById('sb-assign-mobile').value = t.mobile || '';
+  }
+}
+
+function handleAssignServiceBatterySubmit(e) {
+  e.preventDefault();
+  var data = {
+    sb_id: document.getElementById('sb-assign-id').value,
+    serial_no: document.getElementById('sb-assign-view-serial').textContent,
+    ticket_no: document.getElementById('sb-assign-ticket').value,
+    customer_name: document.getElementById('sb-assign-customer').value.trim(),
+    mobile: document.getElementById('sb-assign-mobile').value.trim(),
+    assigned_date: document.getElementById('sb-assign-date').value,
+    remarks: document.getElementById('sb-assign-remarks').value.trim()
+  };
+
+  closeModal('modal-sb-assign');
+
+  callServer('apiAssignServiceBattery', [data], function(res) {
+    if (res && res.success) {
+      if (res.data && res.data.sb_id) {
+        var idx = (BWMS.serviceBatteries || []).findIndex(function(s) { return s.sb_id === res.data.sb_id; });
+        if (idx !== -1) BWMS.serviceBatteries[idx] = res.data;
+        saveStateToLocalCache();
+        populateDropdowns();
+        renderServiceBatteriesView();
+        renderTicketsTable();
+        renderDashboard();
+      }
+      showToast(res.message || 'Service battery assigned and locked.', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to assign service battery', 'error');
+    }
+  });
+}
+
+function openReturnServiceBatteryModal(sbIdOrSerial, ticketNo) {
+  document.getElementById('form-sb-return').reset();
+  document.getElementById('sb-return-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sb-return-block-group').style.display = 'none';
+
+  var sb = (BWMS.serviceBatteries || []).find(function(s) {
+    return (sbIdOrSerial && (s.sb_id === sbIdOrSerial || s.serial_no === sbIdOrSerial)) ||
+           (ticketNo && s.current_ticket_no === ticketNo);
+  });
+
+  document.getElementById('sb-return-id').value = sb ? (sb.sb_id || sb.serial_no) : (sbIdOrSerial || ticketNo || '');
+  document.getElementById('sb-return-view-serial').textContent = sb ? sb.serial_no : (sbIdOrSerial || '-');
+  document.getElementById('sb-return-view-customer').textContent = sb ? ((sb.current_customer_name || 'Customer') + (sb.current_ticket_no ? ' (' + sb.current_ticket_no + ')' : '')) : 'Customer';
+
+  openModal('modal-sb-return');
+}
+
+function handleReturnServiceBatterySubmit(e) {
+  e.preventDefault();
+  var actionVal = document.getElementById('sb-return-action').value;
+  var data = {
+    sb_id: document.getElementById('sb-return-id').value,
+    serial_no: document.getElementById('sb-return-view-serial').textContent,
+    returned_date: document.getElementById('sb-return-date').value,
+    block_after_return: actionVal === 'BLOCKED',
+    block_reason: document.getElementById('sb-return-block-reason').value.trim(),
+    remarks: document.getElementById('sb-return-remarks').value.trim()
+  };
+
+  closeModal('modal-sb-return');
+
+  callServer('apiReturnServiceBattery', [data], function(res) {
+    if (res && res.success) {
+      if (res.data && res.data.sb_id) {
+        var idx = (BWMS.serviceBatteries || []).findIndex(function(s) { return s.sb_id === res.data.sb_id; });
+        if (idx !== -1) BWMS.serviceBatteries[idx] = res.data;
+        saveStateToLocalCache();
+        populateDropdowns();
+        renderServiceBatteriesView();
+        renderTicketsTable();
+        renderDashboard();
+      }
+      showToast(res.message || 'Service battery returned to stock.', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to return service battery', 'error');
+    }
+  });
+}
+
+function openBlockServiceBatteryModal(sbIdOrSerial, shouldBlock) {
+  var sb = (BWMS.serviceBatteries || []).find(function(s) { return s.sb_id === sbIdOrSerial || s.serial_no === sbIdOrSerial; });
+  document.getElementById('form-sb-block').reset();
+  document.getElementById('sb-block-id').value = sb ? sb.sb_id : sbIdOrSerial;
+  document.getElementById('sb-block-mode').value = shouldBlock ? 'BLOCK' : 'UNBLOCK';
+  document.getElementById('sb-block-view-serial').textContent = sb ? sb.serial_no : sbIdOrSerial;
+
+  var titleEl = document.getElementById('sb-block-modal-title');
+  var reasonGrp = document.getElementById('sb-block-reason-group');
+  var submitBtn = document.getElementById('sb-block-submit-btn');
+  var reasonInp = document.getElementById('sb-block-reason');
+  if (shouldBlock) {
+    if (titleEl) titleEl.textContent = 'Block Service Battery';
+    if (reasonGrp) reasonGrp.style.display = 'block';
+    if (reasonInp) { reasonInp.required = true; reasonInp.value = ''; }
+    if (submitBtn) { submitBtn.textContent = 'Confirm Block'; submitBtn.className = 'btn btn-danger'; }
+  } else {
+    if (titleEl) titleEl.textContent = 'Unblock Service Battery';
+    if (reasonGrp) reasonGrp.style.display = 'none';
+    if (reasonInp) reasonInp.required = false;
+    if (submitBtn) { submitBtn.textContent = 'Confirm Unblock'; submitBtn.className = 'btn btn-success'; }
+  }
+  openModal('modal-sb-block');
+}
+
+function handleBlockServiceBatterySubmit(e) {
+  e.preventDefault();
+  var shouldBlock = document.getElementById('sb-block-mode').value === 'BLOCK';
+  var data = {
+    sb_id: document.getElementById('sb-block-id').value,
+    blocked: shouldBlock,
+    reason: document.getElementById('sb-block-reason').value.trim()
+  };
+
+  closeModal('modal-sb-block');
+
+  callServer('apiBlockServiceBattery', [data], function(res) {
+    if (res && res.success) {
+      if (res.data && res.data.sb_id) {
+        var idx = (BWMS.serviceBatteries || []).findIndex(function(s) { return s.sb_id === res.data.sb_id; });
+        if (idx !== -1) BWMS.serviceBatteries[idx] = res.data;
+        saveStateToLocalCache();
+        populateDropdowns();
+        renderServiceBatteriesView();
+        renderDashboard();
+      }
+      showToast(res.message || (shouldBlock ? 'Battery blocked.' : 'Battery unblocked.'), 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Action failed', 'error');
+    }
+  });
+}
+
+function deleteServiceBattery(sbId, serialNo) {
+  if (!confirm('Remove service battery "' + (serialNo || sbId) + '" from stock pool?')) return;
+  callServer('apiDeleteServiceBattery', [sbId], function(res) {
+    if (res && res.success) {
+      BWMS.serviceBatteries = (BWMS.serviceBatteries || []).filter(function(s) { return s.sb_id !== sbId && s.serial_no !== serialNo; });
+      saveStateToLocalCache();
+      populateDropdowns();
+      renderServiceBatteriesView();
+      renderDashboard();
+      showToast(res.message || 'Service battery removed.', 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to remove service battery', 'error');
+    }
+  });
+}
+
+function exportServiceBatteriesCSV() {
+  var headers = ['SB ID', 'Serial No', 'Brand', 'Model', 'Ah', 'Status', 'Blocked', 'Block Reason', 'Current Customer', 'Mobile', 'Ticket #', 'Assigned Date', 'Rotations', 'Last Rotated'];
+  var rows = (BWMS.serviceBatteries || []).map(function(s) {
+    return [s.sb_id, s.serial_no, s.brand, s.model_name, s.capacity_ah, s.status, s.is_blocked ? 'YES' : 'NO', s.block_reason, s.current_customer_name, s.current_mobile, s.current_ticket_no, s.assigned_date, s.rotation_count || 0, s.last_rotated_date];
+  });
+  downloadCSV('service-batteries-stock-' + getExportDate() + '.csv', headers, rows);
 }
 
 // ─── REPORTS & ANALYTICS RENDERER ─────────────────────────────────────────────
@@ -4987,23 +6105,39 @@ function renderSettingsView() {
   setElText('cfg-models-count', (BWMS.models || []).length);
   setElText('cfg-dealers-count', (BWMS.dealers || []).length);
 
+  var modelSearch = (document.getElementById('filter-cfg-models-search') ? document.getElementById('filter-cfg-models-search').value : '').toLowerCase().trim();
+
   // Render Models Master Table
   var tbodyModels = document.getElementById('cfg-models-body');
   if (tbodyModels) {
     tbodyModels.innerHTML = '';
-    (BWMS.models || []).forEach(function(m) {
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td><strong style="font-family:monospace;">' + (m.model_code || m.model_id || '-') + '</strong></td>' +
-        '<td>' + (m.brand || 'Amaron') + '</td>' +
-        '<td><strong>' + (m.model_name || '-') + '</strong></td>' +
-        '<td>' + (m.capacity_ah ? m.capacity_ah + ' Ah' : '-') + '</td>' +
-        '<td>' + (m.warranty_months || 24) + ' M</td>' +
-        '<td>' + (m.guarantee_months || 12) + ' M</td>' +
-        '<td>' + (m.pro_rata_months || 12) + ' M</td>' +
-        '<td><span class="badge badge-green">ACTIVE</span></td>';
-      tbodyModels.appendChild(tr);
+    var filteredModels = (BWMS.models || []).filter(function(m) {
+      if (!modelSearch) return true;
+      return [m.model_id, m.model_code, m.brand, m.model_name].join(' ').toLowerCase().indexOf(modelSearch) !== -1;
     });
+    if (filteredModels.length === 0) {
+      tbodyModels.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#94a3b8;">No battery models found. Click "+ Add New Battery Model" to add one.</td></tr>';
+    } else {
+      filteredModels.forEach(function(m) {
+        var modKey = m.model_id || m.model_name || m.model_code || '';
+        var modLabel = m.model_name || m.model_code || modKey;
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><strong style="font-family:monospace;">' + escapeHtml(m.model_code || m.model_id || '-') + '</strong></td>' +
+          '<td>' + escapeHtml(m.brand || 'Amaron') + '</td>' +
+          '<td><strong>' + escapeHtml(m.model_name || '-') + '</strong></td>' +
+          '<td>' + (m.capacity_ah ? m.capacity_ah + ' Ah' : '-') + '</td>' +
+          '<td>' + (m.warranty_months || 24) + ' M</td>' +
+          '<td>' + (m.guarantee_months || 12) + ' M</td>' +
+          '<td>' + (m.pro_rata_months || 12) + ' M</td>' +
+          '<td><span class="badge badge-green">ACTIVE</span></td>' +
+          '<td><div style="display:flex; gap:6px;">' +
+          '  <button type="button" class="btn btn-secondary btn-sm" onclick="openAddModelModal(\'' + escapeHtml(modKey) + '\')">✏️ Edit</button>' +
+          '  <button type="button" class="btn btn-danger btn-sm" onclick="deleteBatteryModel(\'' + escapeHtml(modKey) + '\', \'' + escapeHtml(modLabel) + '\')">🗑️ Remove</button>' +
+          '</div></td>';
+        tbodyModels.appendChild(tr);
+      });
+    }
   }
 
   // Render Dealers Master Table
@@ -5046,16 +6180,39 @@ function saveSettings() {
   });
 }
 
-function openAddModelModal() {
+function openAddModelModal(editModelId) {
   document.getElementById('form-add-model').reset();
+  var idEl = document.getElementById('edit-model-id');
+  var titleEl = document.getElementById('modal-model-title');
+  if (editModelId) {
+    var m = (BWMS.models || []).find(function(item) {
+      return item.model_id === editModelId || item.model_name === editModelId || item.model_code === editModelId;
+    });
+    if (m) {
+      if (idEl) idEl.value = m.model_id || '';
+      if (titleEl) titleEl.textContent = 'Edit Battery Model';
+      document.getElementById('new-model-brand').value = m.brand || 'Amaron';
+      document.getElementById('new-model-name').value = m.model_name || m.model_code || '';
+      document.getElementById('new-model-ah').value = m.capacity_ah || '';
+      document.getElementById('new-model-warranty').value = m.warranty_months || 36;
+      document.getElementById('new-model-guarantee').value = m.guarantee_months || 18;
+      document.getElementById('new-model-prorata').value = m.pro_rata_months || 18;
+      openModal('modal-add-model');
+      return;
+    }
+  }
+  if (idEl) idEl.value = '';
+  if (titleEl) titleEl.textContent = 'Add New Battery Model to Master';
   openModal('modal-add-model');
 }
 
 function handleAddModelSubmit(e) {
   e.preventDefault();
+  var editId = document.getElementById('edit-model-id') ? document.getElementById('edit-model-id').value : '';
   var modelData = {
+    model_id: editId || undefined,
     brand: document.getElementById('new-model-brand').value,
-    model_name: document.getElementById('new-model-name').value,
+    model_name: document.getElementById('new-model-name').value.trim(),
     capacity_ah: document.getElementById('new-model-ah').value,
     warranty_months: document.getElementById('new-model-warranty').value,
     guarantee_months: document.getElementById('new-model-guarantee').value,
@@ -5066,10 +6223,41 @@ function handleAddModelSubmit(e) {
 
   callServer('apiSaveModel', [modelData], function(res) {
     if (res && res.success) {
-      showToast('New battery model added to master!', 'success');
+      if (res.data && res.data.model_name) {
+        var idx = (BWMS.models || []).findIndex(function(m) {
+          return (res.data.model_id && m.model_id === res.data.model_id) || m.model_name === res.data.model_name;
+        });
+        if (idx === -1) BWMS.models.push(res.data);
+        else BWMS.models[idx] = res.data;
+        saveStateToLocalCache();
+        populateDropdowns();
+        renderSettingsView();
+      }
+      showToast(editId ? 'Battery model updated!' : 'New battery model added to master!', 'success');
       syncAllData(false);
     } else {
-      showToast((res && res.error) ? res.error : 'Failed to add model', 'error');
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to save model', 'error');
+    }
+  });
+}
+
+function deleteBatteryModel(modelId, modelName) {
+  var label = modelName || modelId;
+  if (!confirm('Remove battery model "' + label + '" from master? Existing tickets and claims will retain their recorded model text.')) {
+    return;
+  }
+  callServer('apiDeleteModel', [modelId || modelName], function(res) {
+    if (res && res.success) {
+      BWMS.models = (BWMS.models || []).filter(function(m) {
+        return m.model_id !== modelId && m.model_name !== modelName && m.model_name !== modelId;
+      });
+      saveStateToLocalCache();
+      populateDropdowns();
+      renderSettingsView();
+      showToast(res.message || ('Battery model "' + label + '" removed.'), 'success');
+      syncAllData(false);
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to remove model', 'error');
     }
   });
 }
@@ -5619,7 +6807,7 @@ function buildReturnChallanHTML(challanOrTicketId) {
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Battery Return Challan — ' + escapeHtml(challan.challan_no) + '</title>' +
     buildDocumentStyles() + '</head><body>' +
-    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Challan (A4)</button></div>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="if(window.parent&&window.parent.triggerIframePrint){window.parent.triggerIframePrint();}else{window.print();}">🖨️ Print Challan (A4)</button></div>' +
     '<div class="header">' +
     '  <div>' +
     '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
@@ -5869,7 +7057,7 @@ function buildCompanyChallanHTML(companyChallanOrBatchId) {
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Company Dispatch Challan — ' + escapeHtml(cNo) + '</title>' +
     buildDocumentStyles() + '</head><body>' +
-    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Dispatch Challan (A4)</button></div>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="if(window.parent&&window.parent.triggerIframePrint){window.parent.triggerIframePrint();}else{window.print();}">🖨️ Print Dispatch Challan (A4)</button></div>' +
     '<div class="header">' +
     '  <div>' +
     '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
@@ -6049,7 +7237,7 @@ function buildClaimFormHTML(claimOrTicketId) {
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Battery Warranty Claim Form — ' + escapeHtml(cNo) + '</title>' +
     buildDocumentStyles() + '</head><body>' +
-    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Claim Form (A4)</button></div>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="if(window.parent&&window.parent.triggerIframePrint){window.parent.triggerIframePrint();}else{window.print();}">🖨️ Print Claim Form (A4)</button></div>' +
     '<div class="header">' +
     '  <div>' +
     '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
@@ -6183,7 +7371,7 @@ function buildIntakeSlipHTML(ticketNo) {
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Customer Intake Slip — ' + escapeHtml(tNo) + '</title>' +
     buildDocumentStyles() + '</head><body>' +
-    '<div class="no-print"><button class="btn-print-action" onclick="window.print()">🖨️ Print Intake Slip (A4)</button></div>' +
+    '<div class="no-print"><button class="btn-print-action" onclick="if(window.parent&&window.parent.triggerIframePrint){window.parent.triggerIframePrint();}else{window.print();}">🖨️ Print Intake Slip (A4)</button></div>' +
     '<div class="header">' +
     '  <div>' +
     '    <div class="company-title">' + escapeHtml(comp.name) + '</div>' +
@@ -6278,6 +7466,21 @@ function generatePrintDocumentHTML(docType, id) {
   return '<!DOCTYPE html><html><body><p>Unknown document type: ' + escapeHtml(docType) + '</p></body></html>';
 }
 
+function syncDirectPrintRoot(html) {
+  var root = document.getElementById('direct-print-root');
+  if (!root || !html) return;
+  var styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  var bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  var cssText = styleMatch ? styleMatch[1] : '';
+  cssText = cssText.replace(/(^|\})\s*body\s*\{/gi, '$1 #direct-print-root .print-doc-body {');
+  cssText = cssText.replace(/@media\s+print\s*\{\s*body\s*\{/gi, '@media print { #direct-print-root .print-doc-body {');
+  var bodyHtml = bodyMatch ? bodyMatch[1] : html;
+  root.innerHTML = '<style>' + cssText + '</style><div class="print-doc-body">' + bodyHtml + '</div>';
+  if (document.body && document.body.classList) {
+    document.body.classList.add('has-print-doc');
+  }
+}
+
 function renderPrintDocument(docType, id, title) {
   var html = generatePrintDocumentHTML(docType, id);
   BWMS.currentPrintHTML = html;
@@ -6287,30 +7490,32 @@ function renderPrintDocument(docType, id, title) {
     titleEl.textContent = title || 'Document Print Preview';
   }
 
+  // Open modal first so iframe has visible layout dimensions before rendering
+  openModal('modal-print');
+  syncDirectPrintRoot(html);
+
   var iframe = document.getElementById('print-iframe');
   if (iframe) {
-    if (typeof iframe.removeAttribute === 'function') {
-      iframe.removeAttribute('src');
-    } else {
-      delete iframe.src;
-    }
-    iframe.srcdoc = html;
-
-    setTimeout(function() {
-      try {
-        var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-        if (doc && (!iframe.srcdoc || doc.body.innerHTML === '')) {
-          doc.open();
-          doc.write(html);
-          doc.close();
-        }
-      } catch (e) {
-        console.warn('Iframe write error:', e);
+    try {
+      if (typeof iframe.removeAttribute === 'function') {
+        iframe.removeAttribute('src');
+        iframe.removeAttribute('srcdoc');
+      } else {
+        delete iframe.src;
       }
-    }, 50);
+      var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+      if (doc && typeof doc.open === 'function') {
+        doc.open();
+        doc.write(html);
+        doc.close();
+      } else {
+        iframe.srcdoc = html;
+      }
+    } catch (e) {
+      console.warn('Iframe render fallback to srcdoc:', e);
+      iframe.srcdoc = html;
+    }
   }
-
-  openModal('modal-print');
 }
 
 function printReturnChallan(challanNo) {
@@ -6330,14 +7535,30 @@ function printIntakeSlip(ticketNo) {
 }
 
 function triggerIframePrint() {
+  if (!BWMS.currentPrintHTML) {
+    showToast('No printable document currently active.', 'warning');
+    return;
+  }
+  syncDirectPrintRoot(BWMS.currentPrintHTML);
+
+  if (typeof window !== 'undefined' && typeof window.print === 'function' && document.getElementById('direct-print-root')) {
+    try {
+      window.focus();
+      window.print();
+      return;
+    } catch (winPrintErr) {
+      console.warn('Direct window print error, trying iframe print:', winPrintErr);
+    }
+  }
+
   var iframe = document.getElementById('print-iframe');
-  if (iframe && iframe.contentWindow) {
+  if (iframe && iframe.contentWindow && typeof iframe.contentWindow.print === 'function') {
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
       return;
     } catch (e) {
-      console.warn('Iframe print error, falling back to window print:', e);
+      console.warn('Iframe print error, falling back to new tab print:', e);
     }
   }
   openPrintInNewWindow();
@@ -6348,17 +7569,43 @@ function openPrintInNewWindow() {
     showToast('No printable document currently active.', 'warning');
     return;
   }
+  var html = BWMS.currentPrintHTML;
+  try {
+    if (typeof Blob === 'function' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      var blobUrl = URL.createObjectURL(blob);
+      var blobWin = window.open(blobUrl, '_blank');
+      if (blobWin) {
+        blobWin.focus();
+        var printed = false;
+        var triggerPrintOnce = function() {
+          if (printed) return;
+          printed = true;
+          try { blobWin.focus(); blobWin.print(); } catch (e) { }
+          setTimeout(function() { try { URL.revokeObjectURL(blobUrl); } catch (e) { } }, 60000);
+        };
+        if (typeof blobWin.addEventListener === 'function') {
+          blobWin.addEventListener('load', function() { setTimeout(triggerPrintOnce, 150); });
+        }
+        setTimeout(triggerPrintOnce, 500);
+        return;
+      }
+    }
+  } catch (blobErr) {
+    console.warn('Blob print tab fallback:', blobErr);
+  }
+
   var win = window.open('', '_blank');
   if (win) {
     win.document.open();
-    win.document.write(BWMS.currentPrintHTML);
+    win.document.write(html);
     win.document.close();
     win.focus();
     setTimeout(function() {
       try { win.print(); } catch (e) { }
-    }, 250);
+    }, 350);
   } else {
-    showToast('Browser blocked pop-up window. Please allow popups.', 'error');
+    showToast('Browser blocked pop-up window. Please allow popups or use Print Document.', 'error');
   }
 }
 
@@ -6693,6 +7940,19 @@ function renderTicketActions(t) {
   }
 
   html += '<button class="btn btn-secondary btn-sm" onclick="printIntakeSlip(\'' + t.ticket_no + '\')" title="Print Customer Intake Acknowledgement Slip">🖨️ Slip</button>';
+
+  // Quick Service Battery assign / return shortcut
+  var isClosedTicket = (s === 'CLOSED' || s === 'CLAIM_CLOSED' || s === 'REJECTED_RETURNED' || s === 'REJECTED — RETURNED');
+  var activeAssignedSb = (BWMS.serviceBatteries || []).find(function(sb) {
+    return String(sb.status || '').toUpperCase() === 'ASSIGNED' &&
+      ((sb.current_ticket_no && sb.current_ticket_no === t.ticket_no) || (t.service_battery_serial && sb.serial_no === t.service_battery_serial));
+  });
+  if (activeAssignedSb) {
+    html += '<button class="btn btn-secondary btn-sm" onclick="openReturnServiceBatteryModal(\'' + escapeHtml(activeAssignedSb.sb_id || activeAssignedSb.serial_no) + '\', \'' + t.ticket_no + '\')" title="Mark Service Battery Returned">↩️ Return SB</button>';
+  } else if (!isClosedTicket && !t.service_battery_issued && (BWMS.serviceBatteries || []).length > 0) {
+    html += '<button class="btn btn-secondary btn-sm" onclick="openAssignServiceBatteryModal(null, \'' + t.ticket_no + '\')" title="Assign Standby Service Battery">🔋 Lend SB</button>';
+  }
+
   html += '<button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + t.ticket_no + '\')">👁️ Timeline</button>';
   html += '</div>';
   return html;
@@ -7484,6 +8744,9 @@ function closeModal(id) {
     if (document.body && document.body.style) {
       document.body.style.overflow = '';
     }
+    if (id === 'modal-print' && document.body && document.body.classList) {
+      document.body.classList.remove('has-print-doc');
+    }
   }
 }
 
@@ -7493,7 +8756,12 @@ function closeAllModals() {
     m.classList.remove('open');
   });
   closeFastSearchModal();
-  document.body.style.overflow = '';
+  if (document.body && document.body.style) {
+    document.body.style.overflow = '';
+  }
+  if (document.body && document.body.classList) {
+    document.body.classList.remove('has-print-doc');
+  }
 }
 
 window.addEventListener('keydown', function(e) {
@@ -7529,7 +8797,7 @@ function showToast(msg, type) {
 // ─── UNIVERSAL RPC RUNNER & OFFLINE-CAPABLE LOCAL ENGINE ─────────────────────
 
 var evaluateWarrantyTerms = calculateWarrantyDetails;
-var PROD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j/exec";
+var PROD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE/exec";
 
 function getDefaultSeedState() {
   var defaultConfig = {
@@ -7567,6 +8835,8 @@ function getDefaultSeedState() {
       Company_Dispatches: BWMS.dispatches || [],
       Company_Dispatch_Items: BWMS.dispatchItems || [],
       Stock_Update_Log: BWMS.stockUpdates || [],
+      Service_Batteries: BWMS.serviceBatteries || [],
+      Service_Battery_Logs: BWMS.serviceBatteryLogs || [],
       Audit_Log: BWMS.auditLog || []
     },
     config: defaultConfig,
@@ -7579,6 +8849,8 @@ function getDefaultSeedState() {
     dispatches: BWMS.dispatches || [],
     dispatchItems: BWMS.dispatchItems || [],
     stockUpdates: BWMS.stockUpdates || [],
+    serviceBatteries: BWMS.serviceBatteries || [],
+    serviceBatteryLogs: BWMS.serviceBatteryLogs || [],
     auditLog: BWMS.auditLog || [],
     currentUser: BWMS.currentUser
   };
@@ -7642,6 +8914,8 @@ function executeLocalFallback(funcName, args) {
             Company_Dispatches: BWMS.dispatches,
             Company_Dispatch_Items: BWMS.dispatchItems,
             Stock_Update_Log: BWMS.stockUpdates,
+            Service_Batteries: BWMS.serviceBatteries,
+            Service_Battery_Logs: BWMS.serviceBatteryLogs,
             Audit_Log: BWMS.auditLog
           },
           config: BWMS.config,
@@ -7654,6 +8928,8 @@ function executeLocalFallback(funcName, args) {
           dispatches: BWMS.dispatches,
           dispatchItems: BWMS.dispatchItems,
           stockUpdates: BWMS.stockUpdates,
+          serviceBatteries: BWMS.serviceBatteries,
+          serviceBatteryLogs: BWMS.serviceBatteryLogs,
           auditLog: BWMS.auditLog,
           currentUser: BWMS.currentUser
         },
@@ -7663,6 +8939,20 @@ function executeLocalFallback(funcName, args) {
 
     if (funcName === 'apiCreateTicket') {
       var tNo = nextLocalSeq('TKT', BWMS.tickets, 'ticket_no');
+      if (d.service_battery_issued && d.service_battery_serial) {
+        var sbSer = String(d.service_battery_serial).trim();
+        var sbCheck = executeLocalFallback('apiAssignServiceBattery', [{
+          serial_no: sbSer,
+          model_name: d.service_battery_model || 'Standby Service Battery',
+          ticket_no: tNo,
+          customer_name: (d.source_type === 'DEALER' && d.dealer_name) ? d.dealer_name : d.customer_name,
+          mobile: d.mobile || '',
+          assigned_date: d.service_battery_date || todayIso,
+          auto_create: true,
+          skip_ticket_update: true
+        }]);
+        if (!sbCheck.success) return sbCheck;
+      }
       var ticket = Object.assign({}, d, {
         ticket_no: tNo,
         status: 'RECEIVED',
@@ -7763,7 +9053,12 @@ function executeLocalFallback(funcName, args) {
         ch.received_by_name = d.received_by_name || d.receiver_name || 'Customer';
         ch.received_date = d.received_date || d.return_date || todayIso;
         var linkedTkt = (BWMS.tickets || []).find(function(t) { return t.ticket_no === ch.ticket_no; });
-        if (linkedTkt) linkedTkt.status = 'REJECTED_RETURNED';
+        if (linkedTkt) {
+          linkedTkt.status = 'REJECTED_RETURNED';
+          if (d.return_service_battery) {
+            executeLocalFallback('apiReturnServiceBattery', [{ ticket_no: linkedTkt.ticket_no, returned_date: ch.received_date }]);
+          }
+        }
       }
       appendLocalAudit('CHALLAN_ACKNOWLEDGE', 'CHALLAN', d.challan_no, 'Rejected battery handed over to ' + (d.received_by_name || d.receiver_name));
       saveStateToLocalCache();
@@ -7901,7 +9196,12 @@ function executeLocalFallback(funcName, args) {
         clsClm.status = 'CLOSED';
         clsClm.closed_date = d.delivery_date || todayIso;
         var clsTkt = (BWMS.tickets || []).find(function(t) { return t.ticket_no === clsClm.ticket_no; });
-        if (clsTkt) clsTkt.status = 'CLOSED';
+        if (clsTkt) {
+          clsTkt.status = 'CLOSED';
+          if (d.return_service_battery) {
+            executeLocalFallback('apiReturnServiceBattery', [{ ticket_no: clsTkt.ticket_no, returned_date: clsClm.closed_date }]);
+          }
+        }
       }
       appendLocalAudit('CLOSE_CLAIM', 'CLAIM', d.claim_no, 'Claim closed and delivered to ' + (d.receiver_name || 'Customer'));
       saveStateToLocalCache();
@@ -7915,20 +9215,265 @@ function executeLocalFallback(funcName, args) {
     }
 
     if (funcName === 'apiSaveModel') {
+      var existingMod = (BWMS.models || []).find(function(m) {
+        return (d.model_id && m.model_id === d.model_id) || m.model_name === d.model_name;
+      });
       var newMod = {
-        model_id: 'MOD-' + Math.floor(Math.random() * 9000 + 1000),
+        model_id: existingMod ? existingMod.model_id : ('MOD-' + Math.floor(Math.random() * 9000 + 1000)),
         brand: d.brand || 'Amaron',
         model_name: d.model_name,
         capacity_ah: parseInt(d.capacity_ah, 10) || 35,
         warranty_months: parseInt(d.warranty_months, 10) || 36,
         guarantee_months: parseInt(d.guarantee_months, 10) || 18,
         pro_rata_months: parseInt(d.pro_rata_months, 10) || 18,
-        is_active: true
+        is_active: d.is_active !== undefined ? d.is_active : true
       };
-      BWMS.models.push(newMod);
+      if (existingMod) {
+        Object.assign(existingMod, newMod);
+      } else {
+        BWMS.models.push(newMod);
+      }
       appendLocalAudit('BATTERY_MODEL_SAVED', 'Battery_Models', newMod.model_id, 'Saved model: ' + newMod.model_name);
       saveStateToLocalCache();
       return { success: true, isLocalFallback: true, data: newMod, message: 'Battery model saved.' };
+    }
+
+    if (funcName === 'apiDeleteModel') {
+      var modKey = (typeof d === 'object' && d !== null) ? (d.model_id || d.model_name) : args[0];
+      var foundMod = (BWMS.models || []).find(function(m) {
+        return m.model_id === modKey || m.model_name === modKey || m.model_code === modKey;
+      });
+      if (!foundMod) return { success: false, error: 'Battery model not found: ' + modKey, message: 'Model not found' };
+      BWMS.models = (BWMS.models || []).filter(function(m) { return m !== foundMod; });
+      appendLocalAudit('BATTERY_MODEL_DELETED', 'Battery_Models', foundMod.model_id || modKey, 'Removed model: ' + (foundMod.model_name || modKey));
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: { model_id: foundMod.model_id, model_name: foundMod.model_name }, message: 'Battery model removed.' };
+    }
+
+    if (funcName === 'apiAddServiceBattery') {
+      BWMS.serviceBatteries = BWMS.serviceBatteries || [];
+      BWMS.serviceBatteryLogs = BWMS.serviceBatteryLogs || [];
+      var sbSerial = String(d.serial_no || '').trim();
+      if (!sbSerial) return { success: false, error: 'Service battery serial number is required.', message: 'Serial required' };
+      var existingSb = d.sb_id
+        ? BWMS.serviceBatteries.find(function(s) { return s.sb_id === d.sb_id; })
+        : BWMS.serviceBatteries.find(function(s) { return String(s.serial_no).trim().toLowerCase() === sbSerial.toLowerCase(); });
+      if (existingSb && !d.sb_id) {
+        return { success: false, error: 'Service battery serial ' + sbSerial + ' already exists.', message: 'Duplicate serial' };
+      }
+      if (existingSb && d.sb_id) {
+        existingSb.serial_no = sbSerial;
+        existingSb.brand = d.brand || existingSb.brand || 'Amaron';
+        existingSb.model_name = d.model_name || existingSb.model_name;
+        existingSb.capacity_ah = parseInt(d.capacity_ah, 10) || existingSb.capacity_ah || 35;
+        existingSb.condition_notes = d.condition_notes !== undefined ? d.condition_notes : existingSb.condition_notes;
+        existingSb.updated_at = nowIso;
+        saveStateToLocalCache();
+        return { success: true, isLocalFallback: true, data: existingSb, message: 'Service battery updated.' };
+      }
+      var blkInit = d.is_blocked === true || String(d.is_blocked).toUpperCase() === 'TRUE';
+      var newSb = {
+        sb_id: 'SB-' + Math.floor(Math.random() * 900000 + 100000),
+        serial_no: sbSerial,
+        brand: d.brand || 'Amaron',
+        model_name: d.model_name || 'Standby Service Battery',
+        capacity_ah: parseInt(d.capacity_ah, 10) || 35,
+        status: blkInit ? 'BLOCKED' : 'AVAILABLE',
+        is_blocked: blkInit,
+        block_reason: blkInit ? (d.block_reason || 'Blocked on add') : '',
+        current_ticket_no: '',
+        current_customer_name: '',
+        current_mobile: '',
+        assigned_date: '',
+        rotation_count: 0,
+        last_rotated_date: '',
+        condition_notes: d.condition_notes || 'Ready & Charged',
+        created_at: nowIso,
+        updated_at: nowIso
+      };
+      BWMS.serviceBatteries.push(newSb);
+      BWMS.serviceBatteryLogs.push({
+        log_id: 'SBL-' + Date.now().toString().slice(-6),
+        sb_id: newSb.sb_id,
+        serial_no: newSb.serial_no,
+        model_name: newSb.model_name,
+        action_type: 'STOCK_ADDED',
+        ticket_no: '',
+        customer_name: '',
+        mobile: '',
+        assigned_date: '',
+        returned_date: '',
+        days_rotated: 0,
+        remarks: 'Added to stock pool',
+        created_at: nowIso
+      });
+      appendLocalAudit('SB_ADDED', 'SERVICE_BATTERY', newSb.sb_id, 'Added service battery ' + sbSerial);
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: newSb, message: 'Service battery ' + sbSerial + ' added to stock.' };
+    }
+
+    if (funcName === 'apiAssignServiceBattery') {
+      BWMS.serviceBatteries = BWMS.serviceBatteries || [];
+      BWMS.serviceBatteryLogs = BWMS.serviceBatteryLogs || [];
+      var targetKey = d.sb_id || d.serial_no || d.service_battery_serial;
+      var sbItem = BWMS.serviceBatteries.find(function(s) {
+        return s.sb_id === targetKey || String(s.serial_no).trim().toLowerCase() === String(targetKey || '').trim().toLowerCase();
+      });
+      if (!sbItem && d.auto_create && targetKey) {
+        var addedRes = executeLocalFallback('apiAddServiceBattery', [{ serial_no: targetKey, model_name: d.model_name || 'Standby Service Battery' }]);
+        if (!addedRes.success) return addedRes;
+        sbItem = addedRes.data;
+      }
+      if (!sbItem) return { success: false, error: 'Service battery not found: ' + targetKey, message: 'Not found' };
+      var curSt = String(sbItem.status || 'AVAILABLE').toUpperCase();
+      if (sbItem.is_blocked === true || String(sbItem.is_blocked).toUpperCase() === 'TRUE' || curSt === 'BLOCKED') {
+        return { success: false, error: 'Service battery ' + sbItem.serial_no + ' is BLOCKED (' + (sbItem.block_reason || 'Unavailable') + ').', message: 'Battery blocked' };
+      }
+      if (curSt === 'ASSIGNED') {
+        return { success: false, error: 'Service battery ' + sbItem.serial_no + ' is already ASSIGNED to ' + (sbItem.current_customer_name || sbItem.current_ticket_no) + ' and locked.', message: 'Already assigned' };
+      }
+      var custName = String(d.customer_name || '').trim();
+      var mob = String(d.mobile || '').trim();
+      if (d.ticket_no && !custName) {
+        var linkedT = (BWMS.tickets || []).find(function(t) { return t.ticket_no === d.ticket_no; });
+        if (linkedT) { custName = linkedT.customer_name || linkedT.dealer_name; mob = mob || linkedT.mobile || ''; }
+      }
+      if (!custName) return { success: false, error: 'Customer name is required.', message: 'Customer required' };
+      var aDate = d.assigned_date || todayIso;
+      sbItem.status = 'ASSIGNED';
+      sbItem.is_blocked = false;
+      sbItem.block_reason = '';
+      sbItem.current_ticket_no = d.ticket_no || '';
+      sbItem.current_customer_name = custName;
+      sbItem.current_mobile = mob;
+      sbItem.assigned_date = aDate;
+      sbItem.rotation_count = (parseInt(sbItem.rotation_count, 10) || 0) + 1;
+      sbItem.last_rotated_date = aDate;
+      sbItem.updated_at = nowIso;
+      if (d.ticket_no && !d.skip_ticket_update) {
+        var tktToUpd = (BWMS.tickets || []).find(function(t) { return t.ticket_no === d.ticket_no; });
+        if (tktToUpd) {
+          tktToUpd.service_battery_issued = true;
+          tktToUpd.service_battery_model = sbItem.model_name;
+          tktToUpd.service_battery_serial = sbItem.serial_no;
+          tktToUpd.service_battery_date = aDate;
+        }
+      }
+      BWMS.serviceBatteryLogs.push({
+        log_id: 'SBL-' + Date.now().toString().slice(-6),
+        sb_id: sbItem.sb_id,
+        serial_no: sbItem.serial_no,
+        model_name: sbItem.model_name,
+        action_type: 'ASSIGNED',
+        ticket_no: d.ticket_no || '',
+        customer_name: custName,
+        mobile: mob,
+        assigned_date: aDate,
+        returned_date: '',
+        days_rotated: 0,
+        remarks: d.remarks || 'Assigned & locked to customer',
+        created_at: nowIso
+      });
+      appendLocalAudit('SB_ASSIGNED', 'SERVICE_BATTERY', sbItem.sb_id, 'Assigned ' + sbItem.serial_no + ' to ' + custName);
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: sbItem, message: 'Service battery ' + sbItem.serial_no + ' assigned to ' + custName + '.' };
+    }
+
+    if (funcName === 'apiReturnServiceBattery') {
+      BWMS.serviceBatteries = BWMS.serviceBatteries || [];
+      BWMS.serviceBatteryLogs = BWMS.serviceBatteryLogs || [];
+      var retKey = d.sb_id || d.serial_no || d.service_battery_serial;
+      var retSb = BWMS.serviceBatteries.find(function(s) {
+        return (retKey && (s.sb_id === retKey || String(s.serial_no).trim().toLowerCase() === String(retKey).trim().toLowerCase())) ||
+               (d.ticket_no && s.current_ticket_no === d.ticket_no);
+      });
+      if (!retSb) return { success: false, error: 'Service battery not found for return.', message: 'Not found' };
+      var rDate = d.returned_date || todayIso;
+      var dOut = 0;
+      if (retSb.assigned_date) {
+        dOut = Math.max(0, Math.floor((new Date(rDate) - new Date(retSb.assigned_date)) / (1000 * 60 * 60 * 24)));
+      }
+      var blockAfter = d.block_after_return === true || retSb.is_blocked === true || String(retSb.is_blocked).toUpperCase() === 'TRUE';
+      var prevCust = retSb.current_customer_name || '';
+      var prevTkt = retSb.current_ticket_no || '';
+      var prevAssignDate = retSb.assigned_date || '';
+      retSb.status = blockAfter ? 'BLOCKED' : 'AVAILABLE';
+      retSb.is_blocked = blockAfter;
+      retSb.block_reason = blockAfter ? (d.block_reason || retSb.block_reason || 'Pending Recharge / Inspection') : '';
+      retSb.current_ticket_no = '';
+      retSb.current_customer_name = '';
+      retSb.current_mobile = '';
+      retSb.assigned_date = '';
+      retSb.last_rotated_date = rDate;
+      retSb.updated_at = nowIso;
+      BWMS.serviceBatteryLogs.push({
+        log_id: 'SBL-' + Date.now().toString().slice(-6),
+        sb_id: retSb.sb_id,
+        serial_no: retSb.serial_no,
+        model_name: retSb.model_name,
+        action_type: 'RETURNED',
+        ticket_no: prevTkt,
+        customer_name: prevCust,
+        mobile: '',
+        assigned_date: prevAssignDate,
+        returned_date: rDate,
+        days_rotated: dOut,
+        remarks: d.remarks || ('Returned after ' + dOut + ' day(s)'),
+        created_at: nowIso
+      });
+      appendLocalAudit('SB_RETURNED', 'SERVICE_BATTERY', retSb.sb_id, 'Returned ' + retSb.serial_no + ' (' + dOut + ' days)');
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: retSb, message: 'Service battery ' + retSb.serial_no + ' returned.' };
+    }
+
+    if (funcName === 'apiBlockServiceBattery') {
+      BWMS.serviceBatteries = BWMS.serviceBatteries || [];
+      BWMS.serviceBatteryLogs = BWMS.serviceBatteryLogs || [];
+      var blkKey = d.sb_id || d.serial_no;
+      var blkSb = BWMS.serviceBatteries.find(function(s) {
+        return s.sb_id === blkKey || String(s.serial_no).trim().toLowerCase() === String(blkKey || '').trim().toLowerCase();
+      });
+      if (!blkSb) return { success: false, error: 'Service battery not found.', message: 'Not found' };
+      var doBlk = d.blocked !== false;
+      blkSb.is_blocked = doBlk;
+      blkSb.block_reason = doBlk ? (d.reason || d.block_reason || 'Manually Blocked') : '';
+      if (doBlk) {
+        blkSb.status = (String(blkSb.status).toUpperCase() === 'ASSIGNED') ? 'ASSIGNED' : 'BLOCKED';
+      } else {
+        blkSb.status = (blkSb.current_customer_name || blkSb.current_ticket_no) ? 'ASSIGNED' : 'AVAILABLE';
+      }
+      blkSb.updated_at = nowIso;
+      BWMS.serviceBatteryLogs.push({
+        log_id: 'SBL-' + Date.now().toString().slice(-6),
+        sb_id: blkSb.sb_id,
+        serial_no: blkSb.serial_no,
+        model_name: blkSb.model_name,
+        action_type: doBlk ? 'BLOCKED' : 'UNBLOCKED',
+        ticket_no: blkSb.current_ticket_no || '',
+        customer_name: blkSb.current_customer_name || '',
+        mobile: '',
+        assigned_date: '',
+        returned_date: '',
+        days_rotated: 0,
+        remarks: blkSb.block_reason || (doBlk ? 'Blocked' : 'Unblocked'),
+        created_at: nowIso
+      });
+      appendLocalAudit(doBlk ? 'SB_BLOCKED' : 'SB_UNBLOCKED', 'SERVICE_BATTERY', blkSb.sb_id, blkSb.serial_no + ' ' + (doBlk ? 'blocked' : 'unblocked'));
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: blkSb, message: 'Service battery ' + blkSb.serial_no + (doBlk ? ' blocked.' : ' unblocked.') };
+    }
+
+    if (funcName === 'apiDeleteServiceBattery') {
+      var delKey = (typeof d === 'object' && d !== null) ? (d.sb_id || d.serial_no) : args[0];
+      var delSb = (BWMS.serviceBatteries || []).find(function(s) { return s.sb_id === delKey || s.serial_no === delKey; });
+      if (!delSb) return { success: false, error: 'Service battery not found.', message: 'Not found' };
+      if (String(delSb.status).toUpperCase() === 'ASSIGNED') {
+        return { success: false, error: 'Cannot remove while assigned to customer.', message: 'Battery assigned' };
+      }
+      BWMS.serviceBatteries = (BWMS.serviceBatteries || []).filter(function(s) { return s !== delSb; });
+      appendLocalAudit('SB_REMOVED', 'SERVICE_BATTERY', delSb.sb_id, 'Removed service battery ' + delSb.serial_no);
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: { sb_id: delSb.sb_id, serial_no: delSb.serial_no, removed: true }, message: 'Service battery removed.' };
     }
 
     if (funcName === 'apiSaveDealer') {

@@ -24,7 +24,7 @@ const colors = {
 };
 
 const SHEET_ID = '1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08';
-const DEPLOYMENT_ID = 'AKfycbz8veuql4nvWujUKPskLUGKFB7l0DnPTlyMbkdh6OgPfJkJlI1IUNovRYyKMEHRPm1j';
+const DEPLOYMENT_ID = 'AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE';
 const WEBAPP_URL = `https://script.google.com/macros/s/${DEPLOYMENT_ID}/exec`;
 const appsScriptDir = path.join(__dirname, '..', 'apps-script');
 
@@ -414,8 +414,8 @@ async function runTests() {
     { action: 'TICKET_CREATE', entity_type: 'Tickets', entity_id: 'TKT-0001', user_email: 'staff@test.com', details: 'Created ticket', timestamp: '2026-10-10' }
   ];
 
-  // Verify all 11 view navigations execute without runtime errors
-  const views = ['dashboard', 'tickets', 'lab', 'claims', 'pending-company', 'replacement-pending', 'stock-tasks', 'challans', 'reports', 'audit', 'settings'];
+  // Verify all 12 view navigations execute without runtime errors
+  const views = ['dashboard', 'tickets', 'lab', 'claims', 'pending-company', 'replacement-pending', 'stock-tasks', 'challans', 'service-batteries', 'reports', 'audit', 'settings'];
   let viewsOk = true;
   for (const v of views) {
     try {
@@ -425,7 +425,7 @@ async function runTests() {
       console.error('Error navigating to ' + v + ':', e);
     }
   }
-  assert(viewsOk, 'All 11 views navigate and render seamlessly from in-memory store without runtime error');
+  assert(viewsOk, 'All 12 views navigate and render seamlessly from in-memory store without runtime error');
 
   // Verify action renderers
   let actionsOk = true;
@@ -865,6 +865,117 @@ async function runTests() {
     receiver_name: 'Kiran Desai'
   }]);
   assert(finalClose.success && finalClose.data.status === 'CLOSED', 'Local Engine: Completes claim closure after ERP stock reconciliation');
+
+  // TEST SUITE 10: Model Add/Remove, Reliable Print Engine, Service Battery Pool & Firebase Hosting
+  console.log(`\n${colors.bold}SUITE 10: Model Add/Remove, Print Reliability, Service Battery Rotation & Firebase${colors.reset}`);
+  console.log(`─────────────────────────────────────────────────────────────────────────────`);
+
+  // 10.1 Battery Model Add, Edit & Remove
+  assert(codeGsContent.includes('apiDeleteModel') && codeGsContent.includes("'apiDeleteModel'"),
+         'Code.gs: Exports apiDeleteModel and registers it in executeApiAction');
+  const dbGsContent = fs.readFileSync(path.join(appsScriptDir, 'Database.gs'), 'utf8');
+  assert(dbGsContent.includes('deleteRow: deleteRow') && dbGsContent.includes("'Service_Batteries'") && dbGsContent.includes("'Service_Battery_Logs'"),
+         'Database.gs: Implements deleteRow and Service_Batteries / Service_Battery_Logs schema');
+
+  const addModRes = vmContext.executeLocalFallback('apiSaveModel', [{
+    brand: 'Exide',
+    model_name: 'TEMP-TEST-45AH',
+    capacity_ah: 45,
+    warranty_months: 36,
+    guarantee_months: 18,
+    pro_rata_months: 18
+  }]);
+  assert(addModRes.success && vmContext.BWMS.models.some(m => m.model_name === 'TEMP-TEST-45AH'),
+         'Models Master: Adds new battery model to store');
+
+  const delModRes = vmContext.executeLocalFallback('apiDeleteModel', [addModRes.data.model_id]);
+  assert(delModRes.success && !vmContext.BWMS.models.some(m => m.model_name === 'TEMP-TEST-45AH'),
+         'Models Master: Removes battery model cleanly from store');
+
+  // 10.2 Print Mode Reliability (#direct-print-root & z-index stacking)
+  const stylesContent = fs.readFileSync(path.join(appsScriptDir, 'styles.html'), 'utf8');
+  assert(stylesContent.includes('#direct-print-root') && stylesContent.includes('body.has-print-doc') && stylesContent.includes('#modal-print { z-index: 100050'),
+         'Print Engine CSS: Configures #direct-print-root @media print isolation and top z-index modal stacking');
+  vmContext.renderPrintDocument('intake-slip', 'TKT-0001', 'Print Test');
+  const directPrintRoot = getEl('direct-print-root');
+  assert(directPrintRoot.innerHTML && directPrintRoot.innerHTML.includes('TKT-0001') && directPrintRoot.innerHTML.includes('print-doc-body'),
+         'Print Engine DOM: Syncs #direct-print-root alongside preview iframe for zero-blank printing');
+
+  // 10.3 Service Battery Stock, Assignment, Blocking, Return & Rotation Tracking
+  const sbServicePath = path.join(appsScriptDir, 'ServiceBatteryService.gs');
+  assert(fs.existsSync(sbServicePath), 'Backend Service: ServiceBatteryService.gs exists');
+  assert(codeGsContent.includes("'apiAddServiceBattery'") && codeGsContent.includes("'apiAssignServiceBattery'") &&
+         codeGsContent.includes("'apiReturnServiceBattery'") && codeGsContent.includes("'apiBlockServiceBattery'") &&
+         codeGsContent.includes("'apiDeleteServiceBattery'"),
+         'Code.gs: Registers all Service Battery endpoints in executeApiAction');
+
+  vmContext.BWMS.serviceBatteries = [];
+  vmContext.BWMS.serviceBatteryLogs = [];
+  const sbAdd = vmContext.executeLocalFallback('apiAddServiceBattery', [{
+    serial_no: 'SB-TEST-900',
+    brand: 'Amaron',
+    model_name: 'Standby 35Ah',
+    capacity_ah: 35
+  }]);
+  assert(sbAdd.success && sbAdd.data.status === 'AVAILABLE' && sbAdd.data.rotation_count === 0,
+         'Service Battery Stock: Adds unit with AVAILABLE status and 0 rotations');
+
+  const sbAssign = vmContext.executeLocalFallback('apiAssignServiceBattery', [{
+    sb_id: sbAdd.data.sb_id,
+    customer_name: 'Rohan Mehta',
+    mobile: '9825011122',
+    ticket_no: 'TKT-0001',
+    assigned_date: '2026-11-20'
+  }]);
+  assert(sbAssign.success && sbAssign.data.status === 'ASSIGNED' && sbAssign.data.rotation_count === 1,
+         'Service Battery Assignment: Assigns to customer, locks battery, and increments rotation count to 1');
+
+  const sbDoubleAssign = vmContext.executeLocalFallback('apiAssignServiceBattery', [{
+    sb_id: sbAdd.data.sb_id,
+    customer_name: 'Another Customer'
+  }]);
+  assert(sbDoubleAssign.success === false,
+         'Service Battery Lock: Blocks duplicate assignment while already assigned to a customer');
+
+  const sbReturn = vmContext.executeLocalFallback('apiReturnServiceBattery', [{
+    sb_id: sbAdd.data.sb_id,
+    returned_date: '2026-11-25'
+  }]);
+  assert(sbReturn.success && sbReturn.data.status === 'AVAILABLE' && vmContext.BWMS.serviceBatteryLogs.some(l => l.action_type === 'RETURNED' && l.days_rotated === 5),
+         'Service Battery Rotation: Returns to AVAILABLE stock and records 5-day rotation log');
+
+  const sbBlock = vmContext.executeLocalFallback('apiBlockServiceBattery', [{
+    sb_id: sbAdd.data.sb_id,
+    blocked: true,
+    reason: 'Needs bench recharge'
+  }]);
+  assert(sbBlock.success && sbBlock.data.status === 'BLOCKED' && sbBlock.data.is_blocked === true,
+         'Service Battery Block: Manually blocks battery from lending with reason');
+
+  const sbBlockedAssign = vmContext.executeLocalFallback('apiAssignServiceBattery', [{
+    sb_id: sbAdd.data.sb_id,
+    customer_name: 'Blocked Test'
+  }]);
+  assert(sbBlockedAssign.success === false,
+         'Service Battery Block Guard: Prevents assigning manually blocked battery');
+
+  const sbUnblock = vmContext.executeLocalFallback('apiBlockServiceBattery', [{
+    sb_id: sbAdd.data.sb_id,
+    blocked: false
+  }]);
+  assert(sbUnblock.success && sbUnblock.data.status === 'AVAILABLE' && sbUnblock.data.is_blocked === false,
+         'Service Battery Unblock: Restores battery to AVAILABLE stock');
+
+  const sbDel = vmContext.executeLocalFallback('apiDeleteServiceBattery', [sbAdd.data.sb_id]);
+  assert(sbDel.success && vmContext.BWMS.serviceBatteries.length === 0,
+         'Service Battery Remove: Deletes un-assigned battery from stock pool');
+
+  // 10.4 Firebase Hosting Configuration
+  const firebaseJsonPath = path.join(__dirname, '..', 'firebase.json');
+  const firebasercPath = path.join(__dirname, '..', '.firebaserc');
+  const publicIndexPath = path.join(__dirname, '..', 'public', 'index.html');
+  assert(fs.existsSync(firebaseJsonPath) && fs.existsSync(firebasercPath) && fs.existsSync(publicIndexPath),
+         'Firebase Hosting: firebase.json, .firebaserc, and compiled public/index.html verified');
 
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);

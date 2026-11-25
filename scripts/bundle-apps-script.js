@@ -24,6 +24,7 @@ const gsOrder = [
   'AuthService.gs',
   'Config.gs',
   'Database.gs',
+  'ServiceBatteryService.gs',
   'WarrantyService.gs',
   'BatteryTestService.gs',
   'TicketService.gs',

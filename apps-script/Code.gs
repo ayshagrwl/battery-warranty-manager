@@ -408,6 +408,8 @@ function apiGetBulkState() {
       'Company_Dispatch_Items',
       'Replacement_Receipts',
       'Stock_Update_Log',
+      'Service_Batteries',
+      'Service_Battery_Logs',
       'Audit_Log'
     ];
     var tables = Database.getBulkTables(sheetNames);
@@ -428,6 +430,8 @@ function apiGetBulkState() {
       dispatches: tables['Company_Dispatches'] || [],
       dispatchItems: tables['Company_Dispatch_Items'] || [],
       stockUpdates: tables['Stock_Update_Log'] || [],
+      serviceBatteries: tables['Service_Batteries'] || [],
+      serviceBatteryLogs: tables['Service_Battery_Logs'] || [],
       auditLog: tables['Audit_Log'] || [],
       currentUser: currentUser,
       dashboard: dashboard,
@@ -442,12 +446,17 @@ function apiGetBulkState() {
 function apiSaveModel(modelData) {
   try {
     if (!modelData || !modelData.model_name) return Utils.error('Model name is required.');
-    var existing = Database.getRowById('Battery_Models', 'model_name', modelData.model_name);
+    var existing = modelData.model_id
+      ? Database.getRowById('Battery_Models', 'model_id', modelData.model_id)
+      : Database.getRowById('Battery_Models', 'model_name', modelData.model_name);
+    if (!existing && modelData.model_name) {
+      existing = Database.getRowById('Battery_Models', 'model_name', modelData.model_name);
+    }
     var row = {
       model_id: existing ? existing.model_id : ('MOD-' + Utils.generateId(6)),
       brand: modelData.brand || 'Amaron',
-      model_name: modelData.model_name,
-      capacity_ah: modelData.capacity_ah || 35,
+      model_name: String(modelData.model_name).trim(),
+      capacity_ah: parseInt(modelData.capacity_ah, 10) || 35,
       warranty_months: parseInt(modelData.warranty_months, 10) || 24,
       guarantee_months: parseInt(modelData.guarantee_months, 10) || 12,
       pro_rata_months: parseInt(modelData.pro_rata_months, 10) || 12,
@@ -460,6 +469,72 @@ function apiSaveModel(modelData) {
     }
     AuditService.log('BATTERY_MODEL_SAVED', 'Battery_Models', row.model_id, '', 'ACTIVE', 'Saved model: ' + row.model_name);
     return Utils.success(row, 'Battery model saved successfully.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiDeleteModel(modelIdOrName) {
+  try {
+    var target = (typeof modelIdOrName === 'object' && modelIdOrName !== null)
+      ? (modelIdOrName.model_id || modelIdOrName.model_name)
+      : modelIdOrName;
+    if (!target) return Utils.error('Model ID or name is required.');
+    var existing = Database.getRowById('Battery_Models', 'model_id', target) ||
+                   Database.getRowById('Battery_Models', 'model_name', target);
+    if (!existing) return Utils.error('Battery model not found: ' + target);
+    var deleted = Database.deleteRow('Battery_Models', 'model_id', existing.model_id);
+    if (!deleted) return Utils.error('Could not delete battery model: ' + target);
+    AuditService.log('BATTERY_MODEL_DELETED', 'Battery_Models', existing.model_id, 'ACTIVE', 'DELETED', 'Removed model: ' + existing.model_name);
+    return Utils.success({ model_id: existing.model_id, model_name: existing.model_name }, 'Battery model "' + existing.model_name + '" removed.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+// ─── SERVICE BATTERY POOL APIS ───────────────────────────────────────────────
+
+function apiAddServiceBattery(data) {
+  try {
+    var sb = ServiceBatteryService.addServiceBattery(data);
+    return Utils.success(sb, 'Service battery ' + sb.serial_no + ' saved to stock pool.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiAssignServiceBattery(data) {
+  try {
+    var sb = ServiceBatteryService.assignServiceBattery(data);
+    return Utils.success(sb, 'Service battery ' + sb.serial_no + ' assigned to ' + sb.current_customer_name + ' and blocked from reuse.');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiReturnServiceBattery(data) {
+  try {
+    var sb = ServiceBatteryService.returnServiceBattery(data);
+    return Utils.success(sb, 'Service battery ' + sb.serial_no + ' marked returned (' + sb.status + ').');
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiBlockServiceBattery(data) {
+  try {
+    var sb = ServiceBatteryService.blockServiceBattery(data);
+    return Utils.success(sb, 'Service battery ' + sb.serial_no + (sb.is_blocked ? ' blocked.' : ' unblocked.'));
+  } catch (err) {
+    return Utils.error(err.message);
+  }
+}
+
+function apiDeleteServiceBattery(sbId) {
+  try {
+    var target = (typeof sbId === 'object' && sbId !== null) ? (sbId.sb_id || sbId.serial_no) : sbId;
+    var res = ServiceBatteryService.deleteServiceBattery(target);
+    return Utils.success(res, 'Service battery ' + res.serial_no + ' removed from stock.');
   } catch (err) {
     return Utils.error(err.message);
   }
@@ -522,7 +597,13 @@ function executeApiAction(action, args) {
     'apiCalculateWarranty': function(a) { return apiCalculateWarranty(a[0], a[1], a[2]); },
     'apiSaveConfig': function(a) { return apiSaveConfig(a[0]); },
     'apiSaveModel': function(a) { return apiSaveModel(a[0]); },
+    'apiDeleteModel': function(a) { return apiDeleteModel(a[0]); },
     'apiSaveDealer': function(a) { return apiSaveDealer(a[0]); },
+    'apiAddServiceBattery': function(a) { return apiAddServiceBattery(a[0]); },
+    'apiAssignServiceBattery': function(a) { return apiAssignServiceBattery(a[0]); },
+    'apiReturnServiceBattery': function(a) { return apiReturnServiceBattery(a[0]); },
+    'apiBlockServiceBattery': function(a) { return apiBlockServiceBattery(a[0]); },
+    'apiDeleteServiceBattery': function(a) { return apiDeleteServiceBattery(a[0]); },
     'apiCheckConnection': function() { return apiCheckConnection(); },
     'apiGetPrintData': function(a) { return apiGetPrintData(a[0], a[1]); },
     'apiGetAuditLog': function() { return apiGetAuditLog(); }

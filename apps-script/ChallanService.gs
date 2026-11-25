@@ -110,6 +110,19 @@ var ChallanService = (function () {
         'Physical rejected battery handed over to ' + receiverName + ' under Challan ' + challan.challan_no,
         userEmail
       );
+
+      // Recover standby service battery if requested
+      if (data.return_service_battery && typeof ServiceBatteryService !== 'undefined') {
+        try {
+          ServiceBatteryService.returnServiceBattery({
+            ticket_no: challan.ticket_no,
+            returned_date: returnDate,
+            remarks: 'Recovered on rejected battery handover (' + challan.challan_no + ')'
+          });
+        } catch (sbErr) {
+          Logger.log('Non-blocking service battery return warning: ' + sbErr.message);
+        }
+      }
     }
 
     AuditService.log(

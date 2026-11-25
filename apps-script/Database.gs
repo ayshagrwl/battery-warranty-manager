@@ -54,6 +54,16 @@ var Database = (function () {
       'stock_task_id', 'claim_no', 'replacement_model', 'replacement_serial_no',
       'received_date', 'stock_status', 'accounting_ref_no', 'updated_at', 'updated_by', 'remarks'
     ],
+    'Service_Batteries': [
+      'sb_id', 'serial_no', 'brand', 'model_name', 'capacity_ah', 'status',
+      'is_blocked', 'block_reason', 'current_ticket_no', 'current_customer_name', 'current_mobile',
+      'assigned_date', 'rotation_count', 'last_rotated_date', 'condition_notes', 'created_at', 'updated_at'
+    ],
+    'Service_Battery_Logs': [
+      'log_id', 'sb_id', 'serial_no', 'model_name', 'action_type', 'ticket_no',
+      'customer_name', 'mobile', 'assigned_date', 'returned_date', 'days_rotated',
+      'performed_by', 'remarks', 'created_at'
+    ],
     'Audit_Log': [
       'audit_id', 'timestamp', 'user_email', 'action', 'record_type', 'record_id',
       'old_status', 'new_status', 'details'
@@ -88,12 +98,39 @@ var Database = (function () {
     return SpreadsheetApp.getActiveSpreadsheet();
   }
 
+  function ensureSheet(ss, name) {
+    if (!ss || !SCHEMA_DEF.hasOwnProperty(name)) return null;
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+    }
+    var headers = SCHEMA_DEF[name];
+    if (sheet.getMaxColumns() < headers.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+    }
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      var headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setBackground('#1e293b')
+        .setFontColor('#ffffff')
+        .setFontWeight('bold')
+        .setFontFamily('Arial');
+      sheet.setFrozenRows(1);
+    }
+    return sheet;
+  }
+
   function getSheet(name) {
     var ss = getSpreadsheet();
     if (!ss) {
       throw new Error('Spreadsheet not accessible. Set SPREADSHEET_ID in Script Properties.');
     }
     var sheet = ss.getSheetByName(name);
+    if (!sheet && SCHEMA_DEF.hasOwnProperty(name)) {
+      sheet = Utils.withLock(function () {
+        return ensureSheet(ss, name);
+      });
+    }
     if (!sheet) {
       throw new Error('Sheet "' + name + '" does not exist. Run setupDatabase() first.');
     }
@@ -134,8 +171,17 @@ var Database = (function () {
       var name = sheetNames[i];
       var sheet = ss.getSheetByName(name);
       if (!sheet) {
-        result[name] = [];
-        continue;
+        if (SCHEMA_DEF.hasOwnProperty(name)) {
+          try {
+            sheet = Utils.withLock(function () { return ensureSheet(ss, name); });
+          } catch (ensureErr) {
+            result[name] = [];
+            continue;
+          }
+        } else {
+          result[name] = [];
+          continue;
+        }
       }
       var data = sheet.getDataRange().getValues();
       if (data.length <= 1) {
@@ -248,6 +294,29 @@ var Database = (function () {
       }
     }
     return null;
+  }
+
+  function deleteRow(sheetName, idColumn, idValue) {
+    return Utils.withLock(function () {
+      var sheet = getSheet(sheetName);
+      var data = sheet.getDataRange().getValues();
+      if (data.length <= 1) return false;
+
+      var headers = data[0];
+      var idColIdx = headers.indexOf(idColumn);
+      if (idColIdx === -1) {
+        throw new Error('ID column "' + idColumn + '" not found in sheet ' + sheetName);
+      }
+
+      var target = String(idValue).trim();
+      for (var r = data.length - 1; r >= 1; r--) {
+        if (String(data[r][idColIdx]).trim() === target) {
+          sheet.deleteRow(r + 1);
+          return true;
+        }
+      }
+      return false;
+    });
   }
 
   function setupDatabase() {
@@ -493,6 +562,25 @@ var Database = (function () {
         remarks: 'New replacement battery received from company depot'
       });
 
+      // Seed sample Service Battery Pool (2 issued in tickets 1 & 4 + 2 available)
+      var sbSheet = ss.getSheetByName('Service_Batteries');
+      if (sbSheet && sbSheet.getLastRow() <= 1 && typeof ServiceBatteryService !== 'undefined') {
+        ServiceBatteryService.addServiceBattery({
+          serial_no: 'SB-8043',
+          brand: 'Amaron',
+          model_name: 'AAM-GO-00038B20R (Go 35Ah)',
+          capacity_ah: 35,
+          condition_notes: 'Fully charged standby pool unit'
+        });
+        ServiceBatteryService.addServiceBattery({
+          serial_no: 'SB-8044',
+          brand: 'Exide',
+          model_name: 'FML0-ML35R (Mileage 35Ah)',
+          capacity_ah: 35,
+          condition_notes: 'Fully charged standby pool unit'
+        });
+      }
+
       AuditService.log('SEED_DEMO', AuditService.RECORD_TYPE.SYSTEM, 'SYSTEM', '', 'READY', 'Demo database seeded successfully');
       return true;
     });
@@ -553,6 +641,7 @@ var Database = (function () {
     getRows: getRows,
     appendRow: appendRow,
     updateRow: updateRow,
+    deleteRow: deleteRow,
     getRowById: getRowById,
     getBulkTables: getBulkTables,
     setupDatabase: setupDatabase,

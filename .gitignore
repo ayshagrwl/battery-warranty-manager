@@ -33,3 +33,4 @@ dist/
 build/
 tmp/
 .cache/
+.firebase/

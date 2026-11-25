@@ -15,7 +15,8 @@
     "clasp:login": "clasp login",
     "clasp:push": "clasp push",
     "clasp:deploy": "clasp deploy",
-    "clasp:open": "clasp open"
+    "clasp:open": "clasp open",
+    "firebase:deploy": "npm run build && npx -y firebase-tools@latest deploy --only hosting"
   },
   "repository": {
     "type": "git",

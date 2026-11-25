@@ -23,5 +23,13 @@ html = html.replace(/<\?!=\s*include\('app'\);\s*\?>/g, app);
 const targetFile = path.join(rootDir, 'index.html');
 fs.writeFileSync(targetFile, html, 'utf8');
 
+const publicDir = path.join(rootDir, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+const firebaseTargetFile = path.join(publicDir, 'index.html');
+fs.writeFileSync(firebaseTargetFile, html, 'utf8');
+
 console.log(`✓ Generated: ${targetFile} (${Math.round(html.length / 1024)} KB)`);
-console.log('✓ Pure GitHub Pages standalone application ready.');
+console.log(`✓ Generated: ${firebaseTargetFile} (Firebase Hosting ready)`);
+console.log('✓ Pure GitHub Pages & Firebase Hosting standalone application ready.');

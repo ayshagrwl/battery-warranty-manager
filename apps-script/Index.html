@@ -63,6 +63,11 @@
           <span class="nav-icon">🚚</span>
           <span>Delivery Challans</span>
         </a>
+        <a class="nav-item" data-view="service-batteries" onclick="navigateTo('service-batteries')">
+          <span class="nav-icon">🔋</span>
+          <span>Service Batteries</span>
+          <span class="nav-badge" id="badge-service-batteries">0</span>
+        </a>
 
         <div class="nav-section-title" style="margin-top:14px;">Governance & Master</div>
         <a class="nav-item" data-view="reports" onclick="navigateTo('reports')">
@@ -148,6 +153,9 @@
             </div>
             <div class="quick-action-chip" onclick="navigateTo('stock-tasks')">
               <span class="chip-icon">📦</span> <span>ERP Stock Inward</span>
+            </div>
+            <div class="quick-action-chip" onclick="navigateTo('service-batteries')">
+              <span class="chip-icon">🔋</span> <span>Service Battery Stock</span>
             </div>
             <div class="quick-action-chip" onclick="navigateTo('reports')">
               <span class="chip-icon">📈</span> <span>Ageing Analytics</span>
@@ -244,6 +252,13 @@
               <div>
                 <div class="kpi-val" id="kpi-stock-tasks">0</div>
                 <div class="kpi-label">Pending ERP Stock Update</div>
+              </div>
+            </div>
+            <div class="kpi-card" onclick="navigateTo('service-batteries')">
+              <div class="kpi-icon blue">🔋</div>
+              <div>
+                <div class="kpi-val" id="kpi-sb-available">0 / 0</div>
+                <div class="kpi-label">Service Batteries Ready / Total</div>
               </div>
             </div>
           </div>
@@ -889,6 +904,188 @@
           </div>
         </section>
 
+        <!-- 8B. SERVICE BATTERIES POOL & ROTATION VIEW -->
+        <section id="view-service-batteries" class="app-view" style="display:none;">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Service / Standby Battery Stock &amp; Rotation</h1>
+              <p class="view-subtitle">Manage available loaner stock, assign &amp; block batteries for customers, and track rotation history</p>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="exportServiceBatteriesCSV()">📥 Export Stock CSV</button>
+              <button class="btn btn-primary" onclick="openAddServiceBatteryModal()">+ Add Service Battery</button>
+            </div>
+          </div>
+
+          <!-- Service Battery KPI Summary -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon blue">🔋</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-total">0</div>
+                <div class="kpi-label">Total Service Stock</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon green">✅</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-available">0</div>
+                <div class="kpi-label">Available to Assign</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon amber">🔒</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-assigned">0</div>
+                <div class="kpi-label">Assigned &amp; Locked Out</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">🚫</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-blocked">0</div>
+                <div class="kpi-label">Manually Blocked</div>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon purple">🔄</div>
+              <div>
+                <div class="kpi-val" id="sb-kpi-rotations">0</div>
+                <div class="kpi-label">Total Customer Rotations</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Triple Tabs for Service Batteries -->
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-btn-sb-pool" onclick="switchSbTab('pool')">
+              🔋 Stock Pool &amp; Assignment <span class="tab-counter" id="sb-pool-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-sb-rotation" onclick="switchSbTab('rotation')">
+              🔄 Rotation Tracker <span class="tab-counter" id="sb-rotation-count">0</span>
+            </button>
+            <button class="tab-btn" id="tab-btn-sb-logs" onclick="switchSbTab('logs')">
+              📜 Custody &amp; Rotation Log <span class="tab-counter" id="sb-logs-count">0</span>
+            </button>
+          </div>
+
+          <div class="view-toolbar">
+            <div class="view-toolbar-left">
+              <input type="text" id="filter-sb-search" class="table-search-input" placeholder="🔍 Search by SB serial, model, customer, mobile, ticket..." oninput="renderServiceBatteriesView()">
+              <select id="filter-sb-status" class="form-select" style="width:180px;" onchange="renderServiceBatteriesView()">
+                <option value="ALL">All Stock Statuses</option>
+                <option value="AVAILABLE">AVAILABLE (Ready)</option>
+                <option value="ASSIGNED">ASSIGNED (Locked Out)</option>
+                <option value="BLOCKED">BLOCKED (On Hold)</option>
+              </select>
+              <select id="filter-sb-rotation" class="form-select" style="width:200px;" onchange="renderServiceBatteriesView()">
+                <option value="ALL">All Rotation States</option>
+                <option value="CURRENTLY_OUT">🔄 Currently Out (In Rotation)</option>
+                <option value="ROTATED">✅ Has Rotated (1+ times)</option>
+                <option value="NEVER_ROTATED">⏸️ Never Rotated (0 times)</option>
+              </select>
+            </div>
+            <div class="view-toolbar-right">
+              <span id="sb-count-badge" class="tab-counter">0 units</span>
+            </div>
+          </div>
+
+          <!-- Tab 1: Stock Pool & Assignment -->
+          <div id="container-sb-pool" class="card-table">
+            <div class="table-header-bar">
+              <div class="table-title">Service Battery Stock Inventory &amp; Customer Custody</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Serial No.</th>
+                    <th>Brand &amp; Model</th>
+                    <th>Status / Lock</th>
+                    <th>Current Customer / Ticket</th>
+                    <th>Rotation &amp; Days Out</th>
+                    <th>Condition / Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="sb-pool-body">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading service battery pool...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Rotation Tracker & Analytics -->
+          <div id="container-sb-rotation" style="display:none;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:18px;">
+              <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px;">
+                <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">🔄 Currently Out With Customers</div>
+                <div id="sb-currently-out-summary" style="font-size:14px; font-weight:700; color:#0f172a; margin-top:6px;">None currently out</div>
+              </div>
+              <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px;">
+                <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">🏆 Most Rotated Service Battery</div>
+                <div id="sb-most-rotated-summary" style="font-size:14px; font-weight:700; color:#0369a1; margin-top:6px;">No rotations recorded yet</div>
+              </div>
+              <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px;">
+                <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">⏸️ Idle / Never Rotated Stock</div>
+                <div id="sb-never-rotated-summary" style="font-size:14px; font-weight:700; color:#475569; margin-top:6px;">0 idle batteries</div>
+              </div>
+            </div>
+
+            <div class="card-table">
+              <div class="table-header-bar">
+                <div class="table-title">Service Battery Rotation Matrix (Sorted by Rotation Activity)</div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>SB Serial</th>
+                      <th>Model</th>
+                      <th>Times Rotated</th>
+                      <th>Rotation Status</th>
+                      <th>Current Holder / Ticket</th>
+                      <th>Last Rotated Date</th>
+                      <th>Total Days Rotated</th>
+                      <th>Quick Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sb-rotation-body">
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">No rotation analytics available yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Custody & Rotation Log -->
+          <div id="container-sb-logs" class="card-table" style="display:none;">
+            <div class="table-header-bar">
+              <div class="table-title">Chronological Service Battery Rotation &amp; Custody Audit Log</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date / Time</th>
+                    <th>Action</th>
+                    <th>SB Serial</th>
+                    <th>Model</th>
+                    <th>Customer / Mobile</th>
+                    <th>Ticket #</th>
+                    <th>Out / In Dates</th>
+                    <th>Days Out</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody id="sb-logs-body">
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">No service battery logs recorded yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <!-- 9. REPORTS VIEW -->
         <section id="view-reports" class="app-view" style="display:none;">
           <div class="view-header">
@@ -1082,9 +1279,12 @@
 
           <!-- Tab 2: Battery Models Master -->
           <div id="container-cfg-models" class="card-table" style="display:none;">
-            <div class="table-header-bar">
+            <div class="table-header-bar" style="flex-wrap:wrap; gap:10px;">
               <div class="table-title">Registered Battery Models & Warranty Durations</div>
-              <button class="btn btn-primary btn-sm" onclick="openAddModelModal()">+ Add New Battery Model</button>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="filter-cfg-models-search" class="table-search-input" style="min-width:200px;" placeholder="🔍 Filter models..." oninput="renderSettingsView()">
+                <button class="btn btn-primary btn-sm" onclick="openAddModelModal()">+ Add New Battery Model</button>
+              </div>
             </div>
             <div class="table-responsive">
               <table class="data-table">
@@ -1098,10 +1298,11 @@
                     <th>Guarantee (M)</th>
                     <th>Pro-Rata (M)</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="cfg-models-body">
-                  <tr><td colspan="8" style="text-align:center; padding:20px;">Loading battery models...</td></tr>
+                  <tr><td colspan="9" style="text-align:center; padding:20px;">Loading battery models...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1214,7 +1415,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Battery Model *</label>
+              <label class="form-label">Battery Model * <a href="javascript:void(0)" onclick="openAddModelModal()" style="float:right; font-size:11px; color:var(--accent); font-weight:600; text-decoration:none;">+ Add Model</a></label>
               <select id="intake-model" class="form-select" required>
                 <option value="">-- Select Battery Model --</option>
               </select>
@@ -1237,6 +1438,14 @@
                 <option value="NO">No</option>
                 <option value="YES">Yes (Standby Lent)</option>
               </select>
+            </div>
+
+            <div class="form-group" id="group-sb-select" style="display:none; grid-column: span 2;">
+              <label class="form-label">Select Available Service Battery from Stock</label>
+              <select id="intake-sb-select" class="form-select" onchange="handleIntakeSbSelect(this.value)">
+                <option value="">-- Enter Custom / Unlisted Serial Below --</option>
+              </select>
+              <small id="intake-sb-stock-hint" style="color:#64748b;">Assigning from pool automatically blocks that service battery from other customers.</small>
             </div>
 
             <div class="form-group" id="group-sb-model" style="display:none;">
@@ -1426,6 +1635,12 @@
               <label class="form-label">Return Time</label>
               <input type="time" id="ret-time" class="form-control">
             </div>
+            <div class="form-group" id="ret-sb-recover-group" style="display:none; grid-column: span 2; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#1e40af;">
+                <input type="checkbox" id="ret-recover-sb" checked>
+                <span>🔋 Recover &amp; Return Service Battery (<span id="ret-recover-sb-serial" style="font-family:monospace;"></span>) back to Available Stock</span>
+              </label>
+            </div>
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Handover Remarks</label>
               <textarea id="ret-remarks" class="form-control" rows="2" placeholder="e.g. Signed Delivery Challan collected in file. Standby battery recovered."></textarea>
@@ -1591,6 +1806,12 @@
               <label class="form-label">Receiver Name *</label>
               <input type="text" id="close-receiver-name" class="form-control" required placeholder="Name of party">
             </div>
+            <div class="form-group" id="close-sb-recover-group" style="display:none; grid-column: span 2; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:600; color:#1e40af;">
+                <input type="checkbox" id="close-recover-sb" checked>
+                <span>🔋 Recover &amp; Return Service Battery (<span id="close-recover-sb-serial" style="font-family:monospace;"></span>) back to Available Stock</span>
+              </label>
+            </div>
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Closure Remarks</label>
               <textarea id="close-remarks" class="form-control" rows="2" placeholder="e.g. Replacement battery handed over. Service loaner returned in good condition."></textarea>
@@ -1679,16 +1900,17 @@
     </div>
   </div>
 
-  <!-- 12. ADD BATTERY MODEL MODAL -->
+  <!-- 12. ADD / EDIT BATTERY MODEL MODAL -->
   <div class="modal" id="modal-add-model">
     <div class="modal-backdrop" onclick="closeModal('modal-add-model')"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title">Add New Battery Model to Master</h2>
+        <h2 class="modal-title" id="modal-model-title">Add New Battery Model to Master</h2>
         <button class="modal-close" onclick="closeModal('modal-add-model')">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-add-model" onsubmit="handleAddModelSubmit(event)">
+          <input type="hidden" id="edit-model-id">
           <div class="form-grid form-grid-2">
             <div class="form-group">
               <label class="form-label">Brand *</label>
@@ -1879,6 +2101,182 @@
       </button>
     </div>
   </div>
+
+  <!-- 17. ADD SERVICE BATTERY STOCK MODAL -->
+  <div class="modal" id="modal-sb-add">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-add')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-sb-add-title">Add Service Battery to Available Stock</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-add')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-add" onsubmit="handleAddServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-edit-id">
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Service Battery Serial No. *</label>
+              <input type="text" id="sb-add-serial" class="form-control" required placeholder="e.g. SB-8045" style="font-family:monospace; font-weight:bold;">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Brand *</label>
+              <input type="text" id="sb-add-brand" class="form-control" required value="Amaron">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Model Name / Type *</label>
+              <input type="text" id="sb-add-model" class="form-control" required placeholder="e.g. Standby Go 35Ah">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Capacity (Ah)</label>
+              <input type="number" id="sb-add-ah" class="form-control" value="35">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Condition / Notes</label>
+              <input type="text" id="sb-add-notes" class="form-control" placeholder="e.g. Fully charged, healthy standby unit">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                <input type="checkbox" id="sb-add-blocked" onchange="document.getElementById('sb-add-block-reason-group').style.display=this.checked?'block':'none'">
+                <span>Block immediately (not ready for lending yet)</span>
+              </label>
+            </div>
+            <div class="form-group" id="sb-add-block-reason-group" style="display:none; grid-column: span 2;">
+              <label class="form-label">Block Reason</label>
+              <input type="text" id="sb-add-block-reason" class="form-control" placeholder="e.g. Charging in progress">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-add')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Service Battery</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 18. ASSIGN SERVICE BATTERY MODAL -->
+  <div class="modal" id="modal-sb-assign">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-assign')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Assign Service Battery to Customer</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-assign')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-assign" onsubmit="handleAssignServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-assign-id">
+          <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div><strong>Battery Serial:</strong> <span id="sb-assign-view-serial" style="font-family:monospace; font-weight:800; color:#0369a1;"></span> | <strong>Model:</strong> <span id="sb-assign-view-model"></span></div>
+            <div style="font-size:11px; color:#0369a1; margin-top:4px;">🔒 Assigning automatically blocks this service battery from being issued to anyone else until returned.</div>
+          </div>
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Link Open Intake Ticket (Optional — auto-fills customer)</label>
+              <select id="sb-assign-ticket" class="form-select" onchange="handleAssignServiceBatterySelectTicket(this.value)">
+                <option value="">-- Direct Customer Assignment (No Ticket) --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Customer / Dealer Name *</label>
+              <input type="text" id="sb-assign-customer" class="form-control" required placeholder="Full Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mobile Number</label>
+              <input type="tel" id="sb-assign-mobile" class="form-control" placeholder="10-digit Mobile">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Issue Date *</label>
+              <input type="date" id="sb-assign-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Remarks</label>
+              <input type="text" id="sb-assign-remarks" class="form-control" placeholder="e.g. Standby battery issued">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-assign')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Assign &amp; Lock Battery</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 19. RETURN SERVICE BATTERY MODAL -->
+  <div class="modal" id="modal-sb-return">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-return')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Mark Service Battery Returned</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-return')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-return" onsubmit="handleReturnServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-return-id">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div><strong>Battery Serial:</strong> <span id="sb-return-view-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+            <div><strong>Returning From:</strong> <span id="sb-return-view-customer"></span></div>
+          </div>
+          <div class="form-grid form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Return Date *</label>
+              <input type="date" id="sb-return-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Stock Status After Return *</label>
+              <select id="sb-return-action" class="form-select" onchange="document.getElementById('sb-return-block-group').style.display=(this.value==='BLOCKED')?'block':'none'">
+                <option value="AVAILABLE">AVAILABLE (Ready for next customer)</option>
+                <option value="BLOCKED">BLOCKED (Needs Charging / Check)</option>
+              </select>
+            </div>
+            <div class="form-group" id="sb-return-block-group" style="display:none; grid-column: span 2;">
+              <label class="form-label">Block Reason</label>
+              <input type="text" id="sb-return-block-reason" class="form-control" placeholder="e.g. Needs overnight bench recharge">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Condition &amp; Return Remarks</label>
+              <input type="text" id="sb-return-remarks" class="form-control" placeholder="e.g. Returned in healthy condition">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-return')">Cancel</button>
+            <button type="submit" class="btn btn-success">Confirm Return to Stock</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 20. BLOCK / UNBLOCK SERVICE BATTERY MODAL -->
+  <div class="modal" id="modal-sb-block">
+    <div class="modal-backdrop" onclick="closeModal('modal-sb-block')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="sb-block-modal-title">Block Service Battery</h2>
+        <button class="modal-close" onclick="closeModal('modal-sb-block')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sb-block" onsubmit="handleBlockServiceBatterySubmit(event)">
+          <input type="hidden" id="sb-block-id">
+          <input type="hidden" id="sb-block-mode">
+          <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px; margin-bottom:14px;" id="sb-block-info-box">
+            <strong>Battery Serial:</strong> <span id="sb-block-view-serial" style="font-family:monospace; font-weight:bold;"></span>
+          </div>
+          <div class="form-group" id="sb-block-reason-group">
+            <label class="form-label">Block Reason *</label>
+            <input type="text" id="sb-block-reason" class="form-control" placeholder="e.g. Battery weak / Under charging / Reserved / Customer dispute">
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-sb-block')">Cancel</button>
+            <button type="submit" class="btn btn-danger" id="sb-block-submit-btn">Block Battery</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direct Print Mount (Hidden on screen, visible only in @media print) -->
+  <div id="direct-print-root" aria-hidden="true"></div>
 
   <!-- Notification Toast -->
   <div id="toast" class="toast">

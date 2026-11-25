@@ -127,6 +127,20 @@ var TicketService = (function () {
     var userEmail = Utils.getCurrentUserEmail();
     var nowIso = new Date().toISOString();
 
+    if (serviceIssued && serviceSerial && typeof ServiceBatteryService !== 'undefined') {
+      ServiceBatteryService.assignServiceBattery({
+        serial_no: serviceSerial,
+        model_name: serviceModel || 'Standby Service Battery',
+        ticket_no: ticketNo,
+        customer_name: (sourceType === 'DEALER' && dealerName) ? dealerName : customerName,
+        mobile: mobile,
+        assigned_date: serviceDate,
+        auto_create: true,
+        skip_ticket_update: true,
+        remarks: 'Issued during intake ticket ' + ticketNo
+      });
+    }
+
     var ticketRecord = {
       ticket_no: ticketNo,
       source_type: sourceType,

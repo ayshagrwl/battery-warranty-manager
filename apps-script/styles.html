@@ -578,6 +578,29 @@
     border-radius: 6px;
     background: #fff;
   }
+  #modal-print { z-index: 100050 !important; }
+  #modal-print .modal-backdrop { z-index: 100051 !important; }
+  #modal-print .modal-content { z-index: 100052 !important; }
+  #direct-print-root { display: none; }
+
+  /* Service Battery Badges */
+  .badge-sb-available { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .badge-sb-assigned { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+  .badge-sb-blocked { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+  .rotation-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+  .rotation-pill.active-out { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .rotation-pill.rotated { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
 
   /* Tabs */
   .tab-bar {
@@ -1176,10 +1199,14 @@
   }
 
   @media print {
+    html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; margin: 0 !important; padding: 0 !important; }
     .sidebar, .topbar, .modal-footer, .no-print, .floating-quick-bar { display: none !important; }
-    .app-container { display: block; height: auto; }
+    .app-container { display: block; height: auto; overflow: visible; }
     .main-wrapper { display: block; overflow: visible; }
     .content-area { padding: 0; overflow: visible; }
+    body.has-print-doc > *:not(#direct-print-root) { display: none !important; }
+    body.has-print-doc #direct-print-root { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
+    body.has-print-doc #direct-print-root .no-print { display: none !important; }
   }
 </style>
 

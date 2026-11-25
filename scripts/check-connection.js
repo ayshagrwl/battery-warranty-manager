@@ -78,6 +78,16 @@ const SCHEMA_DEF = {
     'stock_task_id', 'claim_no', 'replacement_model', 'replacement_serial_no',
     'received_date', 'stock_status', 'accounting_ref_no', 'updated_at', 'updated_by', 'remarks'
   ],
+  'Service_Batteries': [
+    'sb_id', 'serial_no', 'brand', 'model_name', 'capacity_ah', 'status',
+    'is_blocked', 'block_reason', 'current_ticket_no', 'current_customer_name', 'current_mobile',
+    'assigned_date', 'rotation_count', 'last_rotated_date', 'condition_notes', 'created_at', 'updated_at'
+  ],
+  'Service_Battery_Logs': [
+    'log_id', 'sb_id', 'serial_no', 'model_name', 'action_type', 'ticket_no',
+    'customer_name', 'mobile', 'assigned_date', 'returned_date', 'days_rotated',
+    'performed_by', 'remarks', 'created_at'
+  ],
   'Audit_Log': [
     'audit_id', 'timestamp', 'user_email', 'action', 'record_type', 'record_id',
     'old_status', 'new_status', 'details'
