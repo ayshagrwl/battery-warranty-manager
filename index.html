@@ -590,7 +590,59 @@
   #modal-print { z-index: 100050 !important; }
   #modal-print .modal-backdrop { z-index: 100051 !important; }
   #modal-print .modal-content { z-index: 100052 !important; }
+  /* Direct Print Root */
   #direct-print-root { display: none; }
+
+  /* Firebase Auth Gate Overlay */
+  .auth-gate-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    z-index: 200000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-gate-overlay.active { display: flex; }
+  .auth-gate-card {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 430px;
+    padding: 32px 28px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+    text-align: center;
+  }
+  .auth-gate-logo {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    color: #fff;
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-google-signin {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 11px 16px;
+    background: #0f172a;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-google-signin:hover { background: #1e293b; }
 
   /* Service Battery Badges */
   .badge-sb-available { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
@@ -1298,10 +1350,10 @@
 
       <div class="sidebar-footer">
         <div>
-          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:6px;"></span>
-          <strong>GAS Cloud Active</strong>
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f59e0b; margin-right:6px;"></span>
+          <strong>Firebase Cloud Active</strong>
         </div>
-        <span style="color:#64748b; font-size:10px;">v2.4 Pro</span>
+        <span style="color:#64748b; font-size:10px;">v3.0 Firebase</span>
       </div>
     </aside>
 
@@ -1318,9 +1370,9 @@
           </div>
         </div>
         <div class="topbar-right">
-          <div class="sync-status-badge" id="sync-status-badge" onclick="syncAllData(true)" title="Instant local in-memory store. Click to refresh from Google Cloud.">
+          <div class="sync-status-badge" id="sync-status-badge" onclick="syncAllData(true)" title="Firebase Cloud Firestore Live Sync. Click to refresh.">
             <span class="sync-dot" id="sync-dot"></span>
-            <span id="sync-status-text">Preloading...</span>
+            <span id="sync-status-text">Connecting...</span>
             <span id="sync-refresh-icon">🔄</span>
           </div>
           <button class="btn btn-primary" onclick="openIntakeModal()">
@@ -1330,6 +1382,7 @@
             <div class="user-avatar" id="current-user-avatar">AD</div>
             <span id="current-user-name">Staff Operator</span>
           </div>
+          <button class="btn btn-secondary btn-sm" id="btn-sign-out" onclick="handleFirebaseSignOut()" style="display:none;" title="Sign out of Firebase">Sign Out</button>
         </div>
       </header>
 
@@ -2450,8 +2503,11 @@
             <button class="tab-btn" id="tab-btn-cfg-dealers" onclick="switchSettingsTab('dealers')">
               🤝 Authorized Dealers Master <span class="tab-counter" id="cfg-dealers-count">0</span>
             </button>
+            <button class="tab-btn" id="tab-btn-cfg-staff" onclick="switchSettingsTab('staff')">
+              👥 Staff Access (Auth) <span class="tab-counter" id="cfg-staff-count">0</span>
+            </button>
             <button class="tab-btn" id="tab-btn-cfg-cloud" onclick="switchSettingsTab('cloud')">
-              ☁️ Cloud Database & Cache Engine
+              🔥 Firebase Database &amp; Sync
             </button>
           </div>
 
@@ -2546,30 +2602,57 @@
             </div>
           </div>
 
-          <!-- Tab 4: Cloud Database & Cache Engine -->
+          <!-- Tab 4: Staff Access (Firebase Auth) -->
+          <div id="container-cfg-staff" class="card-table" style="display:none;">
+            <div class="table-header-bar" style="flex-wrap:wrap; gap:10px;">
+              <div>
+                <div class="table-title">Authorized Staff Google Accounts (Firebase Auth)</div>
+                <div style="font-size:12px; color:#64748b;">Only emails listed below (plus primary Admin) can sign in and access Firestore data.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openAddStaffModal()">+ Authorize Staff Email</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Staff Email</th>
+                    <th>Display Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="cfg-staff-body">
+                  <tr><td colspan="5" style="text-align:center; padding:20px;">Loading authorized staff...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 5: Firebase Database & Sync Engine -->
           <div id="container-cfg-cloud" class="card-table" style="padding:24px; display:none;">
-            <h3 style="font-size:15px; margin-bottom:16px;">Cloud Database & Architecture Health</h3>
+            <h3 style="font-size:15px; margin-bottom:16px;">Firebase Cloud Firestore &amp; Real-Time Sync Health</h3>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:20px;">
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
-                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Google Spreadsheet Master</div>
-                <div style="font-weight:700; font-size:14px; margin-bottom:8px;">ID: 1Vp8DLi...UKXK08</div>
-                <a href="https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit" target="_blank" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-                  <span>📊 Open Google Sheet</span>
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Firebase Cloud Project</div>
+                <div style="font-weight:700; font-size:14px; margin-bottom:8px;">battery-warranty-hub-26 (asia-south1)</div>
+                <a href="https://console.firebase.google.com/project/battery-warranty-hub-26/firestore" target="_blank" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+                  <span>🔥 Open Firebase Firestore Console</span>
                 </a>
               </div>
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
-                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">In-Memory Fast Store Status</div>
-                <div id="cloud-store-stats" style="font-weight:700; font-size:14px; margin-bottom:8px;">Active • Local Cache</div>
-                <button class="btn btn-primary btn-sm" onclick="syncAllData(true)">⚡ Hard Cloud Sync Now</button>
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Real-Time Firestore &amp; Offline Persistence</div>
+                <div id="cloud-store-stats" style="font-weight:700; font-size:14px; margin-bottom:8px;">Active • Firestore Cache</div>
+                <button class="btn btn-primary btn-sm" onclick="syncAllData(true)">⚡ Sync Firestore Now</button>
               </div>
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
-                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Connection Latency Probe</div>
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Firestore Latency Probe</div>
                 <div id="cloud-latency-val" style="font-weight:700; font-size:14px; margin-bottom:8px;">Ready to test</div>
                 <button class="btn btn-secondary btn-sm" onclick="runLatencyProbe()">🔌 Test Connection</button>
               </div>
             </div>
-            <div style="background:#f1f5f9; padding:12px 16px; border-radius:6px; font-size:12px; color:#475569;">
-              <strong>Fast Bulk State Engine:</strong> The entire database is preloaded into an in-memory client store on startup with background sync, giving instantaneous 0ms response time on view navigation, universal search, and filtering.
+            <div style="background:#fff7ed; border:1px solid #fed7aa; padding:12px 16px; border-radius:6px; font-size:12px; color:#9a3412;">
+              <strong>100% Firebase Native Architecture:</strong> All intake tickets, lab diagnostics, warranty claims, dispatches, service battery stock, attachments, and audit trails are stored directly in Cloud Firestore with IndexedDB offline persistence and Google Sign-In protection — zero reliance on Google Sheets.
             </div>
           </div>
         </section>
@@ -3043,10 +3126,11 @@
     <div class="modal-backdrop" onclick="closeModal('modal-upload')"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title">Upload Claim Document to Google Drive</h2>
+        <h2 class="modal-title">Claim Documents &amp; Attachments (Firebase)</h2>
         <button class="modal-close" onclick="closeModal('modal-upload')">&times;</button>
       </div>
       <div class="modal-body">
+        <div id="claim-docs-existing-list" style="margin-bottom:14px;"></div>
         <form id="form-upload" onsubmit="handleUploadSubmit(event)">
           <input type="hidden" id="upload-claim-no">
           <div class="form-grid form-grid-2">
@@ -3062,13 +3146,13 @@
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Select File *</label>
+              <label class="form-label">Select File * (Max ~700KB; photos auto-compressed)</label>
               <input type="file" id="upload-file" class="form-control" required accept="image/*,application/pdf">
             </div>
           </div>
           <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modal-upload')">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="btn-upload-submit">Upload to Drive</button>
+            <button type="submit" class="btn btn-primary" id="btn-upload-submit">Save to Firebase</button>
           </div>
         </form>
       </div>
@@ -3487,6 +3571,79 @@
     </div>
   </div>
 
+  <!-- 21. AUTHORIZE STAFF MODAL -->
+  <div class="modal" id="modal-add-staff">
+    <div class="modal-backdrop" onclick="closeModal('modal-add-staff')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Authorize Staff Account</h2>
+        <button class="modal-close" onclick="closeModal('modal-add-staff')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-staff" onsubmit="handleAddStaffSubmit(event)">
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Staff Google / Email Address *</label>
+              <input type="email" id="new-staff-email" class="form-control" required placeholder="e.g. staff.member@gmail.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Staff Name *</label>
+              <input type="text" id="new-staff-name" class="form-control" required placeholder="e.g. Sanjay Mistri">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Role *</label>
+              <select id="new-staff-role" class="form-select" required>
+                <option value="OPERATOR">OPERATOR (Full Desk Access)</option>
+                <option value="TESTER">TESTER (Lab &amp; Claims)</option>
+                <option value="ADMIN">ADMIN (Settings + Staff Management)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-staff')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Staff Access</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Staff Sign-In Gate Overlay -->
+  <div id="auth-gate-overlay" class="auth-gate-overlay">
+    <div class="auth-gate-card">
+      <div class="auth-gate-logo">⚡</div>
+      <h2 style="font-size:20px; font-weight:800; color:#0f172a; margin-bottom:6px;">Battery Warranty Hub</h2>
+      <p style="font-size:13px; color:#64748b; margin-bottom:20px;">Firebase Cloud Portal — Authorized Staff Access</p>
+
+      <div id="auth-gate-loading" style="padding:18px 0; color:#475569; font-size:13px;">
+        Connecting to Firebase Authentication...
+      </div>
+
+      <div id="auth-gate-login-box" style="display:none;">
+        <button type="button" class="btn-google-signin" onclick="handleFirebaseGoogleLogin()">
+          <span>🔐</span> <span>Sign in with Google</span>
+        </button>
+
+        <div style="margin:14px 0; font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px;">or email &amp; password</div>
+
+        <form onsubmit="handleFirebaseEmailLogin(event)" style="text-align:left;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <input type="email" id="auth-email-input" class="form-control" placeholder="Staff Email" required>
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <input type="password" id="auth-password-input" class="form-control" placeholder="Password" required>
+          </div>
+          <button type="submit" class="btn btn-secondary" style="width:100%; justify-content:center;">Sign in with Email</button>
+        </form>
+      </div>
+
+      <div id="auth-gate-error-box" style="display:none; margin-top:14px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px; font-size:12px; color:#991b1b; text-align:left;">
+        <div id="auth-gate-error-msg"></div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="handleFirebaseSignOut()" style="margin-top:10px;">Switch Google Account / Sign Out</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Direct Print Mount (Hidden on screen, visible only in @media print) -->
   <div id="direct-print-root" aria-hidden="true"></div>
 
@@ -3495,6 +3652,87 @@
     <span id="toast-icon">ℹ️</span>
     <span id="toast-message">Notification message</span>
   </div>
+
+  <!-- Firebase Modular SDK (v11.6.0) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+    import {
+      getFirestore,
+      initializeFirestore,
+      persistentLocalCache,
+      persistentMultipleTabManager,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      writeBatch,
+      runTransaction,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "battery-warranty-hub-26",
+      appId: "1:716442262403:web:49c175aa483530ee2674b6",
+      storageBucket: "battery-warranty-hub-26.firebasestorage.app",
+      apiKey: "AIzaSyAq2--hioyXNIbrJhESA0-BxZbvgpWNjsI",
+      authDomain: "battery-warranty-hub-26.firebaseapp.com",
+      messagingSenderId: "716442262403"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let db;
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch (cacheErr) {
+      console.warn('Persistent cache unavailable, using memory Firestore cache:', cacheErr);
+      db = getFirestore(app);
+    }
+
+    window.FB_CLIENT = {
+      ready: true,
+      app,
+      auth,
+      db,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      writeBatch,
+      runTransaction,
+      onSnapshot
+    };
+
+    if (typeof window.onFirebaseClientReady === 'function') {
+      window.onFirebaseClientReady();
+    }
+    window.dispatchEvent(new CustomEvent('fb-client-ready'));
+  </script>
 
   <script>
 /**
@@ -3508,9 +3746,15 @@ window.BWMS = {
   config: {},
   models: [],
   dealers: [],
+  customers: [],
   currentUser: { email: 'staff@distributor.in', name: 'Staff Operator', role: 'OPERATOR' },
+  authUser: null,
+  isAuthorizedStaff: false,
+  isAdminUser: false,
+  staffList: [],
   tickets: [],
   claims: [],
+  claimDocuments: [],
   tests: [],
   challans: [],
   dispatches: [],
@@ -3530,17 +3774,53 @@ window.BWMS = {
   challansTab: 'all',
   sbTab: 'pool',
   settingsTab: 'profile',
+  firebaseUnsubscribers: [],
+  firebaseInitialized: false,
+  firestoreSeededCheckDone: false,
   isSyncing: false,
   lastSyncedAt: null
 };
 
-var CACHE_KEY = 'BWMS_STATE_CACHE_V2';
+var BOOTSTRAP_ADMIN_EMAIL = 'ayushmestorage@gmail.com';
+var CACHE_KEY = 'BWMS_STATE_CACHE_V3_FIREBASE';
 
-// ─── INITIALIZATION ──────────────────────────────────────────────────────────
+// ─── INITIALIZATION & FIREBASE AUTH GATE ─────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
   initApp();
 });
+
+function showAuthGateState(mode, msg) {
+  var overlay = document.getElementById('auth-gate-overlay');
+  var loadingBox = document.getElementById('auth-gate-loading');
+  var loginBox = document.getElementById('auth-gate-login-box');
+  var errorBox = document.getElementById('auth-gate-error-box');
+  var errorMsgEl = document.getElementById('auth-gate-error-msg');
+  var signOutBtn = document.getElementById('btn-sign-out');
+
+  if (!overlay) return;
+
+  if (mode === 'authenticated') {
+    overlay.style.display = 'none';
+    if (signOutBtn) signOutBtn.style.display = 'inline-flex';
+    return;
+  }
+
+  overlay.style.display = 'flex';
+  if (signOutBtn) signOutBtn.style.display = (mode === 'auth-error') ? 'inline-flex' : 'none';
+
+  if (loadingBox) loadingBox.style.display = (mode === 'loading') ? 'block' : 'none';
+  if (loginBox) loginBox.style.display = (mode === 'login' || mode === 'login-error') ? 'block' : 'none';
+
+  if (errorBox) {
+    var showErr = (mode === 'auth-error' || mode === 'login-error');
+    errorBox.style.display = showErr ? 'block' : 'none';
+    if (errorMsgEl && msg) errorMsgEl.textContent = msg;
+    // Show the Sign Out button inside error box only when signed in with unauthorized account
+    var innerSignOut = errorBox.querySelector ? errorBox.querySelector('button') : null;
+    if (innerSignOut) innerSignOut.style.display = (mode === 'auth-error') ? 'inline-flex' : 'none';
+  }
+}
 
 function initApp() {
   // Set default dates across all form inputs
@@ -3579,11 +3859,341 @@ function initApp() {
     });
   }
 
-  // 1. Instant Cold Start from local cache (0ms perceived latency!)
-  loadCachedState();
+  // Firebase Modular SDK browser startup
+  if (typeof window !== 'undefined' && window.FB_CLIENT && window.FB_CLIENT.ready && window.FB_CLIENT.auth) {
+    initFirebaseAuth();
+    return;
+  }
 
-  // 2. Fetch fresh bulk database state in the background
+  var isBrowserRuntime = (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.indexOf('http') === 0 && typeof fetch === 'function' && !window.__BWMS_TEST_MODE__);
+  if (isBrowserRuntime) {
+    showAuthGateState('loading');
+    window.onFirebaseClientReady = function() {
+      initFirebaseAuth();
+    };
+    setTimeout(function() {
+      if (!BWMS.firebaseInitialized) {
+        if (window.FB_CLIENT && window.FB_CLIENT.ready && window.FB_CLIENT.auth) {
+          initFirebaseAuth();
+        } else {
+          showAuthGateState('login-error', 'Could not load Firebase SDK from CDN. Check internet connection and reload.');
+        }
+      }
+    }, 9000);
+    return;
+  }
+
+  // Offline / Node.js VM test fallback startup
+  showAuthGateState('authenticated');
+  loadCachedState();
   syncAllData(false);
+}
+
+function initFirebaseAuth() {
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (!FB || !FB.auth || BWMS.firebaseInitialized) return;
+  BWMS.firebaseInitialized = true;
+
+  showAuthGateState('loading');
+
+  if (typeof FB.getRedirectResult === 'function') {
+    FB.getRedirectResult(FB.auth).catch(function(err) {
+      if (err && err.message) {
+        showAuthGateState('login-error', err.message);
+      }
+    });
+  }
+
+  FB.onAuthStateChanged(FB.auth, async function(user) {
+    detachFirestoreListeners();
+
+    if (!user || !user.email) {
+      BWMS.authUser = null;
+      BWMS.isAuthorizedStaff = false;
+      BWMS.isAdminUser = false;
+      BWMS.staffList = [];
+      showAuthGateState('login');
+      updateSyncStatusBadge('Sign in required', 'offline');
+      return;
+    }
+
+    showAuthGateState('loading');
+    var emailLower = String(user.email || '').trim().toLowerCase();
+    var isBootstrap = (emailLower === BOOTSTRAP_ADMIN_EMAIL && user.emailVerified === true);
+
+    try {
+      var staffRef = FB.doc(FB.db, 'authorized_staff', emailLower);
+      var staffSnap = await FB.getDoc(staffRef);
+      var staffData = staffSnap.exists() ? staffSnap.data() : null;
+
+      if (isBootstrap && !staffSnap.exists()) {
+        var nowIso = new Date().toISOString();
+        staffData = {
+          email: emailLower,
+          name: user.displayName || 'Ayush Admin',
+          role: 'ADMIN',
+          active: true,
+          created_at: nowIso,
+          updated_at: nowIso
+        };
+        try {
+          await FB.setDoc(staffRef, staffData);
+        } catch (seedStaffErr) {
+          console.warn('Bootstrap admin staff doc note:', seedStaffErr);
+        }
+      }
+
+      var hasActiveStaffDoc = Boolean(staffData && staffData.active === true);
+      if (!isBootstrap && !hasActiveStaffDoc) {
+        BWMS.authUser = user;
+        BWMS.isAuthorizedStaff = false;
+        BWMS.isAdminUser = false;
+        updateSyncStatusBadge('Access Denied', 'offline');
+        showAuthGateState(
+          'auth-error',
+          'Signed in as "' + emailLower + '", which is not authorized or has been disabled in Staff Access. Ask your Admin (' + BOOTSTRAP_ADMIN_EMAIL + ') to authorize this email, or sign out and choose another Google account.'
+        );
+        return;
+      }
+
+      BWMS.authUser = user;
+      BWMS.isAuthorizedStaff = true;
+      BWMS.isAdminUser = isBootstrap || (staffData && staffData.role === 'ADMIN');
+      BWMS.currentUser = {
+        email: emailLower,
+        name: (staffData && staffData.name) || user.displayName || emailLower.split('@')[0],
+        role: isBootstrap ? 'ADMIN' : ((staffData && staffData.role) || 'OPERATOR')
+      };
+
+      showAuthGateState('authenticated');
+      loadCachedState();
+      await ensureFirestoreSeeded();
+      startFirestoreListeners();
+      syncAllData(false);
+    } catch (authErr) {
+      console.error('Staff verification failed:', authErr);
+      BWMS.isAuthorizedStaff = false;
+      BWMS.isAdminUser = false;
+      updateSyncStatusBadge('Auth Error', 'offline');
+      showAuthGateState('auth-error', 'Could not verify staff access for "' + emailLower + '": ' + (authErr && authErr.message ? authErr.message : String(authErr)));
+    }
+  });
+}
+
+async function handleFirebaseGoogleLogin() {
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (!FB || !FB.auth) {
+    showToast('Firebase Authentication is still initializing...', 'warning');
+    return;
+  }
+  showAuthGateState('loading');
+  try {
+    var provider = new FB.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await FB.signInWithPopup(FB.auth, provider);
+  } catch (err) {
+    var code = err && err.code ? String(err.code) : '';
+    if (code === 'auth/popup-blocked') {
+      try {
+        var redirectProvider = new FB.GoogleAuthProvider();
+        await FB.signInWithRedirect(FB.auth, redirectProvider);
+        return;
+      } catch (redirErr) {
+        showAuthGateState('login-error', redirErr.message || String(redirErr));
+        return;
+      }
+    }
+    showAuthGateState('login-error', (err && err.message) ? err.message : 'Google Sign-In failed.');
+  }
+}
+
+async function handleFirebaseEmailLogin(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (!FB || !FB.auth) return;
+  var email = (document.getElementById('auth-email-input') ? document.getElementById('auth-email-input').value : '').trim();
+  var pass = document.getElementById('auth-password-input') ? document.getElementById('auth-password-input').value : '';
+  if (!email || !pass) return;
+
+  showAuthGateState('loading');
+  try {
+    await FB.signInWithEmailAndPassword(FB.auth, email, pass);
+  } catch (err) {
+    showAuthGateState('login-error', (err && err.message) ? err.message : 'Invalid staff email or password.');
+  }
+}
+
+async function handleFirebaseSignOut() {
+  detachFirestoreListeners();
+  BWMS.authUser = null;
+  BWMS.isAuthorizedStaff = false;
+  BWMS.isAdminUser = false;
+  BWMS.staffList = [];
+  BWMS.firestoreSeededCheckDone = false;
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (FB && FB.auth) {
+    try {
+      await FB.signOut(FB.auth);
+    } catch (err) {
+      console.warn('Sign out warning:', err);
+    }
+  }
+  showAuthGateState('login');
+}
+
+function detachFirestoreListeners() {
+  if (Array.isArray(BWMS.firebaseUnsubscribers)) {
+    BWMS.firebaseUnsubscribers.forEach(function(unsub) {
+      try { if (typeof unsub === 'function') unsub(); } catch (e) {}
+    });
+  }
+  BWMS.firebaseUnsubscribers = [];
+}
+
+var _fbRenderTimer = null;
+function scheduleFirestoreUiRefresh() {
+  if (_fbRenderTimer) clearTimeout(_fbRenderTimer);
+  _fbRenderTimer = setTimeout(function() {
+    saveStateToLocalCache();
+    applyStateData({
+      config: BWMS.config,
+      models: BWMS.models,
+      dealers: BWMS.dealers,
+      customers: BWMS.customers,
+      tickets: BWMS.tickets,
+      claims: BWMS.claims,
+      claimDocuments: BWMS.claimDocuments,
+      staffList: BWMS.staffList,
+      tests: BWMS.tests,
+      challans: BWMS.challans,
+      dispatches: BWMS.dispatches,
+      dispatchItems: BWMS.dispatchItems,
+      stockUpdates: BWMS.stockUpdates,
+      serviceBatteries: BWMS.serviceBatteries,
+      serviceBatteryLogs: BWMS.serviceBatteryLogs,
+      auditLog: BWMS.auditLog,
+      currentUser: BWMS.currentUser
+    });
+    BWMS.lastSyncedAt = new Date();
+    updateSyncStatusBadge('Firebase Live', 'online');
+  }, 60);
+}
+
+function startFirestoreListeners() {
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (!FB || !FB.db || !BWMS.isAuthorizedStaff) return;
+  detachFirestoreListeners();
+
+  // Config singleton
+  BWMS.firebaseUnsubscribers.push(
+    FB.onSnapshot(FB.doc(FB.db, 'config', 'app_settings'), function(snap) {
+      if (snap.exists()) {
+        BWMS.config = Object.assign({}, BWMS.config, snap.data());
+        scheduleFirestoreUiRefresh();
+      }
+    }, function(err) {
+      console.warn('Config listener warning:', err);
+    })
+  );
+
+  var collectionsMap = [
+    ['battery_models', 'models'],
+    ['dealers', 'dealers'],
+    ['customers', 'customers'],
+    ['tickets', 'tickets'],
+    ['battery_tests', 'tests'],
+    ['claims', 'claims'],
+    ['claim_documents', 'claimDocuments'],
+    ['delivery_challans', 'challans'],
+    ['company_dispatches', 'dispatches'],
+    ['company_dispatch_items', 'dispatchItems'],
+    ['stock_update_log', 'stockUpdates'],
+    ['service_batteries', 'serviceBatteries'],
+    ['service_battery_logs', 'serviceBatteryLogs'],
+    ['audit_log', 'auditLog']
+  ];
+
+  collectionsMap.forEach(function(pair) {
+    var colName = pair[0];
+    var stateKey = pair[1];
+    var unsub = FB.onSnapshot(FB.collection(FB.db, colName), function(snap) {
+      var list = [];
+      snap.forEach(function(dSnap) {
+        list.push(dSnap.data());
+      });
+      BWMS[stateKey] = sortFirestoreRecords(colName, list);
+      scheduleFirestoreUiRefresh();
+    }, function(err) {
+      console.warn('Listener warning [' + colName + ']:', err);
+    });
+    BWMS.firebaseUnsubscribers.push(unsub);
+  });
+
+  // Authorized staff collection list is Admin-only per firestore.rules
+  if (BWMS.isAdminUser) {
+    BWMS.firebaseUnsubscribers.push(
+      FB.onSnapshot(FB.collection(FB.db, 'authorized_staff'), function(snap) {
+        var staff = [];
+        snap.forEach(function(dSnap) { staff.push(dSnap.data()); });
+        staff.sort(function(a, b) { return String(a.email || '').localeCompare(String(b.email || '')); });
+        BWMS.staffList = staff;
+        scheduleFirestoreUiRefresh();
+      }, function(err) {
+        console.warn('Staff listener warning:', err);
+      })
+    );
+  }
+}
+
+async function ensureFirestoreSeeded() {
+  if (BWMS.firestoreSeededCheckDone) return;
+  BWMS.firestoreSeededCheckDone = true;
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (!FB || !FB.db) return;
+
+  try {
+    var cfgRef = FB.doc(FB.db, 'config', 'app_settings');
+    var cfgSnap = await FB.getDoc(cfgRef);
+    var modelsSnap = await FB.getDocs(FB.collection(FB.db, 'battery_models'));
+    var seed = getDefaultSeedState();
+
+    if (!cfgSnap.exists()) {
+      var nowIso = new Date().toISOString();
+      var defaultCfg = fbPickFields(Object.assign({}, seed.config, {
+        TICKET_PREFIX: 'TKT',
+        CLAIM_PREFIX: 'CLM',
+        RETURN_CHALLAN_PREFIX: 'DC-RET',
+        COMPANY_CHALLAN_PREFIX: 'DC-COM',
+        DISPATCH_PREFIX: 'DSP',
+        TICKET_SEQ: 1001,
+        CLAIM_SEQ: 1001,
+        RETURN_CHALLAN_SEQ: 1001,
+        COMPANY_CHALLAN_SEQ: 1001,
+        DISPATCH_SEQ: 1001,
+        updated_at: nowIso
+      }), FB_ALLOWED_FIELDS.config);
+      await FB.setDoc(cfgRef, defaultCfg);
+    }
+
+    if (modelsSnap.empty) {
+      var batch = FB.writeBatch(FB.db);
+      var seedTime = new Date().toISOString();
+      (seed.models || []).forEach(function(m) {
+        var docObj = fbCleanModel(m, seedTime);
+        batch.set(FB.doc(FB.db, 'battery_models', docObj.model_id), docObj);
+      });
+      var dealersSnap = await FB.getDocs(FB.collection(FB.db, 'dealers'));
+      if (dealersSnap.empty) {
+        (seed.dealers || []).forEach(function(d) {
+          var dObj = fbCleanDealer(d, seedTime);
+          batch.set(FB.doc(FB.db, 'dealers', dObj.dealer_id), dObj);
+        });
+      }
+      await batch.commit();
+    }
+  } catch (seedErr) {
+    console.warn('Firestore initial seed check warning:', seedErr);
+  }
 }
 
 function loadCachedState() {
@@ -3617,8 +4227,10 @@ function saveStateToLocalCache() {
         Config: BWMS.config,
         Battery_Models: BWMS.models,
         Dealers: BWMS.dealers,
+        Customers: BWMS.customers,
         Tickets: BWMS.tickets,
         Claims: BWMS.claims,
+        Claim_Documents: BWMS.claimDocuments,
         Battery_Tests: BWMS.tests,
         Delivery_Challans: BWMS.challans,
         Company_Dispatches: BWMS.dispatches,
@@ -3631,8 +4243,11 @@ function saveStateToLocalCache() {
       config: BWMS.config,
       models: BWMS.models,
       dealers: BWMS.dealers,
+      customers: BWMS.customers,
       tickets: BWMS.tickets,
       claims: BWMS.claims,
+      claimDocuments: BWMS.claimDocuments,
+      staffList: BWMS.staffList,
       tests: BWMS.tests,
       challans: BWMS.challans,
       dispatches: BWMS.dispatches,
@@ -3653,7 +4268,7 @@ function saveStateToLocalCache() {
 function syncAllData(isManual) {
   if (BWMS.isSyncing) return;
   BWMS.isSyncing = true;
-  updateSyncStatusBadge('Syncing cloud...', 'syncing');
+  updateSyncStatusBadge('Syncing Firestore...', 'syncing');
 
   callServer('apiGetBulkState', [], function(res) {
     BWMS.isSyncing = false;
@@ -3661,35 +4276,38 @@ function syncAllData(isManual) {
       applyStateData(res.data);
       saveStateToLocalCache();
       BWMS.lastSyncedAt = new Date();
-      updateSyncStatusBadge(res.isLocalFallback ? 'Local Mode (Ready)' : 'Synced just now', res.isLocalFallback ? 'cached' : 'online');
+      updateSyncStatusBadge(res.isLocalFallback ? 'Local Mode (Ready)' : 'Firebase Live', res.isLocalFallback ? 'cached' : 'online');
 
       if (isManual) {
         var totalRecords = (BWMS.tickets.length + BWMS.claims.length + BWMS.tests.length);
-        showToast('✅ Sync Complete: ' + totalRecords + ' records active in memory.', 'success');
+        showToast('✅ Firestore Sync Complete: ' + totalRecords + ' records active.', 'success');
       }
     } else {
-      updateSyncStatusBadge('Local Mode (Offline)', 'offline');
+      updateSyncStatusBadge('Sync Warning', 'offline');
       if (isManual) {
-        showToast('Sync warning: ' + ((res && (res.error || res.message)) ? (res.error || res.message) : 'Using local state'), 'warning');
+        showToast('Sync warning: ' + ((res && (res.error || res.message)) ? (res.error || res.message) : 'Unable to sync'), 'warning');
       }
     }
   }, function(err) {
     BWMS.isSyncing = false;
-    updateSyncStatusBadge('Local Mode (Offline)', 'offline');
+    updateSyncStatusBadge('Offline / Error', 'offline');
     console.warn('Bulk sync error:', err);
     if (isManual) {
-      showToast('Cloud unreachable, operating in offline-ready local mode.', 'warning');
+      showToast('Firestore sync error: ' + err, 'error');
     }
   });
 }
 
 function applyStateData(data) {
   var t = data.tables || {};
-  BWMS.config = data.config || t.Config || BWMS.config;
-  BWMS.models = data.models || t.Battery_Models || BWMS.models;
-  BWMS.dealers = data.dealers || t.Dealers || BWMS.dealers;
+  BWMS.config = data.config || t.Config || BWMS.config || {};
+  BWMS.models = data.models || t.Battery_Models || BWMS.models || [];
+  BWMS.dealers = data.dealers || t.Dealers || BWMS.dealers || [];
+  BWMS.customers = data.customers || t.Customers || BWMS.customers || [];
   BWMS.tickets = data.tickets || t.Tickets || [];
   BWMS.claims = data.claims || t.Claims || [];
+  BWMS.claimDocuments = data.claimDocuments || t.Claim_Documents || BWMS.claimDocuments || [];
+  if (data.staffList) BWMS.staffList = data.staffList;
   BWMS.tests = data.tests || t.Battery_Tests || [];
   BWMS.challans = data.challans || t.Delivery_Challans || [];
   BWMS.dispatches = data.dispatches || t.Company_Dispatches || [];
@@ -3738,13 +4356,13 @@ function updateSyncStatusBadge(text, state) {
     else refreshIcon.classList.remove('spin');
   }
   if (badge) {
-    badge.title = 'In-Memory fast store: ' + (BWMS.tickets.length || 0) + ' tickets, ' + (BWMS.claims.length || 0) + ' claims. Click to sync with Google Cloud.';
+    badge.title = 'Firebase Cloud Firestore: ' + (BWMS.tickets.length || 0) + ' tickets, ' + (BWMS.claims.length || 0) + ' claims. Click to refresh.';
   }
 
   // Update cloud settings info tab
   var storeStats = document.getElementById('cloud-store-stats');
   if (storeStats) {
-    storeStats.textContent = 'Active • ' + (BWMS.tickets.length + BWMS.claims.length + BWMS.tests.length) + ' items in memory';
+    storeStats.textContent = 'Firestore Live • ' + (BWMS.tickets.length + BWMS.claims.length + BWMS.tests.length) + ' active records';
   }
 }
 
@@ -6090,7 +6708,7 @@ function renderAuditTable() {
 
 function switchSettingsTab(tab) {
   BWMS.settingsTab = tab;
-  var tabs = ['profile', 'models', 'dealers', 'cloud'];
+  var tabs = ['profile', 'models', 'dealers', 'staff', 'cloud'];
   tabs.forEach(function(t) {
     var btn = document.getElementById('tab-btn-cfg-' + t);
     var container = document.getElementById('container-cfg-' + t);
@@ -6104,6 +6722,8 @@ function switchSettingsTab(tab) {
 function renderSettingsView() {
   setElText('cfg-models-count', (BWMS.models || []).length);
   setElText('cfg-dealers-count', (BWMS.dealers || []).length);
+  var staffCount = BWMS.isAdminUser ? (BWMS.staffList || []).length : 1;
+  setElText('cfg-staff-count', staffCount);
 
   var modelSearch = (document.getElementById('filter-cfg-models-search') ? document.getElementById('filter-cfg-models-search').value : '').toLowerCase().trim();
 
@@ -6147,16 +6767,129 @@ function renderSettingsView() {
     (BWMS.dealers || []).forEach(function(d) {
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td><small style="color:var(--accent); font-family:monospace;">' + (d.dealer_id || '-') + '</small></td>' +
-        '<td><strong>' + (d.dealer_name || '-') + '</strong></td>' +
-        '<td>' + (d.contact_person || '-') + '</td>' +
-        '<td>' + (d.mobile || '-') + '</td>' +
-        '<td><small style="font-family:monospace;">' + (d.gstin || '-') + '</small></td>' +
-        '<td>' + (d.address || '-') + '</td>' +
+        '<td><small style="color:var(--accent); font-family:monospace;">' + escapeHtml(d.dealer_id || '-') + '</small></td>' +
+        '<td><strong>' + escapeHtml(d.dealer_name || '-') + '</strong></td>' +
+        '<td>' + escapeHtml(d.contact_person || '-') + '</td>' +
+        '<td>' + escapeHtml(d.mobile || '-') + '</td>' +
+        '<td><small style="font-family:monospace;">' + escapeHtml(d.gstin || '-') + '</small></td>' +
+        '<td>' + escapeHtml(d.address || '-') + '</td>' +
         '<td><span class="badge badge-green">AUTHORIZED</span></td>';
       tbodyDealers.appendChild(tr);
     });
   }
+
+  // Render Authorized Staff Table (Firebase Auth)
+  var tbodyStaff = document.getElementById('cfg-staff-body');
+  if (tbodyStaff) {
+    tbodyStaff.innerHTML = '';
+    if (!BWMS.isAdminUser) {
+      tbodyStaff.innerHTML =
+        '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748b;">' +
+        'Signed in as <strong>' + escapeHtml((BWMS.currentUser && BWMS.currentUser.email) || '-') + '</strong> (' + escapeHtml((BWMS.currentUser && BWMS.currentUser.role) || 'OPERATOR') + '). Only Admin accounts can view and manage authorized staff.' +
+        '</td></tr>';
+    } else {
+      var staffRows = (BWMS.staffList || []).slice();
+      if (staffRows.length === 0) {
+        tbodyStaff.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">No extra staff accounts added yet. Bootstrap Admin (' + escapeHtml(BOOTSTRAP_ADMIN_EMAIL) + ') is active.</td></tr>';
+      } else {
+        staffRows.forEach(function(st) {
+          var emailLower = String(st.email || '').toLowerCase();
+          var isPrimaryAdmin = (emailLower === BOOTSTRAP_ADMIN_EMAIL);
+          var isActive = (st.active === true);
+          var roleBadgeClass = (st.role === 'ADMIN') ? 'badge-blue' : ((st.role === 'TESTER') ? 'badge-yellow' : 'badge-green');
+          var statusBadge = isActive
+            ? '<span class="badge badge-green">ACTIVE</span>'
+            : '<span class="badge badge-red">DISABLED</span>';
+          var actionsHtml = isPrimaryAdmin
+            ? '<span class="badge badge-gray">PRIMARY ADMIN</span>'
+            : '<div style="display:flex; gap:6px;">' +
+              '  <button type="button" class="btn btn-secondary btn-sm" onclick="toggleStaffActive(\'' + escapeHtml(emailLower) + '\', ' + (!isActive) + ')">' + (isActive ? '🚫 Disable' : '✅ Enable') + '</button>' +
+              '  <button type="button" class="btn btn-danger btn-sm" onclick="deleteStaffMember(\'' + escapeHtml(emailLower) + '\')">🗑️ Remove</button>' +
+              '</div>';
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td><strong style="font-family:monospace;">' + escapeHtml(emailLower) + '</strong></td>' +
+            '<td>' + escapeHtml(st.name || '-') + '</td>' +
+            '<td><span class="badge ' + roleBadgeClass + '">' + escapeHtml(st.role || 'OPERATOR') + '</span></td>' +
+            '<td>' + statusBadge + '</td>' +
+            '<td>' + actionsHtml + '</td>';
+          tbodyStaff.appendChild(tr);
+        });
+      }
+    }
+  }
+}
+
+function openAddStaffModal() {
+  if (!BWMS.isAdminUser) {
+    showToast('Only an Admin can authorize new staff emails.', 'error');
+    return;
+  }
+  var form = document.getElementById('form-add-staff');
+  if (form) form.reset();
+  openModal('modal-add-staff');
+}
+
+function handleAddStaffSubmit(e) {
+  e.preventDefault();
+  var email = (document.getElementById('new-staff-email').value || '').trim().toLowerCase();
+  var name = (document.getElementById('new-staff-name').value || '').trim();
+  var role = document.getElementById('new-staff-role').value || 'OPERATOR';
+  if (!email || !name) return;
+
+  closeModal('modal-add-staff');
+
+  callServer('apiSaveStaff', [{ email: email, name: name, role: role, active: true }], function(res) {
+    if (res && res.success) {
+      if (res.data && res.data.email) {
+        var idx = (BWMS.staffList || []).findIndex(function(s) { return s.email === res.data.email; });
+        if (idx === -1) (BWMS.staffList = BWMS.staffList || []).push(res.data);
+        else BWMS.staffList[idx] = res.data;
+        renderSettingsView();
+      }
+      showToast(res.message || ('Authorized ' + email + ' as ' + role), 'success');
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to save staff member', 'error');
+    }
+  });
+}
+
+function toggleStaffActive(email, nextActive) {
+  if (!BWMS.isAdminUser) {
+    showToast('Only an Admin can update staff access.', 'error');
+    return;
+  }
+  callServer('apiToggleStaffActive', [{ email: email, active: !!nextActive }], function(res) {
+    if (res && res.success) {
+      var st = (BWMS.staffList || []).find(function(s) { return s.email === email; });
+      if (st) st.active = !!nextActive;
+      renderSettingsView();
+      showToast(res.message || ('Updated access for ' + email), 'success');
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to update staff status', 'error');
+    }
+  });
+}
+
+function deleteStaffMember(email) {
+  if (!BWMS.isAdminUser) {
+    showToast('Only an Admin can remove staff accounts.', 'error');
+    return;
+  }
+  if (String(email).toLowerCase() === BOOTSTRAP_ADMIN_EMAIL) {
+    showToast('Primary bootstrap admin cannot be removed.', 'warning');
+    return;
+  }
+  if (!confirm('Revoke and delete staff access for "' + email + '"?')) return;
+  callServer('apiDeleteStaff', [email], function(res) {
+    if (res && res.success) {
+      BWMS.staffList = (BWMS.staffList || []).filter(function(s) { return s.email !== email; });
+      renderSettingsView();
+      showToast(res.message || ('Removed staff access for ' + email), 'success');
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Failed to remove staff', 'error');
+    }
+  });
 }
 
 function saveSettings() {
@@ -6171,7 +6904,7 @@ function saveSettings() {
 
   callServer('apiSaveConfig', [cfg], function(res) {
     if (res && res.success) {
-      showToast('Profile configuration saved to Google Cloud.', 'success');
+      showToast('Profile configuration saved to Firebase Firestore.', 'success');
       BWMS.config = Object.assign(BWMS.config, cfg);
       syncAllData(false);
     } else {
@@ -6291,18 +7024,18 @@ function handleAddDealerSubmit(e) {
 
 function runLatencyProbe() {
   var probeEl = document.getElementById('cloud-latency-val');
-  if (probeEl) probeEl.textContent = 'Probing round-trip latency...';
+  if (probeEl) probeEl.textContent = 'Probing Firestore round-trip...';
   var start = Date.now();
 
   callServer('apiCheckConnection', [], function(res) {
     var elapsed = Date.now() - start;
     if (probeEl) {
-      probeEl.innerHTML = '<span style="color:#16a34a;">⚡ ' + elapsed + ' ms</span> (HTTP OK)';
+      probeEl.innerHTML = '<span style="color:#16a34a;">⚡ ' + elapsed + ' ms</span> (Firestore OK)';
     }
-    showToast('Cloud connection verified in ' + elapsed + ' ms', 'success');
+    showToast('Firebase Firestore verified in ' + elapsed + ' ms', 'success');
   }, function(err) {
     if (probeEl) probeEl.innerHTML = '<span style="color:#dc2626;">Error</span>';
-    showToast('Connection test failed: ' + err, 'error');
+    showToast('Firestore connection test failed: ' + err, 'error');
   });
 }
 
@@ -6576,7 +7309,114 @@ function showTimeline(query) {
 function openUploadDocModal(claimNo) {
   document.getElementById('form-upload').reset();
   document.getElementById('upload-claim-no').value = claimNo;
+  renderClaimDocsList(claimNo);
   openModal('modal-upload');
+}
+
+function renderClaimDocsList(claimNo) {
+  var listEl = document.getElementById('claim-docs-existing-list');
+  if (!listEl) return;
+  var docs = (BWMS.claimDocuments || []).filter(function(d) { return d.claim_no === claimNo; });
+  if (docs.length === 0) {
+    listEl.innerHTML = '<div style="padding:10px 12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; font-size:12px; color:#64748b;">No documents attached to claim <strong>' + escapeHtml(claimNo) + '</strong> yet.</div>';
+    return;
+  }
+  var html = '<div style="font-size:12px; font-weight:700; margin-bottom:8px; color:#334155;">Attached Documents (' + docs.length + ')</div>';
+  docs.forEach(function(d) {
+    var safeUrl = (d.data_url && String(d.data_url).indexOf('data:') === 0) ? d.data_url : '';
+    var isImg = d.mime_type && String(d.mime_type).indexOf('image/') === 0;
+    html +=
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:6px;">' +
+      '  <div style="min-width:0; flex:1;">' +
+      '    <div style="font-size:12px; font-weight:600; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (isImg ? '🖼️ ' : '📄 ') + escapeHtml(d.file_name) + '</div>' +
+      '    <div style="font-size:11px; color:#64748b;">' + escapeHtml(d.doc_type) + ' • ' + (d.file_size_kb || 0) + ' KB • ' + formatDate(d.uploaded_at) + '</div>' +
+      '  </div>' +
+      '  <div style="display:flex; gap:6px; flex-shrink:0;">' +
+      (safeUrl ? '    <a href="' + safeUrl + '" download="' + escapeHtml(d.file_name) + '" target="_blank" class="btn btn-secondary btn-sm">⬇ Save</a>' : '') +
+      '    <button type="button" class="btn btn-danger btn-sm" onclick="deleteClaimDocument(\'' + escapeHtml(d.doc_id) + '\', \'' + escapeHtml(claimNo) + '\')">🗑️</button>' +
+      '  </div>' +
+      '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+function deleteClaimDocument(docId, claimNo) {
+  if (!confirm('Delete this attached document?')) return;
+  callServer('apiDeleteDocument', [{ doc_id: docId, claim_no: claimNo }], function(res) {
+    if (res && res.success) {
+      BWMS.claimDocuments = (BWMS.claimDocuments || []).filter(function(d) { return d.doc_id !== docId; });
+      renderClaimDocsList(claimNo);
+      renderClaimsTable();
+      showToast('Document deleted from Firebase.', 'success');
+    } else {
+      showToast((res && res.error) ? res.error : 'Failed to delete document', 'error');
+    }
+  });
+}
+
+function readFileAsCompressedDataUrl(file, callback, onErr) {
+  var reader = new FileReader();
+  reader.onerror = function() { onErr('Error reading file.'); };
+  reader.onload = function(evt) {
+    var rawDataUrl = evt.target.result || '';
+    var mime = file.type || 'application/octet-stream';
+    var isCompressibleImg = (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp');
+
+    if (!isCompressibleImg || rawDataUrl.length <= 450000 || typeof Image === 'undefined') {
+      if (rawDataUrl.length > 900000) {
+        onErr('File size exceeds ~650KB Firestore document limit. Please upload a compressed image or smaller PDF.');
+        return;
+      }
+      callback({ data_url: rawDataUrl, mime_type: mime, file_size_kb: Math.max(1, Math.round(rawDataUrl.length * 0.75 / 1024)) });
+      return;
+    }
+
+    var img = new Image();
+    img.onerror = function() {
+      if (rawDataUrl.length > 900000) {
+        onErr('Image exceeds size limit and could not be compressed.');
+      } else {
+        callback({ data_url: rawDataUrl, mime_type: mime, file_size_kb: Math.max(1, Math.round(rawDataUrl.length * 0.75 / 1024)) });
+      }
+    };
+    img.onload = function() {
+      try {
+        var maxDim = 1280;
+        var w = img.width || 1000;
+        var h = img.height || 1000;
+        if (w > maxDim || h > maxDim) {
+          var scale = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        var qualities = [0.76, 0.58, 0.42];
+        var outUrl = '';
+        for (var qIdx = 0; qIdx < qualities.length; qIdx++) {
+          outUrl = canvas.toDataURL('image/jpeg', qualities[qIdx]);
+          if (outUrl.length <= 880000) break;
+        }
+        if (outUrl.length > 900000) {
+          onErr('Compressed image still exceeds 650KB Firestore limit. Please crop or resize.');
+          return;
+        }
+        callback({
+          data_url: outUrl,
+          mime_type: 'image/jpeg',
+          file_size_kb: Math.max(1, Math.round(outUrl.length * 0.75 / 1024))
+        });
+      } catch (compErr) {
+        onErr('Image compression error: ' + compErr.message);
+      }
+    };
+    img.src = rawDataUrl;
+  };
+  reader.readAsDataURL(file);
 }
 
 function handleUploadSubmit(e) {
@@ -6592,37 +7432,46 @@ function handleUploadSubmit(e) {
 
   var submitBtn = document.getElementById('btn-upload-submit');
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Uploading to Drive...';
+  submitBtn.textContent = 'Saving to Firebase...';
 
-  var reader = new FileReader();
-  reader.onload = function(evt) {
-    var base64Data = evt.target.result.split(',')[1];
+  readFileAsCompressedDataUrl(file, function(processed) {
     var data = {
       claim_no: claimNo,
+      doc_type: docType,
       document_type: docType,
       file_name: file.name,
-      mime_type: file.type || 'application/octet-stream',
-      file_base64: base64Data
+      mime_type: processed.mime_type,
+      file_size_kb: processed.file_size_kb,
+      data_url: processed.data_url,
+      file_base64: processed.data_url.split(',')[1] || ''
     };
 
     callServer('apiUploadDocument', [data], function(res) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Upload to Drive';
+      submitBtn.textContent = 'Save to Firebase';
       if (res && res.success) {
-        closeModal('modal-upload');
-        showToast(res.message || 'File saved into claim Drive folder.', 'success');
-        syncAllData(false);
+        if (res.data && res.data.doc_id) {
+          BWMS.claimDocuments = BWMS.claimDocuments || [];
+          BWMS.claimDocuments.push(res.data);
+        }
+        document.getElementById('form-upload').reset();
+        document.getElementById('upload-claim-no').value = claimNo;
+        renderClaimDocsList(claimNo);
+        renderClaimsTable();
+        showToast(res.message || 'Document saved to Firebase Firestore.', 'success');
       } else {
         showToast((res && res.error) ? res.error : 'Upload failed', 'error');
       }
+    }, function(errMsg) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save to Firebase';
+      showToast(errMsg || 'Upload failed', 'error');
     });
-  };
-  reader.onerror = function() {
+  }, function(readErr) {
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Upload to Drive';
-    showToast('Error reading file for upload.', 'error');
-  };
-  reader.readAsDataURL(file);
+    submitBtn.textContent = 'Save to Firebase';
+    showToast(readErr, 'error');
+  });
 }
 
 // ─── PRINT PREVIEWS & CLIENT-SIDE HIGH-FIDELITY PRINT ENGINE ─────────────────
@@ -7961,8 +8810,10 @@ function renderTicketActions(t) {
 function renderClaimActions(c) {
   var html = '<div style="display:flex; gap:6px; flex-wrap:wrap;">';
   var s = (c.status || '').toUpperCase();
+  var attachedDocs = (BWMS.claimDocuments || []).filter(function(d) { return d.claim_no === c.claim_no; }).length;
+  var docCount = attachedDocs || parseInt(c.doc_count, 10) || 0;
   html += '<button class="btn btn-secondary btn-sm" onclick="printClaimForm(\'' + c.claim_no + '\')">🖨️ Form</button>';
-  html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs' + (docCount > 0 ? ' (' + docCount + ')' : '') + '</button>';
 
   if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
     html += '<button class="btn btn-warning btn-sm" onclick="navigateTo(\'pending-company\')">🚚 Dispatch to Co.</button>';
@@ -8796,8 +9647,1474 @@ function showToast(msg, type) {
 
 // ─── UNIVERSAL RPC RUNNER & OFFLINE-CAPABLE LOCAL ENGINE ─────────────────────
 
+// ─── CLOUD FIRESTORE ENGINE & TEST FALLBACK ──────────────────────────────────
+
 var evaluateWarrantyTerms = calculateWarrantyDetails;
-var PROD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE/exec";
+var FIREBASE_PROJECT_ID = 'battery-warranty-hub-26';
+
+var FB_ALLOWED_FIELDS = {
+  staff: ['email', 'name', 'role', 'active', 'created_at', 'updated_at'],
+  config: [
+    'COMPANY_NAME', 'COMPANY_ADDRESS', 'COMPANY_PHONE', 'COMPANY_EMAIL',
+    'COMPANY_GST', 'COMPANY_TERMS', 'TIMEZONE',
+    'TICKET_PREFIX', 'CLAIM_PREFIX', 'RETURN_CHALLAN_PREFIX',
+    'COMPANY_CHALLAN_PREFIX', 'DISPATCH_PREFIX',
+    'TICKET_SEQ', 'CLAIM_SEQ', 'RETURN_CHALLAN_SEQ',
+    'COMPANY_CHALLAN_SEQ', 'DISPATCH_SEQ', 'updated_at'
+  ],
+  battery_models: [
+    'model_id', 'model_code', 'brand', 'model_name', 'capacity_ah',
+    'warranty_months', 'guarantee_months', 'pro_rata_months', 'mrp',
+    'is_active', 'updated_at'
+  ],
+  dealers: [
+    'dealer_id', 'dealer_name', 'contact_person', 'mobile',
+    'address', 'gstin', 'city', 'is_active', 'updated_at'
+  ],
+  customers: ['customer_id', 'name', 'mobile', 'address', 'vehicle_number', 'created_at'],
+  tickets: [
+    'ticket_no', 'source_type', 'customer_id', 'customer_name',
+    'dealer_id', 'dealer_name', 'mobile', 'address', 'vehicle_number',
+    'battery_model', 'original_serial_no', 'date_received', 'date_of_sale',
+    'service_battery_issued', 'service_battery_model',
+    'service_battery_serial', 'service_battery_date',
+    'status', 'remarks', 'created_at', 'updated_at', 'created_by'
+  ],
+  battery_tests: [
+    'test_id', 'ticket_no', 'original_serial_no', 'test_date', 'tested_by',
+    'open_circuit_voltage', 'specific_gravity', 'load_test_voltage',
+    'physical_condition', 'test_result', 'test_remarks', 'report_file_id'
+  ],
+  claims: [
+    'claim_no', 'ticket_no', 'source_type', 'customer_name', 'mobile',
+    'address', 'dealer_name', 'vehicle_number', 'battery_model',
+    'original_serial_no', 'date_of_sale', 'warranty_months',
+    'warranty_expiry_date', 'warranty_status', 'claim_date', 'status',
+    'dispatch_batch_no', 'company_challan_no', 'company_dispatch_date',
+    'replacement_model', 'replacement_serial_no', 'replacement_received_date',
+    'stock_status', 'stock_ref_no', 'stock_updated_date', 'stock_updated_by',
+    'closed_date', 'remarks', 'doc_count', 'created_at', 'updated_at'
+  ],
+  claim_documents: [
+    'doc_id', 'claim_no', 'doc_type', 'file_name', 'mime_type',
+    'file_size_kb', 'data_url', 'uploaded_at', 'uploaded_by'
+  ],
+  delivery_challans: [
+    'challan_no', 'challan_type', 'challan_date', 'recipient_type',
+    'recipient_name', 'mobile', 'address', 'ticket_no', 'battery_model',
+    'battery_serial_no', 'quantity', 'received_by_name', 'received_date',
+    'status', 'remarks'
+  ],
+  company_dispatches: [
+    'dispatch_batch_no', 'company_name', 'destination',
+    'company_challan_no', 'dispatch_date', 'carrier_transporter',
+    'lr_docket_no', 'claim_count', 'battery_count', 'created_by', 'remarks'
+  ],
+  company_dispatch_items: [
+    'item_id', 'dispatch_batch_no', 'claim_no', 'ticket_no',
+    'customer_name', 'battery_model', 'original_serial_no', 'warranty_status'
+  ],
+  replacement_receipts: [
+    'receipt_id', 'claim_no', 'replacement_model', 'replacement_serial_no',
+    'received_date', 'received_by', 'remarks'
+  ],
+  stock_update_log: [
+    'stock_task_id', 'claim_no', 'replacement_model',
+    'replacement_serial_no', 'received_date', 'stock_status',
+    'accounting_ref_no', 'updated_at', 'updated_by', 'remarks'
+  ],
+  service_batteries: [
+    'sb_id', 'serial_no', 'brand', 'model_name', 'capacity_ah',
+    'status', 'is_blocked', 'block_reason', 'current_ticket_no',
+    'current_customer_name', 'current_mobile', 'assigned_date',
+    'rotation_count', 'last_rotated_date', 'condition_notes',
+    'created_at', 'updated_at'
+  ],
+  service_battery_logs: [
+    'log_id', 'sb_id', 'serial_no', 'model_name', 'action_type',
+    'ticket_no', 'customer_name', 'mobile', 'assigned_date',
+    'returned_date', 'days_rotated', 'performed_by', 'remarks', 'created_at'
+  ],
+  audit_log: [
+    'audit_id', 'timestamp', 'user_email', 'action', 'record_type',
+    'entity_type', 'record_id', 'entity_id', 'old_status',
+    'new_status', 'details'
+  ]
+};
+
+function fbPickFields(obj, allowedKeys) {
+  var out = {};
+  (allowedKeys || []).forEach(function(k) {
+    if (obj && obj[k] !== undefined) out[k] = obj[k];
+  });
+  return out;
+}
+
+function fbStr(v, maxLen, fallback) {
+  if (v === undefined || v === null) return fallback !== undefined ? fallback : '';
+  var s = String(v).trim();
+  return (maxLen && s.length > maxLen) ? s.substring(0, maxLen) : s;
+}
+
+function fbNum(v, fallback, min, max) {
+  if (v === undefined || v === null || v === '') return fallback;
+  var n = Number(v);
+  if (!isFinite(n)) return fallback;
+  if (min !== undefined && n < min) n = min;
+  if (max !== undefined && n > max) n = max;
+  return n;
+}
+
+function fbSafeId(raw) {
+  return String(raw || '').trim().replace(/\//g, '_');
+}
+
+function fbCleanConfig(obj, nowIso) {
+  var src = obj || {};
+  var out = { updated_at: fbStr(src.updated_at || nowIso, 50) };
+  var strKeys = [
+    'COMPANY_NAME', 'COMPANY_ADDRESS', 'COMPANY_PHONE', 'COMPANY_EMAIL',
+    'COMPANY_GST', 'COMPANY_TERMS', 'TIMEZONE',
+    'TICKET_PREFIX', 'CLAIM_PREFIX', 'RETURN_CHALLAN_PREFIX',
+    'COMPANY_CHALLAN_PREFIX', 'DISPATCH_PREFIX'
+  ];
+  var seqKeys = [
+    'TICKET_SEQ', 'CLAIM_SEQ', 'RETURN_CHALLAN_SEQ',
+    'COMPANY_CHALLAN_SEQ', 'DISPATCH_SEQ'
+  ];
+  strKeys.forEach(function(k) {
+    if (src[k] !== undefined && src[k] !== null) {
+      out[k] = fbStr(src[k], k === 'COMPANY_TERMS' ? 2000 : 400);
+    }
+  });
+  seqKeys.forEach(function(k) {
+    if (src[k] !== undefined && src[k] !== null && src[k] !== '') {
+      out[k] = Math.max(1, Math.round(fbNum(src[k], 1001, 1, 1000000000)));
+    }
+  });
+  return out;
+}
+
+function fbCleanModel(m, nowIso) {
+  var cap = fbNum(m.capacity_ah, 35, 0, 1000);
+  var war = fbNum(m.warranty_months, 36, 0, 240);
+  var gua = fbNum(m.guarantee_months, 18, 0, 240);
+  var pro = fbNum(m.pro_rata_months, Math.max(0, war - gua), 0, 240);
+  var out = {
+    model_id: fbSafeId(m.model_id || ('MOD-' + Math.floor(Math.random() * 9000 + 1000))),
+    model_code: fbStr(m.model_code || '', 60),
+    brand: fbStr(m.brand || 'Amaron', 80, 'Amaron') || 'Amaron',
+    model_name: fbStr(m.model_name || m.model_code || 'Battery Model', 150) || 'Battery Model',
+    capacity_ah: cap,
+    warranty_months: war,
+    guarantee_months: gua,
+    pro_rata_months: pro,
+    is_active: m.is_active !== false && String(m.is_active).toUpperCase() !== 'FALSE',
+    updated_at: fbStr(m.updated_at || nowIso, 50)
+  };
+  if (m.mrp !== undefined && m.mrp !== null && m.mrp !== '') {
+    out.mrp = fbNum(m.mrp, 0, 0, 1000000);
+  }
+  return out;
+}
+
+function fbCleanDealer(d, nowIso) {
+  return {
+    dealer_id: fbSafeId(d.dealer_id || ('DLR-' + Math.floor(Math.random() * 9000 + 1000))),
+    dealer_name: fbStr(d.dealer_name || 'Authorized Dealer', 150) || 'Authorized Dealer',
+    contact_person: fbStr(d.contact_person || '', 100),
+    mobile: fbStr(d.mobile || '', 30),
+    address: fbStr(d.address || '', 300),
+    gstin: fbStr(d.gstin || '', 30),
+    city: fbStr(d.city || '', 80),
+    is_active: d.is_active !== false && String(d.is_active).toUpperCase() !== 'FALSE',
+    updated_at: fbStr(d.updated_at || nowIso, 50)
+  };
+}
+
+function sortFirestoreRecords(colName, list) {
+  if (!Array.isArray(list)) return [];
+  var fieldMap = {
+    battery_models: 'model_id',
+    dealers: 'dealer_id',
+    customers: 'created_at',
+    tickets: 'ticket_no',
+    battery_tests: 'test_date',
+    claims: 'claim_no',
+    claim_documents: 'uploaded_at',
+    delivery_challans: 'challan_no',
+    company_dispatches: 'dispatch_batch_no',
+    company_dispatch_items: 'item_id',
+    stock_update_log: 'claim_no',
+    service_batteries: 'sb_id',
+    service_battery_logs: 'created_at',
+    audit_log: 'timestamp'
+  };
+  var key = fieldMap[colName];
+  if (!key) return list;
+  return list.slice().sort(function(a, b) {
+    return String((a && a[key]) || '').localeCompare(String((b && b[key]) || ''));
+  });
+}
+
+function fbBuildAuditDoc(action, recordType, recordId, oldStatus, newStatus, details) {
+  var nowIso = new Date().toISOString();
+  var yr = new Date().getFullYear();
+  var id = 'AUD-' + yr + '-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 900 + 100);
+  return {
+    audit_id: id,
+    timestamp: nowIso,
+    user_email: (BWMS.currentUser && BWMS.currentUser.email) ? String(BWMS.currentUser.email).toLowerCase() : BOOTSTRAP_ADMIN_EMAIL,
+    action: fbStr(action || 'EVENT', 80),
+    record_type: fbStr(recordType || 'SYSTEM', 50),
+    entity_type: fbStr(recordType || 'SYSTEM', 50),
+    record_id: fbStr(recordId || '', 80),
+    entity_id: fbStr(recordId || '', 80),
+    old_status: fbStr(oldStatus || '', 60),
+    new_status: fbStr(newStatus || '', 60),
+    details: fbStr(details || '', 1000)
+  };
+}
+
+function fbComputeNextSeq(cfgData, seqKey, prefixKey, defaultPrefix, list, field) {
+  var yr = new Date().getFullYear();
+  var prefix = (cfgData && cfgData[prefixKey]) ? String(cfgData[prefixKey]).trim() : defaultPrefix;
+  var cfgSeq = parseInt(cfgData && cfgData[seqKey], 10);
+  if (isNaN(cfgSeq) || cfgSeq < 1) cfgSeq = 1001;
+
+  var maxExisting = 1000;
+  (list || []).forEach(function(item) {
+    var val = String((item && item[field]) || '');
+    var m = val.match(/(\d+)$/);
+    if (m) {
+      var n = parseInt(m[1], 10);
+      if (!isNaN(n) && n > maxExisting) maxExisting = n;
+    }
+  });
+
+  var nextNum = Math.max(cfgSeq, maxExisting + 1);
+  return {
+    id: prefix + '-' + yr + '-' + String(nextNum).padStart(6, '0'),
+    nextSeq: nextNum + 1,
+    prefix: prefix
+  };
+}
+
+async function executeFirebaseAction(funcName, args) {
+  var FB = (typeof window !== 'undefined') ? window.FB_CLIENT : null;
+  if (!FB || !FB.db) {
+    throw new Error('Firebase Firestore client is not initialized.');
+  }
+  if (!BWMS.isAuthorizedStaff) {
+    throw new Error('Authentication required. Please sign in with an authorized staff Google account.');
+  }
+
+  var db = FB.db;
+  args = args || [];
+  var d = args[0] || {};
+  var nowIso = new Date().toISOString();
+  var todayIso = nowIso.split('T')[0];
+  var userEmail = (BWMS.currentUser && BWMS.currentUser.email) ? BWMS.currentUser.email : BOOTSTRAP_ADMIN_EMAIL;
+  var userName = (BWMS.currentUser && BWMS.currentUser.name) ? BWMS.currentUser.name : userEmail;
+
+  if (funcName === 'apiCheckConnection') {
+    var pingSnap = await FB.getDoc(FB.doc(db, 'config', 'app_settings'));
+    return {
+      success: true,
+      data: { status: 'OK', project: FIREBASE_PROJECT_ID, configExists: pingSnap.exists() },
+      message: 'Connected to Firebase Firestore (' + FIREBASE_PROJECT_ID + ').'
+    };
+  }
+
+  if (funcName === 'apiGetBulkState') {
+    var results = await Promise.all([
+      FB.getDoc(FB.doc(db, 'config', 'app_settings')),
+      FB.getDocs(FB.collection(db, 'battery_models')),
+      FB.getDocs(FB.collection(db, 'dealers')),
+      FB.getDocs(FB.collection(db, 'customers')),
+      FB.getDocs(FB.collection(db, 'tickets')),
+      FB.getDocs(FB.collection(db, 'battery_tests')),
+      FB.getDocs(FB.collection(db, 'claims')),
+      FB.getDocs(FB.collection(db, 'claim_documents')),
+      FB.getDocs(FB.collection(db, 'delivery_challans')),
+      FB.getDocs(FB.collection(db, 'company_dispatches')),
+      FB.getDocs(FB.collection(db, 'company_dispatch_items')),
+      FB.getDocs(FB.collection(db, 'stock_update_log')),
+      FB.getDocs(FB.collection(db, 'service_batteries')),
+      FB.getDocs(FB.collection(db, 'service_battery_logs')),
+      FB.getDocs(FB.collection(db, 'audit_log'))
+    ]);
+    function mapSnap(colName, snap) {
+      var arr = [];
+      snap.forEach(function(s) { arr.push(s.data()); });
+      return sortFirestoreRecords(colName, arr);
+    }
+    var cfg = results[0].exists() ? results[0].data() : Object.assign({}, getDefaultSeedState().config);
+    var staffList = BWMS.staffList || [];
+    if (BWMS.isAdminUser) {
+      var staffSnap = await FB.getDocs(FB.collection(db, 'authorized_staff'));
+      staffList = [];
+      staffSnap.forEach(function(s) { staffList.push(s.data()); });
+      staffList.sort(function(a, b) { return String(a.email || '').localeCompare(String(b.email || '')); });
+    }
+    var payload = {
+      config: cfg,
+      models: mapSnap('battery_models', results[1]),
+      dealers: mapSnap('dealers', results[2]),
+      customers: mapSnap('customers', results[3]),
+      tickets: mapSnap('tickets', results[4]),
+      tests: mapSnap('battery_tests', results[5]),
+      claims: mapSnap('claims', results[6]),
+      claimDocuments: mapSnap('claim_documents', results[7]),
+      challans: mapSnap('delivery_challans', results[8]),
+      dispatches: mapSnap('company_dispatches', results[9]),
+      dispatchItems: mapSnap('company_dispatch_items', results[10]),
+      stockUpdates: mapSnap('stock_update_log', results[11]),
+      serviceBatteries: mapSnap('service_batteries', results[12]),
+      serviceBatteryLogs: mapSnap('service_battery_logs', results[13]),
+      auditLog: mapSnap('audit_log', results[14]),
+      staffList: staffList,
+      currentUser: BWMS.currentUser
+    };
+    payload.tables = {
+      Config: payload.config,
+      Battery_Models: payload.models,
+      Dealers: payload.dealers,
+      Customers: payload.customers,
+      Tickets: payload.tickets,
+      Battery_Tests: payload.tests,
+      Claims: payload.claims,
+      Claim_Documents: payload.claimDocuments,
+      Delivery_Challans: payload.challans,
+      Company_Dispatches: payload.dispatches,
+      Company_Dispatch_Items: payload.dispatchItems,
+      Stock_Update_Log: payload.stockUpdates,
+      Service_Batteries: payload.serviceBatteries,
+      Service_Battery_Logs: payload.serviceBatteryLogs,
+      Audit_Log: payload.auditLog
+    };
+    return { success: true, data: payload, message: 'Synced from Firebase Firestore.' };
+  }
+
+  if (funcName === 'apiSaveConfig') {
+    var cfgRef = FB.doc(db, 'config', 'app_settings');
+    var updatedCfg = await FB.runTransaction(db, async function(tx) {
+      var snap = await tx.get(cfgRef);
+      var base = snap.exists() ? snap.data() : {};
+      var merged = fbCleanConfig(Object.assign({}, base, d, { updated_at: nowIso }), nowIso);
+      tx.set(cfgRef, merged);
+      return merged;
+    });
+    await FB.setDoc(FB.doc(db, 'audit_log', fbBuildAuditDoc('CONFIG_SAVED', 'SYSTEM', 'app_settings', '', '', 'Updated shop profile configuration').audit_id),
+      fbBuildAuditDoc('CONFIG_SAVED', 'SYSTEM', 'app_settings', '', '', 'Updated shop profile configuration'));
+    return { success: true, data: updatedCfg, message: 'Configuration saved to Firestore.' };
+  }
+
+  if (funcName === 'apiSaveModel') {
+    var existingMod = (BWMS.models || []).find(function(m) {
+      return (d.model_id && m.model_id === d.model_id) || m.model_name === d.model_name;
+    });
+    var modelId = existingMod ? existingMod.model_id : ('MOD-' + Date.now().toString(36).toUpperCase().slice(-5));
+    var modelDoc = fbCleanModel(Object.assign({}, existingMod || {}, d, { model_id: modelId, updated_at: nowIso }), nowIso);
+    var audMod = fbBuildAuditDoc('BATTERY_MODEL_SAVED', 'Battery_Models', modelId, '', '', 'Saved model: ' + modelDoc.model_name);
+    var bMod = FB.writeBatch(db);
+    bMod.set(FB.doc(db, 'battery_models', modelId), modelDoc);
+    bMod.set(FB.doc(db, 'audit_log', audMod.audit_id), audMod);
+    await bMod.commit();
+    return { success: true, data: modelDoc, message: 'Battery model saved to Firestore.' };
+  }
+
+  if (funcName === 'apiDeleteModel') {
+    var modKey = (typeof d === 'object' && d !== null) ? (d.model_id || d.model_name) : args[0];
+    var foundMod = (BWMS.models || []).find(function(m) {
+      return m.model_id === modKey || m.model_name === modKey || m.model_code === modKey;
+    });
+    var delModId = foundMod ? foundMod.model_id : fbSafeId(modKey);
+    if (!delModId) throw new Error('Battery model not found: ' + modKey);
+    var audDelMod = fbBuildAuditDoc('BATTERY_MODEL_DELETED', 'Battery_Models', delModId, '', '', 'Removed model: ' + ((foundMod && foundMod.model_name) || delModId));
+    var bDelMod = FB.writeBatch(db);
+    bDelMod.delete(FB.doc(db, 'battery_models', delModId));
+    bDelMod.set(FB.doc(db, 'audit_log', audDelMod.audit_id), audDelMod);
+    await bDelMod.commit();
+    return { success: true, data: { model_id: delModId, model_name: foundMod ? foundMod.model_name : delModId }, message: 'Battery model removed from Firestore.' };
+  }
+
+  if (funcName === 'apiSaveDealer') {
+    var dlrId = fbSafeId(d.dealer_id || ('DLR-' + Date.now().toString(36).toUpperCase().slice(-5)));
+    var dlrDoc = fbCleanDealer(Object.assign({}, d, { dealer_id: dlrId, updated_at: nowIso }), nowIso);
+    var audDlr = fbBuildAuditDoc('DEALER_SAVED', 'Dealers', dlrId, '', '', 'Saved dealer: ' + dlrDoc.dealer_name);
+    var bDlr = FB.writeBatch(db);
+    bDlr.set(FB.doc(db, 'dealers', dlrId), dlrDoc);
+    bDlr.set(FB.doc(db, 'audit_log', audDlr.audit_id), audDlr);
+    await bDlr.commit();
+    return { success: true, data: dlrDoc, message: 'Authorized dealer saved to Firestore.' };
+  }
+
+  if (funcName === 'apiSaveStaff' || funcName === 'apiToggleStaffActive' || funcName === 'apiDeleteStaff') {
+    if (!BWMS.isAdminUser) throw new Error('Only an Admin can manage authorized staff.');
+    var targetEmail = fbStr((typeof d === 'object' && d !== null) ? d.email : args[0], 150).toLowerCase();
+    if (!targetEmail || targetEmail.indexOf('@') === -1) throw new Error('Valid staff email is required.');
+
+    if (funcName === 'apiDeleteStaff') {
+      if (targetEmail === BOOTSTRAP_ADMIN_EMAIL) throw new Error('Primary admin cannot be deleted.');
+      var audStDel = fbBuildAuditDoc('STAFF_REMOVED', 'SYSTEM', targetEmail, '', '', 'Removed staff access: ' + targetEmail);
+      var bStDel = FB.writeBatch(db);
+      bStDel.delete(FB.doc(db, 'authorized_staff', targetEmail));
+      bStDel.set(FB.doc(db, 'audit_log', audStDel.audit_id), audStDel);
+      await bStDel.commit();
+      return { success: true, data: { email: targetEmail }, message: 'Staff member removed.' };
+    }
+
+    var staffRef = FB.doc(db, 'authorized_staff', targetEmail);
+    var savedStaff = await FB.runTransaction(db, async function(tx) {
+      var snap = await tx.get(staffRef);
+      var prev = snap.exists() ? snap.data() : null;
+      var role = fbStr((d && d.role) || (prev && prev.role) || 'OPERATOR', 20).toUpperCase();
+      if (role !== 'ADMIN' && role !== 'OPERATOR' && role !== 'TESTER') role = 'OPERATOR';
+      var active = (funcName === 'apiToggleStaffActive') ? Boolean(d.active) : (d.active !== false);
+      if (targetEmail === BOOTSTRAP_ADMIN_EMAIL) {
+        role = 'ADMIN';
+        active = true;
+      }
+      var staffDoc = {
+        email: targetEmail,
+        name: fbStr((d && d.name) || (prev && prev.name) || targetEmail.split('@')[0], 100) || targetEmail.split('@')[0],
+        role: role,
+        active: active,
+        created_at: (prev && prev.created_at) ? fbStr(prev.created_at, 40) : nowIso.substring(0, 40),
+        updated_at: nowIso.substring(0, 40)
+      };
+      tx.set(staffRef, staffDoc);
+      var audSt = fbBuildAuditDoc(funcName === 'apiToggleStaffActive' ? 'STAFF_STATUS' : 'STAFF_SAVED', 'SYSTEM', targetEmail, '', role + (active ? ':ACTIVE' : ':DISABLED'), 'Updated staff access for ' + targetEmail);
+      tx.set(FB.doc(db, 'audit_log', audSt.audit_id), audSt);
+      return staffDoc;
+    });
+    return { success: true, data: savedStaff, message: 'Staff access saved.' };
+  }
+
+  if (funcName === 'apiCreateTicket') {
+    var cleanSerial = fbStr(d.original_serial_no, 80);
+    if (!cleanSerial) throw new Error('Battery serial number is required.');
+    var dup = (BWMS.tickets || []).find(function(t) {
+      var ts = String(t.status || '').toUpperCase();
+      return String(t.original_serial_no || '').trim().toLowerCase() === cleanSerial.toLowerCase() &&
+             ts !== 'CLOSED' && ts !== 'CLAIM_CLOSED' && ts !== 'REJECTED_RETURNED' && ts !== 'REJECTED — RETURNED';
+    });
+    if (dup) throw new Error('Serial ' + cleanSerial + ' is already active under ' + dup.ticket_no + ' (' + dup.status + ').');
+
+    var srcType = fbStr(d.source_type || 'CUSTOMER', 20).toUpperCase() === 'DEALER' ? 'DEALER' : 'CUSTOMER';
+    var dealerName = srcType === 'DEALER' ? fbStr(d.dealer_name, 150) : '';
+    var dealerObj = dealerName ? (BWMS.dealers || []).find(function(dl) { return String(dl.dealer_name).toLowerCase() === dealerName.toLowerCase(); }) : null;
+    var partyCustName = fbStr(d.customer_name, 150) || dealerName || 'Customer';
+    var mobile = fbStr(d.mobile, 30);
+    var sbIssued = (d.service_battery_issued === true || String(d.service_battery_issued).toUpperCase() === 'TRUE');
+    var sbSerial = sbIssued ? fbStr(d.service_battery_serial, 80) : '';
+    var existingSbMeta = sbSerial ? (BWMS.serviceBatteries || []).find(function(s) {
+      return String(s.serial_no || '').trim().toLowerCase() === sbSerial.toLowerCase();
+    }) : null;
+    var existingCust = mobile ? (BWMS.customers || []).find(function(c) { return String(c.mobile || '').trim() === mobile; }) : null;
+
+    var cfgRef = FB.doc(db, 'config', 'app_settings');
+    var sbRef = existingSbMeta ? FB.doc(db, 'service_batteries', existingSbMeta.sb_id) : null;
+
+    var createdTkt = await FB.runTransaction(db, async function(tx) {
+      var cfgSnap = await tx.get(cfgRef);
+      var sbSnap = sbRef ? await tx.get(sbRef) : null;
+      var cfgData = cfgSnap.exists() ? cfgSnap.data() : {};
+      var seqRes = fbComputeNextSeq(cfgData, 'TICKET_SEQ', 'TICKET_PREFIX', 'TKT', BWMS.tickets, 'ticket_no');
+      var ticketNo = seqRes.id;
+
+      // Update config counter cleanly
+      var nextCfg = fbCleanConfig(Object.assign({}, cfgData, {
+        TICKET_PREFIX: seqRes.prefix,
+        TICKET_SEQ: seqRes.nextSeq,
+        updated_at: nowIso
+      }), nowIso);
+      tx.set(cfgRef, nextCfg);
+
+      // Customer creation if needed
+      var custId = existingCust ? fbStr(existingCust.customer_id, 60) : '';
+      if (mobile && !custId) {
+        custId = 'CUST-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        tx.set(FB.doc(db, 'customers', custId), {
+          customer_id: custId,
+          name: partyCustName,
+          mobile: mobile,
+          address: fbStr(d.address, 300),
+          vehicle_number: fbStr(d.vehicle_number, 40),
+          created_at: nowIso
+        });
+      }
+
+      // Service battery lock/assign if issued
+      var sbModelFinal = sbIssued ? fbStr(d.service_battery_model || 'Standby Service Battery', 150) : '';
+      var sbDateFinal = sbIssued ? fbStr(d.service_battery_date || todayIso, 30) : '';
+      if (sbIssued && sbSerial) {
+        var holderName = (srcType === 'DEALER' && dealerName) ? dealerName : partyCustName;
+        if (sbSnap && sbSnap.exists()) {
+          var liveSb = sbSnap.data();
+          if (liveSb.is_blocked || liveSb.status === 'BLOCKED') {
+            throw new Error('Service battery ' + sbSerial + ' is BLOCKED (' + (liveSb.block_reason || 'Unavailable') + ').');
+          }
+          if (liveSb.status === 'ASSIGNED') {
+            throw new Error('Service battery ' + sbSerial + ' is already ASSIGNED to ' + (liveSb.current_customer_name || liveSb.current_ticket_no) + '.');
+          }
+          sbModelFinal = liveSb.model_name || sbModelFinal;
+          var updatedSb = Object.assign({}, liveSb, {
+            status: 'ASSIGNED',
+            is_blocked: false,
+            block_reason: '',
+            current_ticket_no: ticketNo,
+            current_customer_name: holderName,
+            current_mobile: mobile,
+            assigned_date: sbDateFinal,
+            rotation_count: (parseInt(liveSb.rotation_count, 10) || 0) + 1,
+            last_rotated_date: sbDateFinal,
+            updated_at: nowIso
+          });
+          tx.set(sbRef, fbPickFields(updatedSb, FB_ALLOWED_FIELDS.service_batteries));
+          var logId1 = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+          tx.set(FB.doc(db, 'service_battery_logs', logId1), {
+            log_id: logId1,
+            sb_id: liveSb.sb_id,
+            serial_no: liveSb.serial_no,
+            model_name: updatedSb.model_name,
+            action_type: 'ASSIGNED',
+            ticket_no: ticketNo,
+            customer_name: holderName,
+            mobile: mobile,
+            assigned_date: sbDateFinal,
+            returned_date: '',
+            days_rotated: 0,
+            performed_by: userEmail,
+            remarks: 'Issued during intake ticket ' + ticketNo,
+            created_at: nowIso
+          });
+        } else {
+          var newSbId = 'SB-' + Date.now().toString(36).toUpperCase().slice(-6);
+          var newSbDoc = {
+            sb_id: newSbId,
+            serial_no: sbSerial,
+            brand: 'Amaron',
+            model_name: sbModelFinal || 'Standby Service Battery',
+            capacity_ah: 35,
+            status: 'ASSIGNED',
+            is_blocked: false,
+            block_reason: '',
+            current_ticket_no: ticketNo,
+            current_customer_name: holderName,
+            current_mobile: mobile,
+            assigned_date: sbDateFinal,
+            rotation_count: 1,
+            last_rotated_date: sbDateFinal,
+            condition_notes: 'Auto-added during intake',
+            created_at: nowIso,
+            updated_at: nowIso
+          };
+          tx.set(FB.doc(db, 'service_batteries', newSbId), newSbDoc);
+          var logId2 = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+          tx.set(FB.doc(db, 'service_battery_logs', logId2), {
+            log_id: logId2,
+            sb_id: newSbId,
+            serial_no: sbSerial,
+            model_name: newSbDoc.model_name,
+            action_type: 'ASSIGNED',
+            ticket_no: ticketNo,
+            customer_name: holderName,
+            mobile: mobile,
+            assigned_date: sbDateFinal,
+            returned_date: '',
+            days_rotated: 0,
+            performed_by: userEmail,
+            remarks: 'Added & issued during intake ' + ticketNo,
+            created_at: nowIso
+          });
+        }
+      }
+
+      var ticketDoc = {
+        ticket_no: ticketNo,
+        source_type: srcType,
+        customer_id: custId,
+        customer_name: partyCustName,
+        dealer_id: dealerObj ? fbStr(dealerObj.dealer_id, 60) : '',
+        dealer_name: dealerName,
+        mobile: mobile,
+        address: fbStr(d.address, 300),
+        vehicle_number: fbStr(d.vehicle_number, 40),
+        battery_model: fbStr(d.battery_model, 150) || 'Battery Model',
+        original_serial_no: cleanSerial,
+        date_received: fbStr(d.date_received || todayIso, 30),
+        date_of_sale: fbStr(d.date_of_sale || '', 30),
+        service_battery_issued: sbIssued,
+        service_battery_model: sbModelFinal,
+        service_battery_serial: sbSerial,
+        service_battery_date: sbDateFinal,
+        status: 'RECEIVED',
+        remarks: fbStr(d.remarks, 1000),
+        created_at: nowIso,
+        updated_at: nowIso,
+        created_by: userEmail
+      };
+      tx.set(FB.doc(db, 'tickets', ticketNo), ticketDoc);
+      var audTkt = fbBuildAuditDoc('INTAKE', 'TICKET', ticketNo, '', 'RECEIVED', 'Intake ticket created for ' + (dealerName || partyCustName) + ' (' + cleanSerial + ')');
+      tx.set(FB.doc(db, 'audit_log', audTkt.audit_id), audTkt);
+      return ticketDoc;
+    });
+
+    return { success: true, data: createdTkt, message: 'Ticket ' + createdTkt.ticket_no + ' created in Firestore.' };
+  }
+
+  if (funcName === 'apiRecordBatteryTest') {
+    var tNo = fbStr(d.ticket_no, 60);
+    if (!tNo) throw new Error('Ticket number is required.');
+    var tktRef = FB.doc(db, 'tickets', tNo);
+    var testRes = fbStr(d.test_result, 20).toUpperCase() === 'REJECT' ? 'REJECT' : 'PASS';
+    var newStatus = (testRes === 'PASS') ? 'PASSED' : 'REJECTED_RETURN_PENDING';
+    var testId = 'TST-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    var recorded = await FB.runTransaction(db, async function(tx) {
+      var tktSnap = await tx.get(tktRef);
+      if (!tktSnap.exists()) throw new Error('Ticket not found: ' + tNo);
+      var tkt = tktSnap.data();
+      if (tkt.status === 'CLOSED' || tkt.status === 'REJECTED_RETURNED') {
+        throw new Error('Cannot test ticket ' + tNo + ' because it is already ' + tkt.status);
+      }
+      var oldStatus = tkt.status;
+      var testDoc = {
+        test_id: testId,
+        ticket_no: tNo,
+        original_serial_no: fbStr(tkt.original_serial_no || d.original_serial_no || '', 80),
+        test_date: fbStr(d.test_date || todayIso, 30),
+        tested_by: fbStr(d.tested_by || userName, 100),
+        open_circuit_voltage: fbStr(d.open_circuit_voltage, 30),
+        specific_gravity: fbStr(d.specific_gravity, 200),
+        load_test_voltage: fbStr(d.load_test_voltage, 30),
+        physical_condition: fbStr(d.physical_condition || 'INTACT', 200),
+        test_result: testRes,
+        test_remarks: fbStr(d.test_remarks, 1000),
+        report_file_id: fbStr(d.report_file_id, 120)
+      };
+      var updatedTkt = Object.assign({}, tkt, { status: newStatus, updated_at: nowIso });
+      tx.set(FB.doc(db, 'battery_tests', testId), fbPickFields(testDoc, FB_ALLOWED_FIELDS.battery_tests));
+      tx.set(tktRef, fbPickFields(updatedTkt, FB_ALLOWED_FIELDS.tickets));
+      var audTst = fbBuildAuditDoc(testRes === 'PASS' ? 'TEST_PASS' : 'TEST_REJECT', 'TICKET', tNo, oldStatus, newStatus, 'Diagnostic test: ' + testRes);
+      tx.set(FB.doc(db, 'audit_log', audTst.audit_id), audTst);
+      return { test: testDoc, ticket_no: tNo, new_status: newStatus };
+    });
+
+    return { success: true, data: recorded, message: 'Test recorded (' + testRes + ').' };
+  }
+
+  if (funcName === 'apiCreateClaim') {
+    var ctNo = fbStr(d.ticket_no, 60);
+    if (!ctNo) throw new Error('Ticket number is required.');
+    var existingClaim = (BWMS.claims || []).find(function(c) { return c.ticket_no === ctNo; });
+    if (existingClaim) return { success: true, data: existingClaim, message: 'Claim already exists: ' + existingClaim.claim_no };
+
+    var cfgRefClm = FB.doc(db, 'config', 'app_settings');
+    var tktRefClm = FB.doc(db, 'tickets', ctNo);
+
+    var createdClaim = await FB.runTransaction(db, async function(tx) {
+      var cfgSnap = await tx.get(cfgRefClm);
+      var tktSnap = await tx.get(tktRefClm);
+      if (!tktSnap.exists()) throw new Error('Ticket not found: ' + ctNo);
+      var origTkt = tktSnap.data();
+      var cfgData = cfgSnap.exists() ? cfgSnap.data() : {};
+      var seqRes = fbComputeNextSeq(cfgData, 'CLAIM_SEQ', 'CLAIM_PREFIX', 'CLM', BWMS.claims, 'claim_no');
+      var cNo = seqRes.id;
+
+      var dos = fbStr(d.date_of_sale || origTkt.date_of_sale || '', 30);
+      var wCalc = calculateWarrantyDetails(origTkt.battery_model, dos, origTkt.date_received || todayIso);
+      var wStatus = (wCalc.status === 'FULL_GUARANTEE') ? 'IN_WARRANTY' : (wCalc.status === 'PRO_RATA' ? 'PRO_RATA' : 'OUT_OF_WARRANTY');
+      var expIso = wCalc.warrantyExpiry ? (wCalc.warrantyExpiry instanceof Date ? wCalc.warrantyExpiry.toISOString().split('T')[0] : String(wCalc.warrantyExpiry)) : '';
+      var extraNotes = [];
+      if (d.invoice_number) extraNotes.push('Inv: ' + fbStr(d.invoice_number, 60));
+      if (d.km_reading) extraNotes.push('KM: ' + fbStr(d.km_reading, 30));
+      if (d.remarks || origTkt.remarks) extraNotes.push(fbStr(d.remarks || origTkt.remarks, 800));
+
+      var claimDoc = {
+        claim_no: cNo,
+        ticket_no: ctNo,
+        source_type: fbStr(origTkt.source_type || 'CUSTOMER', 20),
+        customer_name: fbStr(origTkt.customer_name, 150),
+        mobile: fbStr(origTkt.mobile, 30),
+        address: fbStr(origTkt.address, 300),
+        dealer_name: fbStr(origTkt.dealer_name, 150),
+        vehicle_number: fbStr(origTkt.vehicle_number, 40),
+        battery_model: fbStr(origTkt.battery_model, 150) || 'Battery Model',
+        original_serial_no: fbStr(origTkt.original_serial_no, 80) || 'UNKNOWN',
+        date_of_sale: dos,
+        warranty_months: Math.max(0, Math.min(240, Math.round(fbNum(wCalc.totalMonths, 36, 0, 240)))),
+        warranty_expiry_date: fbStr(expIso, 30),
+        warranty_status: fbStr(wStatus, 40),
+        claim_date: todayIso,
+        status: 'CLAIM_CREATED',
+        stock_status: 'NOT_APPLICABLE',
+        doc_count: 0,
+        remarks: fbStr(extraNotes.join(' | '), 1000),
+        created_at: nowIso,
+        updated_at: nowIso
+      };
+
+      var nextCfg = fbCleanConfig(Object.assign({}, cfgData, { CLAIM_PREFIX: seqRes.prefix, CLAIM_SEQ: seqRes.nextSeq, updated_at: nowIso }), nowIso);
+      var updatedTkt = Object.assign({}, origTkt, { status: 'CLAIM_CREATED', date_of_sale: dos || origTkt.date_of_sale || '', updated_at: nowIso });
+      tx.set(cfgRefClm, nextCfg);
+      tx.set(FB.doc(db, 'claims', cNo), fbPickFields(claimDoc, FB_ALLOWED_FIELDS.claims));
+      tx.set(tktRefClm, fbPickFields(updatedTkt, FB_ALLOWED_FIELDS.tickets));
+      var audClm = fbBuildAuditDoc('CLAIM_CREATE', 'CLAIM', cNo, origTkt.status, 'CLAIM_CREATED', 'Warranty claim created for ' + origTkt.original_serial_no);
+      tx.set(FB.doc(db, 'audit_log', audClm.audit_id), audClm);
+      return claimDoc;
+    });
+
+    return { success: true, data: createdClaim, message: 'Warranty Claim ' + createdClaim.claim_no + ' created.' };
+  }
+
+  if (funcName === 'apiCreateReturnChallan') {
+    var tId = fbStr(typeof d === 'string' ? d : d.ticket_no, 60);
+    if (!tId) throw new Error('Ticket number is required.');
+    var cfgRefCh = FB.doc(db, 'config', 'app_settings');
+    var tktRefCh = FB.doc(db, 'tickets', tId);
+
+    var createdCh = await FB.runTransaction(db, async function(tx) {
+      var cfgSnap = await tx.get(cfgRefCh);
+      var tktSnap = await tx.get(tktRefCh);
+      if (!tktSnap.exists()) throw new Error('Ticket not found: ' + tId);
+      var rTkt = tktSnap.data();
+      var cfgData = cfgSnap.exists() ? cfgSnap.data() : {};
+      var seqRes = fbComputeNextSeq(cfgData, 'RETURN_CHALLAN_SEQ', 'RETURN_CHALLAN_PREFIX', 'DC-RET', BWMS.challans, 'challan_no');
+      var chNo = seqRes.id;
+
+      var chDoc = {
+        challan_no: chNo,
+        challan_type: 'BATTERY_RETURN',
+        challan_date: todayIso,
+        recipient_type: fbStr(rTkt.source_type || 'CUSTOMER', 30),
+        recipient_name: fbStr((rTkt.source_type === 'DEALER' && rTkt.dealer_name) ? rTkt.dealer_name : rTkt.customer_name, 150) || 'Customer',
+        mobile: fbStr(rTkt.mobile, 30),
+        address: fbStr(rTkt.address, 300),
+        ticket_no: rTkt.ticket_no,
+        battery_model: fbStr(rTkt.battery_model, 150),
+        battery_serial_no: fbStr(rTkt.original_serial_no, 80),
+        quantity: 1,
+        received_by_name: '',
+        received_date: '',
+        status: 'GENERATED',
+        remarks: 'Rejected battery return challan'
+      };
+      var nextCfg = fbCleanConfig(Object.assign({}, cfgData, { RETURN_CHALLAN_PREFIX: seqRes.prefix, RETURN_CHALLAN_SEQ: seqRes.nextSeq, updated_at: nowIso }), nowIso);
+      tx.set(cfgRefCh, nextCfg);
+      tx.set(FB.doc(db, 'delivery_challans', chNo), chDoc);
+      var audCh = fbBuildAuditDoc('CHALLAN_GENERATE', 'CHALLAN', chNo, '', 'GENERATED', 'Generated return challan for ' + tId);
+      tx.set(FB.doc(db, 'audit_log', audCh.audit_id), audCh);
+      return chDoc;
+    });
+
+    return { success: true, data: createdCh, message: 'Return Challan ' + createdCh.challan_no + ' created.' };
+  }
+
+  if (funcName === 'apiMarkChallanReturned') {
+    var chKey = fbStr(d.challan_no, 60);
+    if (!chKey) throw new Error('Challan number is required.');
+    var existingCh = (BWMS.challans || []).find(function(c) { return c.challan_no === chKey; });
+    var linkedTktNo = existingCh ? existingCh.ticket_no : fbStr(d.ticket_no, 60);
+    var linkedSbMeta = (d.return_service_battery && linkedTktNo) ? (BWMS.serviceBatteries || []).find(function(s) {
+      return String(s.status).toUpperCase() === 'ASSIGNED' && s.current_ticket_no === linkedTktNo;
+    }) : null;
+
+    var chRef = FB.doc(db, 'delivery_challans', chKey);
+    var tktRefRet = linkedTktNo ? FB.doc(db, 'tickets', linkedTktNo) : null;
+    var sbRefRet = linkedSbMeta ? FB.doc(db, 'service_batteries', linkedSbMeta.sb_id) : null;
+
+    var ackCh = await FB.runTransaction(db, async function(tx) {
+      var chSnap = await tx.get(chRef);
+      if (!chSnap.exists()) throw new Error('Challan not found: ' + chKey);
+      var tktSnap = tktRefRet ? await tx.get(tktRefRet) : null;
+      var sbSnap = sbRefRet ? await tx.get(sbRefRet) : null;
+
+      var ch = chSnap.data();
+      var rDate = fbStr(d.received_date || d.return_date || todayIso, 30);
+      var rName = fbStr(d.received_by_name || d.receiver_name || 'Customer', 150);
+      var updatedCh = Object.assign({}, ch, {
+        status: 'ACKNOWLEDGED',
+        received_by_name: rName,
+        received_date: rDate,
+        remarks: fbStr(d.remarks || ch.remarks || '', 1000)
+      });
+      tx.set(chRef, fbPickFields(updatedCh, FB_ALLOWED_FIELDS.delivery_challans));
+
+      if (tktSnap && tktSnap.exists()) {
+        var tkt = tktSnap.data();
+        tx.set(tktRefRet, fbPickFields(Object.assign({}, tkt, { status: 'REJECTED_RETURNED', updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
+      }
+
+      if (sbSnap && sbSnap.exists()) {
+        var sb = sbSnap.data();
+        var dOut = sb.assigned_date ? Math.max(0, Math.floor((new Date(rDate) - new Date(sb.assigned_date)) / 86400000)) : 0;
+        var prevAssign = sb.assigned_date || '';
+        var prevCust = sb.current_customer_name || '';
+        var prevTkt = sb.current_ticket_no || '';
+        var updSb = Object.assign({}, sb, {
+          status: sb.is_blocked ? 'BLOCKED' : 'AVAILABLE',
+          current_ticket_no: '',
+          current_customer_name: '',
+          current_mobile: '',
+          assigned_date: '',
+          last_rotated_date: rDate,
+          updated_at: nowIso
+        });
+        tx.set(sbRefRet, fbPickFields(updSb, FB_ALLOWED_FIELDS.service_batteries));
+        var logIdR = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+        tx.set(FB.doc(db, 'service_battery_logs', logIdR), {
+          log_id: logIdR,
+          sb_id: sb.sb_id,
+          serial_no: sb.serial_no,
+          model_name: sb.model_name,
+          action_type: 'RETURNED',
+          ticket_no: prevTkt,
+          customer_name: prevCust,
+          mobile: '',
+          assigned_date: prevAssign,
+          returned_date: rDate,
+          days_rotated: dOut,
+          performed_by: userEmail,
+          remarks: 'Recovered on rejected battery handover (' + chKey + ')',
+          created_at: nowIso
+        });
+      }
+
+      var audAck = fbBuildAuditDoc('CHALLAN_ACKNOWLEDGE', 'CHALLAN', chKey, ch.status, 'ACKNOWLEDGED', 'Rejected battery handed over to ' + rName);
+      tx.set(FB.doc(db, 'audit_log', audAck.audit_id), audAck);
+      return updatedCh;
+    });
+
+    return { success: true, data: ackCh, message: 'Battery handover acknowledged.' };
+  }
+
+  if (funcName === 'apiCreateCompanyDispatch') {
+    var claimNos = Array.isArray(d.claim_nos) ? d.claim_nos.filter(Boolean) : [];
+    if (claimNos.length === 0) throw new Error('Select at least one claim to dispatch.');
+
+    var cfgRefDsp = FB.doc(db, 'config', 'app_settings');
+    var claimRefs = claimNos.map(function(cNo) { return FB.doc(db, 'claims', cNo); });
+
+    var dispatchRes = await FB.runTransaction(db, async function(tx) {
+      var cfgSnap = await tx.get(cfgRefDsp);
+      var claimSnaps = [];
+      for (var i = 0; i < claimRefs.length; i++) {
+        claimSnaps.push(await tx.get(claimRefs[i]));
+      }
+      var ticketRefsToRead = [];
+      claimSnaps.forEach(function(cs) {
+        if (cs.exists() && cs.data().ticket_no) {
+          ticketRefsToRead.push({ ref: FB.doc(db, 'tickets', cs.data().ticket_no), claimNo: cs.data().claim_no });
+        }
+      });
+      var ticketSnaps = [];
+      for (var j = 0; j < ticketRefsToRead.length; j++) {
+        ticketSnaps.push({ ref: ticketRefsToRead[j].ref, snap: await tx.get(ticketRefsToRead[j].ref) });
+      }
+
+      var cfgData = cfgSnap.exists() ? cfgSnap.data() : {};
+      var dspSeq = fbComputeNextSeq(cfgData, 'DISPATCH_SEQ', 'DISPATCH_PREFIX', 'DSP', BWMS.dispatches, 'dispatch_batch_no');
+      var comSeq = fbComputeNextSeq(cfgData, 'COMPANY_CHALLAN_SEQ', 'COMPANY_CHALLAN_PREFIX', 'DC-COM', BWMS.challans, 'challan_no');
+      var batchNo = dspSeq.id;
+      var comChallanNo = comSeq.id;
+      var dspDate = fbStr(d.dispatch_date || todayIso, 30);
+
+      var batchDoc = {
+        dispatch_batch_no: batchNo,
+        company_name: fbStr(d.company_name || 'Amaron Batteries Ltd.', 150) || 'Amaron Batteries Ltd.',
+        destination: fbStr(d.destination || d.company_name || 'Regional Depot', 200),
+        company_challan_no: comChallanNo,
+        dispatch_date: dspDate,
+        carrier_transporter: fbStr(d.transporter || d.transport_name || 'Direct Transport', 150),
+        lr_docket_no: fbStr(d.lr_docket_no || d.docket_number || '-', 80),
+        claim_count: claimNos.length,
+        battery_count: claimNos.length,
+        created_by: userName,
+        remarks: fbStr(d.remarks, 1000)
+      };
+
+      var comChallanDoc = {
+        challan_no: comChallanNo,
+        challan_type: 'COMPANY_DISPATCH',
+        challan_date: dspDate,
+        recipient_type: 'COMPANY',
+        recipient_name: batchDoc.company_name,
+        mobile: '',
+        address: batchDoc.destination,
+        ticket_no: '',
+        battery_model: fbStr('Consolidated Batch (' + claimNos.length + ' Batteries)', 150),
+        battery_serial_no: fbStr('BATCH-' + batchNo, 80),
+        quantity: claimNos.length,
+        received_by_name: '',
+        received_date: '',
+        status: 'GENERATED',
+        remarks: fbStr('Transporter: ' + batchDoc.carrier_transporter + ', LR: ' + batchDoc.lr_docket_no, 1000)
+      };
+
+      var nextCfg = fbCleanConfig(Object.assign({}, cfgData, {
+        DISPATCH_PREFIX: dspSeq.prefix,
+        DISPATCH_SEQ: dspSeq.nextSeq,
+        COMPANY_CHALLAN_PREFIX: comSeq.prefix,
+        COMPANY_CHALLAN_SEQ: comSeq.nextSeq,
+        updated_at: nowIso
+      }), nowIso);
+
+      tx.set(cfgRefDsp, nextCfg);
+      tx.set(FB.doc(db, 'company_dispatches', batchNo), batchDoc);
+      tx.set(FB.doc(db, 'delivery_challans', comChallanNo), comChallanDoc);
+
+      claimSnaps.forEach(function(cs, idx) {
+        if (!cs.exists()) return;
+        var clm = cs.data();
+        var updatedClm = Object.assign({}, clm, {
+          status: 'SENT_TO_COMPANY',
+          dispatch_batch_no: batchNo,
+          company_challan_no: comChallanNo,
+          company_dispatch_date: dspDate,
+          updated_at: nowIso
+        });
+        tx.set(cs.ref, fbPickFields(updatedClm, FB_ALLOWED_FIELDS.claims));
+        var itemId = 'DPI-' + Date.now().toString(36).toUpperCase() + '-' + idx;
+        tx.set(FB.doc(db, 'company_dispatch_items', itemId), {
+          item_id: itemId,
+          dispatch_batch_no: batchNo,
+          claim_no: clm.claim_no,
+          ticket_no: fbStr(clm.ticket_no, 60),
+          customer_name: fbStr(clm.customer_name || clm.dealer_name, 150),
+          battery_model: fbStr(clm.battery_model, 150),
+          original_serial_no: fbStr(clm.original_serial_no, 80),
+          warranty_status: fbStr(clm.warranty_status, 40)
+        });
+      });
+
+      ticketSnaps.forEach(function(ts) {
+        if (!ts.snap.exists()) return;
+        tx.set(ts.ref, fbPickFields(Object.assign({}, ts.snap.data(), { status: 'SENT_TO_COMPANY', updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
+      });
+
+      var audDsp = fbBuildAuditDoc('DISPATCH_COMPANY', 'DISPATCH', batchNo, 'CLAIM_CREATED', 'SENT_TO_COMPANY', 'Dispatched ' + claimNos.length + ' claims under ' + comChallanNo);
+      tx.set(FB.doc(db, 'audit_log', audDsp.audit_id), audDsp);
+      return batchDoc;
+    });
+
+    return { success: true, data: dispatchRes, message: 'Dispatched ' + claimNos.length + ' batteries (' + dispatchRes.company_challan_no + ').' };
+  }
+
+  if (funcName === 'apiRecordReplacementReceived') {
+    var rcNo = fbStr(d.claim_no, 60);
+    var repSerial = fbStr(d.replacement_serial_no, 80);
+    if (!rcNo || !repSerial) throw new Error('Claim number and replacement serial number are required.');
+
+    var claimRefR = FB.doc(db, 'claims', rcNo);
+    var linkedTktR = ((BWMS.claims || []).find(function(c) { return c.claim_no === rcNo; }) || {}).ticket_no;
+    var tktRefR = linkedTktR ? FB.doc(db, 'tickets', linkedTktR) : null;
+
+    var recClaim = await FB.runTransaction(db, async function(tx) {
+      var clmSnap = await tx.get(claimRefR);
+      if (!clmSnap.exists()) throw new Error('Claim not found: ' + rcNo);
+      var clm = clmSnap.data();
+      if (clm.original_serial_no && repSerial.toLowerCase() === String(clm.original_serial_no).trim().toLowerCase()) {
+        throw new Error('Replacement serial number cannot match original serial (' + clm.original_serial_no + ').');
+      }
+      var finalTktRef = tktRefR || (clm.ticket_no ? FB.doc(db, 'tickets', clm.ticket_no) : null);
+      var tktSnap = finalTktRef ? await tx.get(finalTktRef) : null;
+
+      var rDate = fbStr(d.received_date || todayIso, 30);
+      var rModel = fbStr(d.replacement_model || clm.battery_model, 150) || clm.battery_model;
+      var invRef = fbStr(d.company_invoice_ref || d.stock_ref_no || '', 100);
+      var oldSt = clm.status;
+
+      var updClm = Object.assign({}, clm, {
+        replacement_model: rModel,
+        replacement_serial_no: repSerial,
+        replacement_received_date: rDate,
+        status: 'REPLACEMENT_RECEIVED',
+        stock_status: 'UPDATE_REQUIRED',
+        stock_ref_no: invRef || clm.stock_ref_no || '',
+        updated_at: nowIso
+      });
+      tx.set(claimRefR, fbPickFields(updClm, FB_ALLOWED_FIELDS.claims));
+
+      if (tktSnap && tktSnap.exists()) {
+        tx.set(finalTktRef, fbPickFields(Object.assign({}, tktSnap.data(), { status: 'REPLACEMENT_RECEIVED', updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
+      }
+
+      var rcpId = 'RCP-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      tx.set(FB.doc(db, 'replacement_receipts', rcpId), {
+        receipt_id: rcpId,
+        claim_no: rcNo,
+        replacement_model: rModel,
+        replacement_serial_no: repSerial,
+        received_date: rDate,
+        received_by: userName,
+        remarks: fbStr(d.remarks, 1000)
+      });
+
+      var stkId = 'STK-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      tx.set(FB.doc(db, 'stock_update_log', stkId), {
+        stock_task_id: stkId,
+        claim_no: rcNo,
+        replacement_model: rModel,
+        replacement_serial_no: repSerial,
+        received_date: rDate,
+        stock_status: 'UPDATE_REQUIRED',
+        accounting_ref_no: invRef,
+        updated_at: '',
+        updated_by: '',
+        remarks: fbStr(d.remarks || 'Pending ERP stock inward entry', 1000)
+      });
+
+      var audRep = fbBuildAuditDoc('REPLACEMENT_RECEIVE', 'CLAIM', rcNo, oldSt, 'REPLACEMENT_RECEIVED', 'Received replacement serial: ' + repSerial);
+      tx.set(FB.doc(db, 'audit_log', audRep.audit_id), audRep);
+      return updClm;
+    });
+
+    return { success: true, data: recClaim, message: 'Replacement serial ' + repSerial + ' logged.' };
+  }
+
+  if (funcName === 'apiRecordStockUpdated') {
+    var scNo = fbStr(d.claim_no, 60);
+    var vRef = fbStr(d.accounting_ref_no || d.voucher_number, 100);
+    if (!scNo) throw new Error('Claim number is required.');
+
+    var claimRefS = FB.doc(db, 'claims', scNo);
+    var cachedClmS = (BWMS.claims || []).find(function(c) { return c.claim_no === scNo; });
+    var tktRefS = (cachedClmS && cachedClmS.ticket_no) ? FB.doc(db, 'tickets', cachedClmS.ticket_no) : null;
+    var existingTaskS = (BWMS.stockUpdates || []).find(function(s) { return s.claim_no === scNo; });
+    var taskIdS = existingTaskS ? existingTaskS.stock_task_id : ('STK-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+    var taskRefS = FB.doc(db, 'stock_update_log', taskIdS);
+
+    await FB.runTransaction(db, async function(tx) {
+      var clmSnap = await tx.get(claimRefS);
+      if (!clmSnap.exists()) throw new Error('Claim not found: ' + scNo);
+      var clm = clmSnap.data();
+      var finalTktRef = tktRefS || (clm.ticket_no ? FB.doc(db, 'tickets', clm.ticket_no) : null);
+      var tktSnap = finalTktRef ? await tx.get(finalTktRef) : null;
+      var taskSnap = await tx.get(taskRefS);
+
+      var oldSt = clm.status;
+      var updClm = Object.assign({}, clm, {
+        stock_status: 'UPDATED',
+        stock_ref_no: vRef,
+        stock_updated_date: todayIso,
+        stock_updated_by: userName,
+        status: 'STOCK_UPDATED',
+        updated_at: nowIso
+      });
+      tx.set(claimRefS, fbPickFields(updClm, FB_ALLOWED_FIELDS.claims));
+
+      if (tktSnap && tktSnap.exists()) {
+        tx.set(finalTktRef, fbPickFields(Object.assign({}, tktSnap.data(), { status: 'STOCK_UPDATED', updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
+      }
+
+      var prevTask = taskSnap.exists() ? taskSnap.data() : {};
+      var updTask = {
+        stock_task_id: taskIdS,
+        claim_no: scNo,
+        replacement_model: fbStr(prevTask.replacement_model || clm.replacement_model || clm.battery_model || '', 150),
+        replacement_serial_no: fbStr(prevTask.replacement_serial_no || clm.replacement_serial_no || '-', 80),
+        received_date: fbStr(prevTask.received_date || clm.replacement_received_date || todayIso, 30),
+        stock_status: 'UPDATED',
+        accounting_ref_no: vRef,
+        updated_at: nowIso,
+        updated_by: userName,
+        remarks: fbStr(d.remarks || prevTask.remarks || 'Reconciled in ERP', 1000)
+      };
+      tx.set(taskRefS, updTask);
+
+      var audStk = fbBuildAuditDoc('STOCK_UPDATE', 'CLAIM', scNo, oldSt, 'STOCK_UPDATED', 'ERP stock reconciled with voucher ' + vRef);
+      tx.set(FB.doc(db, 'audit_log', audStk.audit_id), audStk);
+    });
+
+    return { success: true, data: { claim_no: scNo, stock_status: 'UPDATED', stock_ref_no: vRef }, message: 'ERP stock entry certified in Firestore.' };
+  }
+
+  if (funcName === 'apiCloseClaim') {
+    var ccNo = fbStr(d.claim_no, 60);
+    if (!ccNo) throw new Error('Claim number is required.');
+    var cachedClmC = (BWMS.claims || []).find(function(c) { return c.claim_no === ccNo; });
+    var linkedTktNoC = cachedClmC ? cachedClmC.ticket_no : '';
+    var linkedSbMetaC = (d.return_service_battery && linkedTktNoC) ? (BWMS.serviceBatteries || []).find(function(s) {
+      return String(s.status).toUpperCase() === 'ASSIGNED' && s.current_ticket_no === linkedTktNoC;
+    }) : null;
+
+    var claimRefC = FB.doc(db, 'claims', ccNo);
+    var tktRefC = linkedTktNoC ? FB.doc(db, 'tickets', linkedTktNoC) : null;
+    var sbRefC = linkedSbMetaC ? FB.doc(db, 'service_batteries', linkedSbMetaC.sb_id) : null;
+
+    var closedClm = await FB.runTransaction(db, async function(tx) {
+      var clmSnap = await tx.get(claimRefC);
+      if (!clmSnap.exists()) throw new Error('Claim not found: ' + ccNo);
+      var clm = clmSnap.data();
+      if (clm.stock_status !== 'UPDATED') {
+        throw new Error('Cannot close claim ' + ccNo + ': Physical stock reconciliation is pending (log ERP voucher reference first).');
+      }
+      var finalTktRef = tktRefC || (clm.ticket_no ? FB.doc(db, 'tickets', clm.ticket_no) : null);
+      var tktSnap = finalTktRef ? await tx.get(finalTktRef) : null;
+      var sbSnap = sbRefC ? await tx.get(sbRefC) : null;
+
+      var cDate = fbStr(d.delivery_date || todayIso, 30);
+      var recName = fbStr(d.receiver_name || d.received_by_name || '', 120);
+      var notes = fbStr((recName ? ('Delivered to: ' + recName + '. ') : '') + (d.remarks || 'Replacement battery handed over. Claim closed.'), 1000);
+      var oldSt = clm.status;
+
+      var updClm = Object.assign({}, clm, {
+        status: 'CLOSED',
+        closed_date: cDate,
+        remarks: notes,
+        updated_at: nowIso
+      });
+      tx.set(claimRefC, fbPickFields(updClm, FB_ALLOWED_FIELDS.claims));
+
+      if (tktSnap && tktSnap.exists()) {
+        tx.set(finalTktRef, fbPickFields(Object.assign({}, tktSnap.data(), { status: 'CLOSED', updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
+      }
+
+      if (sbSnap && sbSnap.exists()) {
+        var sb = sbSnap.data();
+        var dOut = sb.assigned_date ? Math.max(0, Math.floor((new Date(cDate) - new Date(sb.assigned_date)) / 86400000)) : 0;
+        var prevAssign = sb.assigned_date || '';
+        var prevCust = sb.current_customer_name || '';
+        var prevTkt = sb.current_ticket_no || '';
+        var updSb = Object.assign({}, sb, {
+          status: sb.is_blocked ? 'BLOCKED' : 'AVAILABLE',
+          current_ticket_no: '',
+          current_customer_name: '',
+          current_mobile: '',
+          assigned_date: '',
+          last_rotated_date: cDate,
+          updated_at: nowIso
+        });
+        tx.set(sbRefC, fbPickFields(updSb, FB_ALLOWED_FIELDS.service_batteries));
+        var logIdC = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+        tx.set(FB.doc(db, 'service_battery_logs', logIdC), {
+          log_id: logIdC,
+          sb_id: sb.sb_id,
+          serial_no: sb.serial_no,
+          model_name: sb.model_name,
+          action_type: 'RETURNED',
+          ticket_no: prevTkt,
+          customer_name: prevCust,
+          mobile: '',
+          assigned_date: prevAssign,
+          returned_date: cDate,
+          days_rotated: dOut,
+          performed_by: userEmail,
+          remarks: 'Recovered on claim closure (' + ccNo + ')',
+          created_at: nowIso
+        });
+      }
+
+      var audCls = fbBuildAuditDoc('CLOSE_CLAIM', 'CLAIM', ccNo, oldSt, 'CLOSED', notes);
+      tx.set(FB.doc(db, 'audit_log', audCls.audit_id), audCls);
+      return updClm;
+    });
+
+    return { success: true, data: closedClm, message: 'Claim ' + ccNo + ' closed in Firestore.' };
+  }
+
+  if (funcName === 'apiUploadDocument') {
+    var ucNo = fbStr(d.claim_no, 60);
+    if (!ucNo) throw new Error('Claim number is required.');
+    var mime = fbStr(d.mime_type || 'application/octet-stream', 100) || 'application/octet-stream';
+    var dataUrl = d.data_url ? String(d.data_url) : ('data:' + mime + ';base64,' + (d.file_base64 || ''));
+    if (!dataUrl || dataUrl.length > 950000) {
+      throw new Error('Attachment exceeds Firestore ~950KB limit. Please compress the image or choose a smaller file.');
+    }
+    var docId = 'DOC-' + new Date().getFullYear() + '-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+    var docObj = {
+      doc_id: docId,
+      claim_no: ucNo,
+      doc_type: fbStr(d.doc_type || d.document_type || 'OTHER', 50) || 'OTHER',
+      file_name: fbStr(d.file_name || 'document', 200) || 'document',
+      mime_type: mime,
+      file_size_kb: Math.min(1024, Math.max(0, Math.round(fbNum(d.file_size_kb, Math.round(dataUrl.length * 0.75 / 1024), 0, 1024)))),
+      data_url: dataUrl,
+      uploaded_at: nowIso,
+      uploaded_by: userEmail
+    };
+    var uClaimRef = FB.doc(db, 'claims', ucNo);
+    await FB.runTransaction(db, async function(tx) {
+      var clmSnap = await tx.get(uClaimRef);
+      tx.set(FB.doc(db, 'claim_documents', docId), docObj);
+      if (clmSnap.exists()) {
+        var clm = clmSnap.data();
+        var nextStatus = (clm.status === 'CLAIM_CREATED') ? 'READY_FOR_COMPANY' : clm.status;
+        var updClm = Object.assign({}, clm, {
+          doc_count: (parseInt(clm.doc_count, 10) || 0) + 1,
+          status: nextStatus,
+          updated_at: nowIso
+        });
+        tx.set(uClaimRef, fbPickFields(updClm, FB_ALLOWED_FIELDS.claims));
+      }
+      var audDoc = fbBuildAuditDoc('DOC_UPLOAD', 'CLAIM', ucNo, '', '', 'Attached ' + docObj.doc_type + ': ' + docObj.file_name);
+      tx.set(FB.doc(db, 'audit_log', audDoc.audit_id), audDoc);
+    });
+    return { success: true, data: docObj, message: 'Document saved to Firestore (' + docObj.file_size_kb + ' KB).' };
+  }
+
+  if (funcName === 'apiDeleteDocument') {
+    var delDocId = fbStr((typeof d === 'object' && d !== null) ? d.doc_id : args[0], 60);
+    var delClmNo = fbStr((typeof d === 'object' && d !== null) ? d.claim_no : args[1], 60);
+    if (!delDocId) throw new Error('Document ID is required.');
+    var dClaimRef = delClmNo ? FB.doc(db, 'claims', delClmNo) : null;
+    await FB.runTransaction(db, async function(tx) {
+      var clmSnap = dClaimRef ? await tx.get(dClaimRef) : null;
+      tx.delete(FB.doc(db, 'claim_documents', delDocId));
+      if (clmSnap && clmSnap.exists()) {
+        var clm = clmSnap.data();
+        tx.set(dClaimRef, fbPickFields(Object.assign({}, clm, {
+          doc_count: Math.max(0, (parseInt(clm.doc_count, 10) || 1) - 1),
+          updated_at: nowIso
+        }), FB_ALLOWED_FIELDS.claims));
+      }
+      var audDocDel = fbBuildAuditDoc('DOC_DELETE', 'CLAIM', delClmNo || delDocId, '', '', 'Deleted attachment ' + delDocId);
+      tx.set(FB.doc(db, 'audit_log', audDocDel.audit_id), audDocDel);
+    });
+    return { success: true, data: { doc_id: delDocId }, message: 'Attachment deleted.' };
+  }
+
+  if (funcName === 'apiAddServiceBattery') {
+    var sbSerial = fbStr(d.serial_no, 80);
+    if (!sbSerial) throw new Error('Service battery serial number is required.');
+    var editId = fbStr(d.sb_id, 60);
+    var dupSb = !editId ? (BWMS.serviceBatteries || []).find(function(s) {
+      return String(s.serial_no || '').trim().toLowerCase() === sbSerial.toLowerCase();
+    }) : null;
+    if (dupSb) throw new Error('Service battery serial ' + sbSerial + ' already exists.');
+
+    if (editId) {
+      var editRef = FB.doc(db, 'service_batteries', editId);
+      var editedSb = await FB.runTransaction(db, async function(tx) {
+        var snap = await tx.get(editRef);
+        if (!snap.exists()) throw new Error('Service battery not found: ' + editId);
+        var prev = snap.data();
+        var next = Object.assign({}, prev, {
+          serial_no: sbSerial,
+          brand: fbStr(d.brand || prev.brand || 'Amaron', 80) || 'Amaron',
+          model_name: fbStr(d.model_name || prev.model_name, 150) || 'Standby Service Battery',
+          capacity_ah: fbNum(d.capacity_ah, prev.capacity_ah || 35, 0, 1000),
+          condition_notes: fbStr(d.condition_notes !== undefined ? d.condition_notes : prev.condition_notes, 500),
+          updated_at: nowIso
+        });
+        tx.set(editRef, fbPickFields(next, FB_ALLOWED_FIELDS.service_batteries));
+        return next;
+      });
+      return { success: true, data: editedSb, message: 'Service battery updated.' };
+    }
+
+    var newSbId = 'SB-' + Date.now().toString(36).toUpperCase().slice(-6) + Math.floor(Math.random() * 90 + 10);
+    var blkInit = d.is_blocked === true || String(d.is_blocked).toUpperCase() === 'TRUE';
+    var newSb = {
+      sb_id: newSbId,
+      serial_no: sbSerial,
+      brand: fbStr(d.brand || 'Amaron', 80) || 'Amaron',
+      model_name: fbStr(d.model_name || 'Standby Service Battery', 150) || 'Standby Service Battery',
+      capacity_ah: fbNum(d.capacity_ah, 35, 0, 1000),
+      status: blkInit ? 'BLOCKED' : 'AVAILABLE',
+      is_blocked: blkInit,
+      block_reason: blkInit ? fbStr(d.block_reason || 'Blocked on add', 300) : '',
+      current_ticket_no: '',
+      current_customer_name: '',
+      current_mobile: '',
+      assigned_date: '',
+      rotation_count: 0,
+      last_rotated_date: '',
+      condition_notes: fbStr(d.condition_notes || 'Ready & Charged', 500),
+      created_at: nowIso,
+      updated_at: nowIso
+    };
+    var logAddId = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+    var audSbAdd = fbBuildAuditDoc('SB_ADDED', 'SERVICE_BATTERY', newSbId, '', newSb.status, 'Added service battery ' + sbSerial);
+    var bSb = FB.writeBatch(db);
+    bSb.set(FB.doc(db, 'service_batteries', newSbId), newSb);
+    bSb.set(FB.doc(db, 'service_battery_logs', logAddId), {
+      log_id: logAddId, sb_id: newSbId, serial_no: sbSerial, model_name: newSb.model_name,
+      action_type: 'STOCK_ADDED', ticket_no: '', customer_name: '', mobile: '',
+      assigned_date: '', returned_date: '', days_rotated: 0, performed_by: userEmail,
+      remarks: 'Added to service battery stock pool', created_at: nowIso
+    });
+    bSb.set(FB.doc(db, 'audit_log', audSbAdd.audit_id), audSbAdd);
+    await bSb.commit();
+    return { success: true, data: newSb, message: 'Service battery ' + sbSerial + ' added to Firestore.' };
+  }
+
+  if (funcName === 'apiAssignServiceBattery') {
+    var targetKey = fbStr(d.sb_id || d.serial_no || d.service_battery_serial, 80);
+    var sbMeta = (BWMS.serviceBatteries || []).find(function(s) {
+      return s.sb_id === targetKey || String(s.serial_no || '').trim().toLowerCase() === targetKey.toLowerCase();
+    });
+    if (!sbMeta) throw new Error('Service battery not found: ' + targetKey);
+    var custName = fbStr(d.customer_name, 150);
+    var mob = fbStr(d.mobile, 30);
+    var aTktNo = fbStr(d.ticket_no, 60);
+    if (aTktNo && !custName) {
+      var lTkt = (BWMS.tickets || []).find(function(t) { return t.ticket_no === aTktNo; });
+      if (lTkt) { custName = fbStr(lTkt.dealer_name || lTkt.customer_name, 150); mob = mob || fbStr(lTkt.mobile, 30); }
+    }
+    if (!custName) throw new Error('Customer name is required.');
+
+    var sbRefA = FB.doc(db, 'service_batteries', sbMeta.sb_id);
+    var tktRefA = (aTktNo && !d.skip_ticket_update) ? FB.doc(db, 'tickets', aTktNo) : null;
+    var aDate = fbStr(d.assigned_date || todayIso, 30);
+
+    var assignedSb = await FB.runTransaction(db, async function(tx) {
+      var sbSnap = await tx.get(sbRefA);
+      if (!sbSnap.exists()) throw new Error('Service battery not found in Firestore.');
+      var tktSnap = tktRefA ? await tx.get(tktRefA) : null;
+      var sb = sbSnap.data();
+      if (sb.is_blocked || sb.status === 'BLOCKED') {
+        throw new Error('Service battery ' + sb.serial_no + ' is BLOCKED (' + (sb.block_reason || 'Unavailable') + ').');
+      }
+      if (sb.status === 'ASSIGNED') {
+        throw new Error('Service battery ' + sb.serial_no + ' is already ASSIGNED to ' + (sb.current_customer_name || sb.current_ticket_no) + '.');
+      }
+      var upd = Object.assign({}, sb, {
+        status: 'ASSIGNED',
+        is_blocked: false,
+        block_reason: '',
+        current_ticket_no: aTktNo,
+        current_customer_name: custName,
+        current_mobile: mob,
+        assigned_date: aDate,
+        rotation_count: (parseInt(sb.rotation_count, 10) || 0) + 1,
+        last_rotated_date: aDate,
+        updated_at: nowIso
+      });
+      tx.set(sbRefA, fbPickFields(upd, FB_ALLOWED_FIELDS.service_batteries));
+      if (tktSnap && tktSnap.exists()) {
+        var tkt = tktSnap.data();
+        tx.set(tktRefA, fbPickFields(Object.assign({}, tkt, {
+          service_battery_issued: true,
+          service_battery_model: sb.model_name,
+          service_battery_serial: sb.serial_no,
+          service_battery_date: aDate,
+          updated_at: nowIso
+        }), FB_ALLOWED_FIELDS.tickets));
+      }
+      var logIdA = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+      tx.set(FB.doc(db, 'service_battery_logs', logIdA), {
+        log_id: logIdA, sb_id: sb.sb_id, serial_no: sb.serial_no, model_name: sb.model_name,
+        action_type: 'ASSIGNED', ticket_no: aTktNo, customer_name: custName, mobile: mob,
+        assigned_date: aDate, returned_date: '', days_rotated: 0, performed_by: userEmail,
+        remarks: fbStr(d.remarks || 'Assigned & locked to customer', 1000), created_at: nowIso
+      });
+      var audSbAs = fbBuildAuditDoc('SB_ASSIGNED', 'SERVICE_BATTERY', sb.sb_id, sb.status, 'ASSIGNED', 'Assigned ' + sb.serial_no + ' to ' + custName);
+      tx.set(FB.doc(db, 'audit_log', audSbAs.audit_id), audSbAs);
+      return upd;
+    });
+    return { success: true, data: assignedSb, message: 'Service battery ' + assignedSb.serial_no + ' assigned.' };
+  }
+
+  if (funcName === 'apiReturnServiceBattery') {
+    var retKey = fbStr(d.sb_id || d.serial_no || d.service_battery_serial, 80);
+    var retMeta = (BWMS.serviceBatteries || []).find(function(s) {
+      return (retKey && (s.sb_id === retKey || String(s.serial_no || '').trim().toLowerCase() === retKey.toLowerCase())) ||
+             (d.ticket_no && s.current_ticket_no === d.ticket_no);
+    });
+    if (!retMeta) throw new Error('Service battery not found for return.');
+    var sbRefRet2 = FB.doc(db, 'service_batteries', retMeta.sb_id);
+    var rDate2 = fbStr(d.returned_date || todayIso, 30);
+
+    var returnedSb = await FB.runTransaction(db, async function(tx) {
+      var sbSnap = await tx.get(sbRefRet2);
+      if (!sbSnap.exists()) throw new Error('Service battery not found.');
+      var sb = sbSnap.data();
+      var dOut = sb.assigned_date ? Math.max(0, Math.floor((new Date(rDate2) - new Date(sb.assigned_date)) / 86400000)) : 0;
+      var blockAfter = (d.block_after_return === true || sb.is_blocked === true);
+      var prevCust = sb.current_customer_name || '';
+      var prevTkt = sb.current_ticket_no || '';
+      var prevAssign = sb.assigned_date || '';
+      var upd = Object.assign({}, sb, {
+        status: blockAfter ? 'BLOCKED' : 'AVAILABLE',
+        is_blocked: blockAfter,
+        block_reason: blockAfter ? fbStr(d.block_reason || sb.block_reason || 'Pending Recharge / Inspection', 300) : '',
+        current_ticket_no: '',
+        current_customer_name: '',
+        current_mobile: '',
+        assigned_date: '',
+        last_rotated_date: rDate2,
+        updated_at: nowIso
+      });
+      tx.set(sbRefRet2, fbPickFields(upd, FB_ALLOWED_FIELDS.service_batteries));
+      var logIdRet = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+      tx.set(FB.doc(db, 'service_battery_logs', logIdRet), {
+        log_id: logIdRet, sb_id: sb.sb_id, serial_no: sb.serial_no, model_name: sb.model_name,
+        action_type: 'RETURNED', ticket_no: prevTkt, customer_name: prevCust, mobile: '',
+        assigned_date: prevAssign, returned_date: rDate2, days_rotated: dOut, performed_by: userEmail,
+        remarks: fbStr(d.remarks || ('Returned after ' + dOut + ' day(s)'), 1000), created_at: nowIso
+      });
+      var audSbRet = fbBuildAuditDoc('SB_RETURNED', 'SERVICE_BATTERY', sb.sb_id, sb.status, upd.status, 'Returned ' + sb.serial_no + ' (' + dOut + ' days)');
+      tx.set(FB.doc(db, 'audit_log', audSbRet.audit_id), audSbRet);
+      return upd;
+    });
+    return { success: true, data: returnedSb, message: 'Service battery ' + returnedSb.serial_no + ' returned.' };
+  }
+
+  if (funcName === 'apiBlockServiceBattery') {
+    var blkKey = fbStr(d.sb_id || d.serial_no, 80);
+    var blkMeta = (BWMS.serviceBatteries || []).find(function(s) {
+      return s.sb_id === blkKey || String(s.serial_no || '').trim().toLowerCase() === blkKey.toLowerCase();
+    });
+    if (!blkMeta) throw new Error('Service battery not found.');
+    var doBlk = d.blocked !== false;
+    var sbRefB = FB.doc(db, 'service_batteries', blkMeta.sb_id);
+
+    var blockedSb = await FB.runTransaction(db, async function(tx) {
+      var sbSnap = await tx.get(sbRefB);
+      if (!sbSnap.exists()) throw new Error('Service battery not found.');
+      var sb = sbSnap.data();
+      var nextStatus = doBlk
+        ? (String(sb.status).toUpperCase() === 'ASSIGNED' ? 'ASSIGNED' : 'BLOCKED')
+        : ((sb.current_customer_name || sb.current_ticket_no) ? 'ASSIGNED' : 'AVAILABLE');
+      var reason = doBlk ? fbStr(d.reason || d.block_reason || 'Manually Blocked', 300) : '';
+      var upd = Object.assign({}, sb, {
+        is_blocked: doBlk,
+        block_reason: reason,
+        status: nextStatus,
+        updated_at: nowIso
+      });
+      tx.set(sbRefB, fbPickFields(upd, FB_ALLOWED_FIELDS.service_batteries));
+      var logIdB = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+      tx.set(FB.doc(db, 'service_battery_logs', logIdB), {
+        log_id: logIdB, sb_id: sb.sb_id, serial_no: sb.serial_no, model_name: sb.model_name,
+        action_type: doBlk ? 'BLOCKED' : 'UNBLOCKED', ticket_no: sb.current_ticket_no || '',
+        customer_name: sb.current_customer_name || '', mobile: '', assigned_date: '', returned_date: '',
+        days_rotated: 0, performed_by: userEmail, remarks: reason || (doBlk ? 'Blocked' : 'Unblocked'), created_at: nowIso
+      });
+      var audSbBlk = fbBuildAuditDoc(doBlk ? 'SB_BLOCKED' : 'SB_UNBLOCKED', 'SERVICE_BATTERY', sb.sb_id, sb.status, nextStatus, sb.serial_no + ' ' + (doBlk ? 'blocked' : 'unblocked'));
+      tx.set(FB.doc(db, 'audit_log', audSbBlk.audit_id), audSbBlk);
+      return upd;
+    });
+    return { success: true, data: blockedSb, message: 'Service battery ' + blockedSb.serial_no + (doBlk ? ' blocked.' : ' unblocked.') };
+  }
+
+  if (funcName === 'apiDeleteServiceBattery') {
+    var delKey = fbStr((typeof d === 'object' && d !== null) ? (d.sb_id || d.serial_no) : args[0], 80);
+    var delMeta = (BWMS.serviceBatteries || []).find(function(s) { return s.sb_id === delKey || s.serial_no === delKey; });
+    if (!delMeta) throw new Error('Service battery not found.');
+    if (String(delMeta.status).toUpperCase() === 'ASSIGNED') {
+      throw new Error('Cannot remove while assigned to a customer.');
+    }
+    var logIdDel = 'SBL-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+    var audSbDel = fbBuildAuditDoc('SB_REMOVED', 'SERVICE_BATTERY', delMeta.sb_id, delMeta.status, 'REMOVED', 'Removed service battery ' + delMeta.serial_no);
+    var bDelSb = FB.writeBatch(db);
+    bDelSb.set(FB.doc(db, 'service_battery_logs', logIdDel), {
+      log_id: logIdDel, sb_id: delMeta.sb_id, serial_no: delMeta.serial_no, model_name: delMeta.model_name || '',
+      action_type: 'REMOVED', ticket_no: '', customer_name: '', mobile: '', assigned_date: '', returned_date: '',
+      days_rotated: 0, performed_by: userEmail, remarks: 'Removed from stock pool', created_at: nowIso
+    });
+    bDelSb.delete(FB.doc(db, 'service_batteries', delMeta.sb_id));
+    bDelSb.set(FB.doc(db, 'audit_log', audSbDel.audit_id), audSbDel);
+    await bDelSb.commit();
+    return { success: true, data: { sb_id: delMeta.sb_id, serial_no: delMeta.serial_no, removed: true }, message: 'Service battery removed.' };
+  }
+
+  throw new Error('Unsupported Firebase action: ' + funcName);
+}
 
 function getDefaultSeedState() {
   var defaultConfig = {
@@ -8828,8 +11145,10 @@ function getDefaultSeedState() {
       Config: defaultConfig,
       Battery_Models: defaultModels,
       Dealers: defaultDealers,
+      Customers: BWMS.customers || [],
       Tickets: BWMS.tickets || [],
       Claims: BWMS.claims || [],
+      Claim_Documents: BWMS.claimDocuments || [],
       Battery_Tests: BWMS.tests || [],
       Delivery_Challans: BWMS.challans || [],
       Company_Dispatches: BWMS.dispatches || [],
@@ -8842,8 +11161,10 @@ function getDefaultSeedState() {
     config: defaultConfig,
     models: defaultModels,
     dealers: defaultDealers,
+    customers: BWMS.customers || [],
     tickets: BWMS.tickets || [],
     claims: BWMS.claims || [],
+    claimDocuments: BWMS.claimDocuments || [],
     tests: BWMS.tests || [],
     challans: BWMS.challans || [],
     dispatches: BWMS.dispatches || [],
@@ -9493,17 +11814,65 @@ function executeLocalFallback(funcName, args) {
     }
 
     if (funcName === 'apiUploadDocument') {
+      BWMS.claimDocuments = BWMS.claimDocuments || [];
+      var newDoc = {
+        doc_id: 'DOC-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900000 + 100000),
+        claim_no: d.claim_no,
+        doc_type: d.doc_type || d.document_type || 'OTHER',
+        file_name: d.file_name || 'document.pdf',
+        mime_type: d.mime_type || 'application/octet-stream',
+        file_size_kb: parseInt(d.file_size_kb, 10) || 1,
+        data_url: d.data_url || ('data:' + (d.mime_type || 'application/octet-stream') + ';base64,' + (d.file_base64 || '')),
+        uploaded_at: nowIso,
+        uploaded_by: (BWMS.currentUser && BWMS.currentUser.email) || BOOTSTRAP_ADMIN_EMAIL
+      };
+      BWMS.claimDocuments.push(newDoc);
       var uClm = (BWMS.claims || []).find(function(c) { return c.claim_no === d.claim_no; });
       if (uClm) {
         uClm.doc_count = (uClm.doc_count || 0) + 1;
         if (uClm.status === 'CLAIM_CREATED') uClm.status = 'READY_FOR_COMPANY';
       }
       saveStateToLocalCache();
-      return { success: true, isLocalFallback: true, data: { file_name: d.file_name || 'document.pdf' }, message: 'Document attached to claim ' + d.claim_no };
+      return { success: true, isLocalFallback: true, data: newDoc, message: 'Document attached to claim ' + d.claim_no };
+    }
+
+    if (funcName === 'apiDeleteDocument') {
+      var delDId = (typeof d === 'object' && d !== null) ? d.doc_id : args[0];
+      var delCNo = (typeof d === 'object' && d !== null) ? d.claim_no : args[1];
+      BWMS.claimDocuments = (BWMS.claimDocuments || []).filter(function(docItem) { return docItem.doc_id !== delDId; });
+      if (delCNo) {
+        var dClm = (BWMS.claims || []).find(function(c) { return c.claim_no === delCNo; });
+        if (dClm) dClm.doc_count = Math.max(0, (dClm.doc_count || 1) - 1);
+      }
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: { doc_id: delDId }, message: 'Document removed.' };
+    }
+
+    if (funcName === 'apiSaveStaff' || funcName === 'apiToggleStaffActive' || funcName === 'apiDeleteStaff') {
+      BWMS.staffList = BWMS.staffList || [];
+      var sEmail = String((typeof d === 'object' && d !== null) ? d.email : args[0] || '').trim().toLowerCase();
+      if (!sEmail || sEmail.indexOf('@') === -1) return { success: false, error: 'Valid email required' };
+      if (funcName === 'apiDeleteStaff') {
+        if (sEmail === BOOTSTRAP_ADMIN_EMAIL) return { success: false, error: 'Primary admin protected' };
+        BWMS.staffList = BWMS.staffList.filter(function(s) { return s.email !== sEmail; });
+        return { success: true, isLocalFallback: true, data: { email: sEmail }, message: 'Staff deleted.' };
+      }
+      var exSt = BWMS.staffList.find(function(s) { return s.email === sEmail; });
+      var nextSt = {
+        email: sEmail,
+        name: (d && d.name) || (exSt && exSt.name) || sEmail.split('@')[0],
+        role: (sEmail === BOOTSTRAP_ADMIN_EMAIL) ? 'ADMIN' : ((d && d.role) || (exSt && exSt.role) || 'OPERATOR'),
+        active: (sEmail === BOOTSTRAP_ADMIN_EMAIL) ? true : ((funcName === 'apiToggleStaffActive') ? !!d.active : (d.active !== false)),
+        created_at: (exSt && exSt.created_at) || nowIso,
+        updated_at: nowIso
+      };
+      if (exSt) Object.assign(exSt, nextSt);
+      else BWMS.staffList.push(nextSt);
+      return { success: true, isLocalFallback: true, data: nextSt, message: 'Staff saved.' };
     }
 
     if (funcName === 'apiCheckConnection') {
-      return { success: true, isLocalFallback: true, data: { status: 'OK' }, message: 'Local store active.' };
+      return { success: true, isLocalFallback: true, data: { status: 'OK', project: FIREBASE_PROJECT_ID }, message: 'Local store active.' };
     }
   } catch (localErr) {
     return { success: false, error: localErr.message, message: localErr.message };
@@ -9514,7 +11883,22 @@ function executeLocalFallback(funcName, args) {
 function callServer(funcName, args, onSuccess, onError) {
   args = args || [];
 
-  // 1. If running inside Google Apps Script iframe environment:
+  // 1. Primary Cloud Backend: Firebase Cloud Firestore
+  if (typeof window !== 'undefined' && window.FB_CLIENT && window.FB_CLIENT.ready && window.FB_CLIENT.db) {
+    executeFirebaseAction(funcName, args)
+      .then(function(res) {
+        if (onSuccess) onSuccess(res);
+      })
+      .catch(function(err) {
+        var errMsg = (err && err.message) ? err.message : String(err);
+        if (onError) onError(errMsg);
+        else if (onSuccess) onSuccess({ success: false, error: errMsg, message: errMsg });
+        else showToast('Firestore Error: ' + errMsg, 'error');
+      });
+    return;
+  }
+
+  // 2. If running inside Google Apps Script iframe environment (legacy fallback):
   if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run[funcName] === 'function') {
     var runner = google.script.run
       .withSuccessHandler(function(response) {
@@ -9529,52 +11913,9 @@ function callServer(funcName, args, onSuccess, onError) {
     return;
   }
 
-  // 2. If fetch is not available in VM or offline browser, use local engine immediately
-  if (typeof fetch !== 'function') {
-    var localRes = executeLocalFallback(funcName, args);
-    if (onSuccess) onSuccess(localRes);
-    return;
-  }
-
-  // 3. If running on GitHub Pages or standalone browser — use HTTP fetch to Apps Script Web App with automatic local fallback
-  var url = PROD_WEB_APP_URL;
-  var payload = {
-    action: funcName,
-    args: args
-  };
-
-  fetch(url, {
-    method: 'POST',
-    mode: 'cors',
-    redirect: 'follow',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8'
-    },
-    body: JSON.stringify(payload)
-  })
-  .then(function(res) {
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status + ': ' + res.statusText);
-    }
-    return res.json();
-  })
-  .then(function(json) {
-    if (onSuccess) onSuccess(json);
-  })
-  .catch(function(err) {
-    var getUrl = url + '?action=' + encodeURIComponent(funcName) + '&args=' + encodeURIComponent(JSON.stringify(args));
-    fetch(getUrl, { mode: 'cors', redirect: 'follow' })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (onSuccess) onSuccess(data);
-      })
-      .catch(function(getErr) {
-        console.warn('Cloud API unreachable for [' + funcName + '], executing in local fallback mode:', getErr);
-        var fallbackRes = executeLocalFallback(funcName, args);
-        if (onSuccess) onSuccess(fallbackRes);
-        else if (onError) onError((getErr && getErr.message) ? getErr.message : String(getErr));
-      });
-  });
+  // 3. Offline / Node.js VM local engine for unit tests
+  var localRes = executeLocalFallback(funcName, args);
+  if (onSuccess) onSuccess(localRes);
 }
 </script>
 

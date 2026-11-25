@@ -23,10 +23,10 @@ const colors = {
   dim: '\x1b[2m'
 };
 
-const SHEET_ID = '1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08';
-const DEPLOYMENT_ID = 'AKfycbxByzdkfuxAOIWnvi9MVNJ4o5gD21SGWVxvsR56PelHxC69vyGyVRnDbY5KvsFj-9jE';
-const WEBAPP_URL = `https://script.google.com/macros/s/${DEPLOYMENT_ID}/exec`;
+const FIREBASE_PROJECT_ID = 'battery-warranty-hub-26';
+const FIREBASE_HOSTING_URL = `https://${FIREBASE_PROJECT_ID}.web.app/`;
 const appsScriptDir = path.join(__dirname, '..', 'apps-script');
+const rootDir = path.join(__dirname, '..');
 
 let passedCount = 0;
 let totalCount = 0;
@@ -78,26 +78,26 @@ async function runTests() {
   console.log(`${colors.bold}${colors.cyan}  ⚡ BATTERY WARRANTY MANAGEMENT SYSTEM — AUTOMATED FULL TEST SUITE ⚡  ${colors.reset}`);
   console.log(`${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}\n`);
 
-  // TEST SUITE 1: Infrastructure & Cloud Reachability
-  console.log(`${colors.bold}SUITE 1: Google Cloud Infrastructure & Endpoint Health${colors.reset}`);
+  // TEST SUITE 1: Firebase Cloud Infrastructure & Endpoint Health
+  console.log(`${colors.bold}SUITE 1: Firebase Cloud Infrastructure & Endpoint Health${colors.reset}`);
   console.log(`─────────────────────────────────────────────────────────────────────────────`);
 
-  const sheetRes = await httpsGet(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`);
-  if (sheetRes.statusCode === 0) {
-    console.log(`  ${colors.yellow}ℹ️  Network sandbox/offline mode detected (${sheetRes.error}) — verifying offline-capable local engine${colors.reset}`);
-    assert(typeof SHEET_ID === 'string' && SHEET_ID.length > 20, 'Master Google Sheet ID configured for cloud sync');
-    assert(WEBAPP_URL.startsWith('https://script.google.com/macros/s/'), 'Production Web App URL configured for cloud sync');
+  const firebaseRcData = JSON.parse(fs.readFileSync(path.join(rootDir, '.firebaserc'), 'utf8'));
+  const firebaseJsonData = JSON.parse(fs.readFileSync(path.join(rootDir, 'firebase.json'), 'utf8'));
+  const rulesExists = fs.existsSync(path.join(rootDir, 'firestore.rules'));
+  const indexesExists = fs.existsSync(path.join(rootDir, 'firestore.indexes.json'));
+
+  assert(firebaseRcData.projects && firebaseRcData.projects.default === FIREBASE_PROJECT_ID, `.firebaserc targets Firebase project ${FIREBASE_PROJECT_ID}`);
+  assert(firebaseJsonData.firestore && firebaseJsonData.hosting && firebaseJsonData.auth, 'firebase.json configures Firestore, Hosting, and Firebase Auth providers');
+  assert(rulesExists && indexesExists, 'Firestore security rules (firestore.rules) and indexes present');
+
+  const hostingRes = await httpsGet(FIREBASE_HOSTING_URL);
+  if (hostingRes.statusCode === 0) {
+    console.log(`  ${colors.yellow}ℹ️  Network sandbox/offline mode detected (${hostingRes.error}) — skipping live HTTPS probe${colors.reset}`);
+    assert(FIREBASE_HOSTING_URL.startsWith(`https://${FIREBASE_PROJECT_ID}.web.app`), 'Firebase Hosting production URL configured');
   } else {
-    assert(sheetRes.statusCode === 200, `Google Sheet master DB reachable (Status 200, ${sheetRes.latency}ms)`);
-    assert((sheetRes.data || '').includes('version') || (sheetRes.data || '').includes('table'), 'Google Sheet GViz endpoint returns valid structured table response');
-
-    const webAppRes = await httpsGet(WEBAPP_URL);
-    assert(webAppRes.statusCode === 200 || webAppRes.statusCode === 302, `Production Web App endpoint online (HTTP ${webAppRes.statusCode}, ${webAppRes.latency}ms)`);
-    assert((webAppRes.headers && (webAppRes.headers.server === 'ESF' || webAppRes.headers['x-frame-options'])), 'Google Frontend Edge Server routing verified');
-
-    const bulkRes = await httpsGet(`${WEBAPP_URL}?api=bulk`);
-    assert(bulkRes.statusCode === 200, `Production Web App bulk state prefetch endpoint online (HTTP 200, ${bulkRes.latency}ms)`);
-    assert((bulkRes.data || '').includes('success') && ((bulkRes.data || '').includes('tables') || (bulkRes.data || '').includes('tickets')), 'Production Web App returns valid bulk state payload with all tables');
+    assert(hostingRes.statusCode === 200, `Firebase Hosting live portal online (HTTP ${hostingRes.statusCode}, ${hostingRes.latency}ms)`);
+    assert((hostingRes.data || '').includes('Battery Warranty') && (hostingRes.data || '').includes('firebase'), 'Live Firebase Hosting bundle renders Battery Warranty portal');
   }
 
   // TEST SUITE 2: Apps Script File & Template Integrity
@@ -211,21 +211,24 @@ async function runTests() {
   const gateAllowed = canCloseClaim(true, true);
   assert(gateAllowed.allowed === true, 'Accounting Gate: Allows ticket closure once voucher reference is confirmed');
 
-  // TEST SUITE 4: Direct Production Gateway & Clasp Configuration
-  console.log(`\n${colors.bold}SUITE 4: Direct Production Gateway & Deployment Integrity${colors.reset}`);
+  // TEST SUITE 4: Firebase Production Gateway & Zero-Sheets Isolation
+  console.log(`\n${colors.bold}SUITE 4: Firebase Production Gateway & Zero-Sheets Isolation${colors.reset}`);
   console.log(`─────────────────────────────────────────────────────────────────────────────`);
 
   const rootIndexHtml = path.join(__dirname, '..', 'index.html');
+  const publicIndexHtml = path.join(__dirname, '..', 'public', 'index.html');
   const demoPath = path.join(__dirname, '..', 'demo');
-  const claspJsonPath = path.join(__dirname, '..', '.clasp.json');
 
   assert(!fs.existsSync(demoPath), 'Demo directory successfully removed for pure production operation');
-  assert(fs.existsSync(rootIndexHtml), 'Root index.html production gateway is present');
-  
+  assert(fs.existsSync(rootIndexHtml) && fs.existsSync(publicIndexHtml), 'Production bundles (index.html & public/index.html) present');
+
   const indexCode = fs.readFileSync(rootIndexHtml, 'utf8');
-  assert(indexCode.includes(DEPLOYMENT_ID), 'Root index.html connects directly to production deployment URL');
-  assert(indexCode.includes('script.google.com/macros/s/'), 'Root index.html routes to Google Apps Script production web app');
-  assert(fs.existsSync(claspJsonPath), 'Clasp configuration .clasp.json verified for ongoing production sync');
+  const publicCode = fs.readFileSync(publicIndexHtml, 'utf8');
+  assert(indexCode === publicCode, 'Root index.html and Firebase Hosting public/index.html are byte-identical');
+  assert(indexCode.includes('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js') && indexCode.includes(FIREBASE_PROJECT_ID), 'Compiled portal loads Firebase Modular SDK v11.6.0 for battery-warranty-hub-26');
+  assert(indexCode.includes('executeFirebaseAction') && indexCode.includes('auth-gate-overlay'), 'Portal includes native Firestore transaction engine & Staff Auth gate');
+  assert(!indexCode.includes('PROD_WEB_APP_URL') && !indexCode.includes('script.google.com/macros/s/'), 'Zero runtime Apps Script / Google Sheets fetch fallback in production bundle');
+  assert(!indexCode.includes('docs.google.com/spreadsheets/'), 'Zero Google Sheets UI links remaining in production bundle');
 
   // TEST SUITE 5: Bulk State Engine & In-Memory Multi-View Integrity
   console.log(`\n${colors.bold}SUITE 5: Bulk State Engine & Multi-View In-Memory Architecture${colors.reset}`);
@@ -970,12 +973,78 @@ async function runTests() {
   assert(sbDel.success && vmContext.BWMS.serviceBatteries.length === 0,
          'Service Battery Remove: Deletes un-assigned battery from stock pool');
 
-  // 10.4 Firebase Hosting Configuration
+  // 10.4 Firebase Hosting, Firestore Security Rules, Staff RBAC & Claim Documents
   const firebaseJsonPath = path.join(__dirname, '..', 'firebase.json');
   const firebasercPath = path.join(__dirname, '..', '.firebaserc');
   const publicIndexPath = path.join(__dirname, '..', 'public', 'index.html');
-  assert(fs.existsSync(firebaseJsonPath) && fs.existsSync(firebasercPath) && fs.existsSync(publicIndexPath),
-         'Firebase Hosting: firebase.json, .firebaserc, and compiled public/index.html verified');
+  const rulesPath = path.join(__dirname, '..', 'firestore.rules');
+  assert(fs.existsSync(firebaseJsonPath) && fs.existsSync(firebasercPath) && fs.existsSync(publicIndexPath) && fs.existsSync(rulesPath),
+         'Firebase Infrastructure: firebase.json, .firebaserc, firestore.rules, and compiled public/index.html verified');
+
+  const rulesContent = fs.readFileSync(rulesPath, 'utf8');
+  assert(rulesContent.includes('match /authorized_staff/{email}') && rulesContent.includes('isBootstrapAdmin()') && rulesContent.includes('isAuthorizedStaff()'),
+         'Firestore Security Rules: Enforces authorized_staff RBAC & bootstrap admin access control');
+  assert(rulesContent.includes("data.status != 'CLOSED'") && rulesContent.includes("data.stock_status == 'UPDATED'"),
+         'Firestore Security Rules: Enforces stock reconciliation gate before claim closure');
+  assert(!/allow\s+read\s*,\s*write\s*:\s*if\s+true\s*;/.test(rulesContent),
+         'Firestore Security Rules: Zero insecure wildcard allow-all rules');
+
+  // Staff Access Management (local simulation)
+  vmContext.BWMS.staffList = [{
+    email: 'ayushmestorage@gmail.com',
+    name: 'Ayush Admin',
+    role: 'ADMIN',
+    active: true,
+    created_at: '2026-11-26T00:00:00Z'
+  }];
+  const addStaff = vmContext.executeLocalFallback('apiSaveStaff', [{
+    email: 'tester1@batteryhub.in',
+    name: 'Tester One',
+    role: 'TESTER',
+    active: true
+  }]);
+  assert(addStaff.success && addStaff.data.role === 'TESTER' && vmContext.BWMS.staffList.some(s => s.email === 'tester1@batteryhub.in'),
+         'Staff RBAC: Adds authorized staff member with assigned role');
+
+  const disableStaff = vmContext.executeLocalFallback('apiToggleStaffActive', [{ email: 'tester1@batteryhub.in', active: false }]);
+  assert(disableStaff.success && disableStaff.data.active === false,
+         'Staff RBAC: Disables unauthorized/departed staff account');
+
+  const protectAdmin = vmContext.executeLocalFallback('apiDeleteStaff', ['ayushmestorage@gmail.com']);
+  assert(protectAdmin.success === false,
+         'Staff RBAC Guard: Prevents deletion of primary bootstrap admin');
+
+  const delStaff = vmContext.executeLocalFallback('apiDeleteStaff', ['tester1@batteryhub.in']);
+  assert(delStaff.success && !vmContext.BWMS.staffList.some(s => s.email === 'tester1@batteryhub.in'),
+         'Staff RBAC: Removes non-admin staff member cleanly');
+
+  // Claim Documents in Firestore
+  vmContext.BWMS.claimDocuments = [];
+  const sampleDocClaim = vmContext.BWMS.claims[0];
+  if (sampleDocClaim) {
+    const upRes = vmContext.executeLocalFallback('apiUploadDocument', [{
+      claim_no: sampleDocClaim.claim_no,
+      doc_type: 'INVOICE',
+      file_name: 'invoice_test.jpg',
+      mime_type: 'image/jpeg',
+      file_size_kb: 42,
+      data_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRg=='
+    }]);
+    assert(upRes.success && upRes.data.doc_id && vmContext.BWMS.claimDocuments.length === 1,
+           'Claim Documents: Stores compressed base64 attachment in Firestore store & updates doc_count');
+    const claimActionsHtml = vmContext.renderClaimActions(sampleDocClaim);
+    assert(claimActionsHtml.includes('Docs (1)'),
+           'Claim Documents UI: Displays attachment count badge on claim row');
+    const delDocRes = vmContext.executeLocalFallback('apiDeleteDocument', [{
+      doc_id: upRes.data.doc_id,
+      claim_no: sampleDocClaim.claim_no
+    }]);
+    assert(delDocRes.success && vmContext.BWMS.claimDocuments.length === 0,
+           'Claim Documents: Removes attachment and decrements claim doc_count');
+  }
+
+  assert(typeof vmContext.executeFirebaseAction === 'function' && typeof vmContext.initFirebaseAuth === 'function',
+         'Firebase Client Engine: Exposes initFirebaseAuth & async executeFirebaseAction RPC dispatcher');
 
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);

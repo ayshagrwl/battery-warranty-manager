@@ -86,10 +86,10 @@
 
       <div class="sidebar-footer">
         <div>
-          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:6px;"></span>
-          <strong>GAS Cloud Active</strong>
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f59e0b; margin-right:6px;"></span>
+          <strong>Firebase Cloud Active</strong>
         </div>
-        <span style="color:#64748b; font-size:10px;">v2.4 Pro</span>
+        <span style="color:#64748b; font-size:10px;">v3.0 Firebase</span>
       </div>
     </aside>
 
@@ -106,9 +106,9 @@
           </div>
         </div>
         <div class="topbar-right">
-          <div class="sync-status-badge" id="sync-status-badge" onclick="syncAllData(true)" title="Instant local in-memory store. Click to refresh from Google Cloud.">
+          <div class="sync-status-badge" id="sync-status-badge" onclick="syncAllData(true)" title="Firebase Cloud Firestore Live Sync. Click to refresh.">
             <span class="sync-dot" id="sync-dot"></span>
-            <span id="sync-status-text">Preloading...</span>
+            <span id="sync-status-text">Connecting...</span>
             <span id="sync-refresh-icon">🔄</span>
           </div>
           <button class="btn btn-primary" onclick="openIntakeModal()">
@@ -118,6 +118,7 @@
             <div class="user-avatar" id="current-user-avatar">AD</div>
             <span id="current-user-name">Staff Operator</span>
           </div>
+          <button class="btn btn-secondary btn-sm" id="btn-sign-out" onclick="handleFirebaseSignOut()" style="display:none;" title="Sign out of Firebase">Sign Out</button>
         </div>
       </header>
 
@@ -1238,8 +1239,11 @@
             <button class="tab-btn" id="tab-btn-cfg-dealers" onclick="switchSettingsTab('dealers')">
               🤝 Authorized Dealers Master <span class="tab-counter" id="cfg-dealers-count">0</span>
             </button>
+            <button class="tab-btn" id="tab-btn-cfg-staff" onclick="switchSettingsTab('staff')">
+              👥 Staff Access (Auth) <span class="tab-counter" id="cfg-staff-count">0</span>
+            </button>
             <button class="tab-btn" id="tab-btn-cfg-cloud" onclick="switchSettingsTab('cloud')">
-              ☁️ Cloud Database & Cache Engine
+              🔥 Firebase Database &amp; Sync
             </button>
           </div>
 
@@ -1334,30 +1338,57 @@
             </div>
           </div>
 
-          <!-- Tab 4: Cloud Database & Cache Engine -->
+          <!-- Tab 4: Staff Access (Firebase Auth) -->
+          <div id="container-cfg-staff" class="card-table" style="display:none;">
+            <div class="table-header-bar" style="flex-wrap:wrap; gap:10px;">
+              <div>
+                <div class="table-title">Authorized Staff Google Accounts (Firebase Auth)</div>
+                <div style="font-size:12px; color:#64748b;">Only emails listed below (plus primary Admin) can sign in and access Firestore data.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openAddStaffModal()">+ Authorize Staff Email</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Staff Email</th>
+                    <th>Display Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="cfg-staff-body">
+                  <tr><td colspan="5" style="text-align:center; padding:20px;">Loading authorized staff...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 5: Firebase Database & Sync Engine -->
           <div id="container-cfg-cloud" class="card-table" style="padding:24px; display:none;">
-            <h3 style="font-size:15px; margin-bottom:16px;">Cloud Database & Architecture Health</h3>
+            <h3 style="font-size:15px; margin-bottom:16px;">Firebase Cloud Firestore &amp; Real-Time Sync Health</h3>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:20px;">
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
-                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Google Spreadsheet Master</div>
-                <div style="font-weight:700; font-size:14px; margin-bottom:8px;">ID: 1Vp8DLi...UKXK08</div>
-                <a href="https://docs.google.com/spreadsheets/d/1Vp8DLiLVwT6j_zyvKWHYKIpFrk-Je9Vfq2KtyUKXK08/edit" target="_blank" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-                  <span>📊 Open Google Sheet</span>
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Firebase Cloud Project</div>
+                <div style="font-weight:700; font-size:14px; margin-bottom:8px;">battery-warranty-hub-26 (asia-south1)</div>
+                <a href="https://console.firebase.google.com/project/battery-warranty-hub-26/firestore" target="_blank" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+                  <span>🔥 Open Firebase Firestore Console</span>
                 </a>
               </div>
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
-                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">In-Memory Fast Store Status</div>
-                <div id="cloud-store-stats" style="font-weight:700; font-size:14px; margin-bottom:8px;">Active • Local Cache</div>
-                <button class="btn btn-primary btn-sm" onclick="syncAllData(true)">⚡ Hard Cloud Sync Now</button>
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Real-Time Firestore &amp; Offline Persistence</div>
+                <div id="cloud-store-stats" style="font-weight:700; font-size:14px; margin-bottom:8px;">Active • Firestore Cache</div>
+                <button class="btn btn-primary btn-sm" onclick="syncAllData(true)">⚡ Sync Firestore Now</button>
               </div>
               <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
-                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Connection Latency Probe</div>
+                <div style="color:#64748b; font-size:12px; margin-bottom:4px;">Firestore Latency Probe</div>
                 <div id="cloud-latency-val" style="font-weight:700; font-size:14px; margin-bottom:8px;">Ready to test</div>
                 <button class="btn btn-secondary btn-sm" onclick="runLatencyProbe()">🔌 Test Connection</button>
               </div>
             </div>
-            <div style="background:#f1f5f9; padding:12px 16px; border-radius:6px; font-size:12px; color:#475569;">
-              <strong>Fast Bulk State Engine:</strong> The entire database is preloaded into an in-memory client store on startup with background sync, giving instantaneous 0ms response time on view navigation, universal search, and filtering.
+            <div style="background:#fff7ed; border:1px solid #fed7aa; padding:12px 16px; border-radius:6px; font-size:12px; color:#9a3412;">
+              <strong>100% Firebase Native Architecture:</strong> All intake tickets, lab diagnostics, warranty claims, dispatches, service battery stock, attachments, and audit trails are stored directly in Cloud Firestore with IndexedDB offline persistence and Google Sign-In protection — zero reliance on Google Sheets.
             </div>
           </div>
         </section>
@@ -1831,10 +1862,11 @@
     <div class="modal-backdrop" onclick="closeModal('modal-upload')"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title">Upload Claim Document to Google Drive</h2>
+        <h2 class="modal-title">Claim Documents &amp; Attachments (Firebase)</h2>
         <button class="modal-close" onclick="closeModal('modal-upload')">&times;</button>
       </div>
       <div class="modal-body">
+        <div id="claim-docs-existing-list" style="margin-bottom:14px;"></div>
         <form id="form-upload" onsubmit="handleUploadSubmit(event)">
           <input type="hidden" id="upload-claim-no">
           <div class="form-grid form-grid-2">
@@ -1850,13 +1882,13 @@
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Select File *</label>
+              <label class="form-label">Select File * (Max ~700KB; photos auto-compressed)</label>
               <input type="file" id="upload-file" class="form-control" required accept="image/*,application/pdf">
             </div>
           </div>
           <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modal-upload')">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="btn-upload-submit">Upload to Drive</button>
+            <button type="submit" class="btn btn-primary" id="btn-upload-submit">Save to Firebase</button>
           </div>
         </form>
       </div>
@@ -2275,6 +2307,79 @@
     </div>
   </div>
 
+  <!-- 21. AUTHORIZE STAFF MODAL -->
+  <div class="modal" id="modal-add-staff">
+    <div class="modal-backdrop" onclick="closeModal('modal-add-staff')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Authorize Staff Account</h2>
+        <button class="modal-close" onclick="closeModal('modal-add-staff')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-staff" onsubmit="handleAddStaffSubmit(event)">
+          <div class="form-grid form-grid-2">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Staff Google / Email Address *</label>
+              <input type="email" id="new-staff-email" class="form-control" required placeholder="e.g. staff.member@gmail.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Staff Name *</label>
+              <input type="text" id="new-staff-name" class="form-control" required placeholder="e.g. Sanjay Mistri">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Role *</label>
+              <select id="new-staff-role" class="form-select" required>
+                <option value="OPERATOR">OPERATOR (Full Desk Access)</option>
+                <option value="TESTER">TESTER (Lab &amp; Claims)</option>
+                <option value="ADMIN">ADMIN (Settings + Staff Management)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-staff')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Staff Access</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Staff Sign-In Gate Overlay -->
+  <div id="auth-gate-overlay" class="auth-gate-overlay">
+    <div class="auth-gate-card">
+      <div class="auth-gate-logo">⚡</div>
+      <h2 style="font-size:20px; font-weight:800; color:#0f172a; margin-bottom:6px;">Battery Warranty Hub</h2>
+      <p style="font-size:13px; color:#64748b; margin-bottom:20px;">Firebase Cloud Portal — Authorized Staff Access</p>
+
+      <div id="auth-gate-loading" style="padding:18px 0; color:#475569; font-size:13px;">
+        Connecting to Firebase Authentication...
+      </div>
+
+      <div id="auth-gate-login-box" style="display:none;">
+        <button type="button" class="btn-google-signin" onclick="handleFirebaseGoogleLogin()">
+          <span>🔐</span> <span>Sign in with Google</span>
+        </button>
+
+        <div style="margin:14px 0; font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px;">or email &amp; password</div>
+
+        <form onsubmit="handleFirebaseEmailLogin(event)" style="text-align:left;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <input type="email" id="auth-email-input" class="form-control" placeholder="Staff Email" required>
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <input type="password" id="auth-password-input" class="form-control" placeholder="Password" required>
+          </div>
+          <button type="submit" class="btn btn-secondary" style="width:100%; justify-content:center;">Sign in with Email</button>
+        </form>
+      </div>
+
+      <div id="auth-gate-error-box" style="display:none; margin-top:14px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px; font-size:12px; color:#991b1b; text-align:left;">
+        <div id="auth-gate-error-msg"></div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="handleFirebaseSignOut()" style="margin-top:10px;">Switch Google Account / Sign Out</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Direct Print Mount (Hidden on screen, visible only in @media print) -->
   <div id="direct-print-root" aria-hidden="true"></div>
 
@@ -2283,6 +2388,87 @@
     <span id="toast-icon">ℹ️</span>
     <span id="toast-message">Notification message</span>
   </div>
+
+  <!-- Firebase Modular SDK (v11.6.0) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+    import {
+      getFirestore,
+      initializeFirestore,
+      persistentLocalCache,
+      persistentMultipleTabManager,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      writeBatch,
+      runTransaction,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "battery-warranty-hub-26",
+      appId: "1:716442262403:web:49c175aa483530ee2674b6",
+      storageBucket: "battery-warranty-hub-26.firebasestorage.app",
+      apiKey: "AIzaSyAq2--hioyXNIbrJhESA0-BxZbvgpWNjsI",
+      authDomain: "battery-warranty-hub-26.firebaseapp.com",
+      messagingSenderId: "716442262403"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let db;
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch (cacheErr) {
+      console.warn('Persistent cache unavailable, using memory Firestore cache:', cacheErr);
+      db = getFirestore(app);
+    }
+
+    window.FB_CLIENT = {
+      ready: true,
+      app,
+      auth,
+      db,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      writeBatch,
+      runTransaction,
+      onSnapshot
+    };
+
+    if (typeof window.onFirebaseClientReady === 'function') {
+      window.onFirebaseClientReady();
+    }
+    window.dispatchEvent(new CustomEvent('fb-client-ready'));
+  </script>
 
   <?!= include('app'); ?>
 </body>

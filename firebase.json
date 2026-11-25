@@ -1,4 +1,22 @@
 {
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Battery Warranty Hub",
+        "supportEmail": "ayushmestorage@gmail.com",
+        "authorizedRedirectUris": [
+          "https://battery-warranty-hub-26.firebaseapp.com/__/auth/handler",
+          "https://battery-warranty-hub-26.web.app/__/auth/handler",
+          "http://localhost:5000/__/auth/handler"
+        ]
+      }
+    }
+  },
   "hosting": {
     "public": "public",
     "ignore": [

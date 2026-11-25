@@ -581,7 +581,59 @@
   #modal-print { z-index: 100050 !important; }
   #modal-print .modal-backdrop { z-index: 100051 !important; }
   #modal-print .modal-content { z-index: 100052 !important; }
+  /* Direct Print Root */
   #direct-print-root { display: none; }
+
+  /* Firebase Auth Gate Overlay */
+  .auth-gate-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    z-index: 200000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-gate-overlay.active { display: flex; }
+  .auth-gate-card {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 430px;
+    padding: 32px 28px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+    text-align: center;
+  }
+  .auth-gate-logo {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    color: #fff;
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-google-signin {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 11px 16px;
+    background: #0f172a;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-google-signin:hover { background: #1e293b; }
 
   /* Service Battery Badges */
   .badge-sb-available { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
