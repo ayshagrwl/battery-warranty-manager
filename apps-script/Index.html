@@ -554,13 +554,20 @@
                 <option value="STOCK_UPDATED">STOCK_UPDATED</option>
                 <option value="CLOSED">CLOSED (Resolved)</option>
               </select>
-              <select id="filter-claims-warranty" class="form-select" style="width:180px;" onchange="renderClaimsTable()">
+              <select id="filter-claims-warranty" class="form-select" style="width:170px;" onchange="renderClaimsTable()">
                 <option value="ALL">All Warranty Types</option>
                 <option value="IN_WARRANTY">IN WARRANTY</option>
                 <option value="PRO_RATA">PRO-RATA WARRANTY</option>
                 <option value="OUT_OF_WARRANTY">OUT OF WARRANTY</option>
               </select>
-              <select id="filter-claims-model" class="form-select" style="width:170px;" onchange="renderClaimsTable()">
+              <select id="filter-claims-rep-end" class="form-select" style="width:185px;" onchange="renderClaimsTable()">
+                <option value="ALL">All Replacement Ends</option>
+                <option value="DISTRIBUTOR_END">🏢 Distributor End</option>
+                <option value="DEALER_END">🤝 Dealer End</option>
+                <option value="COMPANY_END">🏭 Company / Factory</option>
+                <option value="PENDING">⏳ Not Yet Replaced</option>
+              </select>
+              <select id="filter-claims-model" class="form-select" style="width:165px;" onchange="renderClaimsTable()">
                 <option value="ALL">All Models</option>
               </select>
             </div>
@@ -577,9 +584,10 @@
                     <th>Claim #</th>
                     <th>Ticket #</th>
                     <th>Customer / Dealer</th>
-                    <th>Battery Model</th>
+                    <th>Original Model</th>
                     <th>Original Serial</th>
-                    <th>Date of Sale & Expiry</th>
+                    <th>Replaced At &amp; New Model / Serial</th>
+                    <th>Date of Sale &amp; Expiry</th>
                     <th>Warranty</th>
                     <th>Status</th>
                     <th>Guided Next Step</th>
@@ -587,7 +595,7 @@
                   </tr>
                 </thead>
                 <tbody id="claims-table-body">
-                  <tr><td colspan="10" style="text-align:center; padding:20px;">Loading claims...</td></tr>
+                  <tr><td colspan="11" style="text-align:center; padding:20px;">Loading claims...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -741,26 +749,38 @@
 
           <!-- Received Registry Tab -->
           <div id="container-rep-history" style="display:none;">
+            <div class="view-toolbar" style="margin-bottom:12px;">
+              <div class="view-toolbar-left">
+                <input type="text" id="filter-rep-history-search" class="table-search-input" placeholder="🔍 Search replaced claims by model, serial, party..." oninput="renderReplacementsTables()">
+                <select id="filter-rep-end" class="form-select" style="width:205px;" onchange="renderReplacementsTables()">
+                  <option value="ALL">All Replacement Locations</option>
+                  <option value="DISTRIBUTOR_END">🏢 Replaced at Distributor End</option>
+                  <option value="DEALER_END">🤝 Replaced at Dealer End</option>
+                  <option value="COMPANY_END">🏭 Replaced by Company / Factory</option>
+                </select>
+              </div>
+            </div>
             <div class="card-table">
               <div class="table-header-bar">
-                <div class="table-title">Received Factory Replacement Units</div>
+                <div class="table-title">Replaced Battery Units Registry (Distributor End / Dealer End / Company)</div>
               </div>
               <div class="table-responsive">
                 <table class="data-table">
                   <thead>
                     <tr>
                       <th>Claim #</th>
-                      <th>Battery Model</th>
-                      <th>Original Serial</th>
+                      <th>Replaced At</th>
+                      <th>Original Model &amp; Serial</th>
+                      <th>Replacement Model</th>
                       <th>Replacement Serial (New)</th>
-                      <th>Received Date</th>
-                      <th>Invoice / CN Ref</th>
+                      <th>Date</th>
+                      <th>Ref / Challan #</th>
                       <th>Stock Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="replacement-history-body">
-                    <tr><td colspan="8" style="text-align:center; padding:20px;">No replacements logged yet.</td></tr>
+                    <tr><td colspan="9" style="text-align:center; padding:20px;">No replacements logged yet.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -773,7 +793,7 @@
           <div class="view-header">
             <div>
               <h1 class="view-title">ERP Stock Reconciliation Tasks</h1>
-              <p class="view-subtitle">Replacement batteries received physically that require manual ledger entry in Busy, Tally, or Marg ERP</p>
+              <p class="view-subtitle">Replacement batteries issued/received at Distributor, Dealer, or Factory end that require ERP ledger reconciliation</p>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="exportStockCSV()">📥 Export Stock Log</button>
           </div>
@@ -805,16 +825,17 @@
                   <thead>
                     <tr>
                       <th>Claim #</th>
-                      <th>Battery Model</th>
+                      <th>Replaced At</th>
+                      <th>Replacement Model</th>
                       <th>Replacement Serial (New)</th>
                       <th>Original Serial</th>
-                      <th>Received Date</th>
+                      <th>Date</th>
                       <th>Status</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody id="stock-tasks-body">
-                    <tr><td colspan="7" style="text-align:center; padding:20px;">Loading stock tasks...</td></tr>
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">Loading stock tasks...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1387,8 +1408,11 @@
                 <button class="btn btn-secondary btn-sm" onclick="runLatencyProbe()">🔌 Test Connection</button>
               </div>
             </div>
-            <div style="background:#fff7ed; border:1px solid #fed7aa; padding:12px 16px; border-radius:6px; font-size:12px; color:#9a3412;">
-              <strong>100% Firebase Native Architecture:</strong> All intake tickets, lab diagnostics, warranty claims, dispatches, service battery stock, attachments, and audit trails are stored directly in Cloud Firestore with IndexedDB offline persistence and Google Sign-In protection — zero reliance on Google Sheets.
+            <div style="background:#fff7ed; border:1px solid #fed7aa; padding:12px 16px; border-radius:6px; font-size:12px; color:#9a3412; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+              <div>
+                <strong>100% Firebase Native Architecture:</strong> All intake tickets, lab diagnostics, warranty claims, dispatches, service battery stock, attachments, and audit trails are stored directly in Cloud Firestore with IndexedDB offline persistence and Google Sign-In protection — zero reliance on Google Sheets.
+              </div>
+              <button type="button" class="btn btn-danger btn-sm" onclick="handleFreshResetTransactionalData()" title="Admin only: Clear all tickets, claims, challans, dispatches and reset counters to start fresh">🧹 Clean All Tickets (Fresh Start)</button>
             </div>
           </div>
         </section>
@@ -1620,9 +1644,50 @@
               <label class="form-label">Vehicle Kilometers / Reading</label>
               <input type="text" id="claim-km" class="form-control" placeholder="e.g. 42,500 km">
             </div>
+            <div class="form-group" style="grid-column: span 2; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px;">
+              <label class="form-label" style="margin-bottom:6px;">Replacement Status / Location (Optional — Record Distributor or Dealer End Replacement)</label>
+              <select id="claim-rep-end" class="form-select" onchange="toggleClaimImmediateRep()">
+                <option value="">Not Yet Replaced — Stage for Dispatch / Replace Later</option>
+                <option value="DISTRIBUTOR_END">🏢 Battery Replaced at Distributor End (Counter / Stock Issue)</option>
+                <option value="DEALER_END">🤝 Battery Replaced at Dealer End (Dealer Stock Replacement)</option>
+                <option value="COMPANY_END">🏭 Replaced by Company / Factory Depot</option>
+              </select>
+
+              <div id="claim-immediate-rep-box" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1;">
+                <div class="form-grid form-grid-2" style="gap:10px;">
+                  <div class="form-group">
+                    <label class="form-label" id="claim-rep-party-label">Replaced By (Distributor / Dealer Name)</label>
+                    <input type="text" id="claim-rep-party" class="form-control" list="rep-dealers-datalist" placeholder="Distributor or Dealer Name">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Replacement Date *</label>
+                    <input type="date" id="claim-rep-date" class="form-control">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Select Replacement Model (Catalog)</label>
+                    <select id="claim-rep-model-select" class="form-select" onchange="handleClaimRepModelSelect(this.value)">
+                      <option value="">-- Select Battery Model --</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Replacement Model Number * (Editable)</label>
+                    <input type="text" id="claim-rep-model" class="form-control" placeholder="e.g. AAM-PR-00042B20R">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Replacement Serial Number * (Text)</label>
+                    <input type="text" id="claim-rep-serial" class="form-control" placeholder="e.g. REP-0098412" style="font-family:monospace; font-weight:bold;">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Challan / Credit Note / Ref #</label>
+                    <input type="text" id="claim-rep-ref" class="form-control" placeholder="e.g. DIST-REP-001">
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="form-group" style="grid-column: span 2;">
               <label class="form-label">Claim Submission Remarks</label>
-              <textarea id="claim-remarks" class="form-control" rows="2" placeholder="e.g. Verified genuine sale bill. Battery eligible for manufacturer replacement."></textarea>
+              <textarea id="claim-remarks" class="form-control" rows="2" placeholder="e.g. Verified genuine sale bill. Battery eligible for replacement."></textarea>
             </div>
           </div>
 
@@ -1733,42 +1798,65 @@
   <!-- 6. RECORD REPLACEMENT RECEIVED MODAL -->
   <div class="modal" id="modal-replacement">
     <div class="modal-backdrop" onclick="closeModal('modal-replacement')"></div>
-    <div class="modal-content">
+    <div class="modal-content" style="max-width:640px;">
       <div class="modal-header">
-        <h2 class="modal-title">Record Replacement Battery Received</h2>
+        <h2 class="modal-title">Record Battery Replacement (Distributor / Dealer / Company)</h2>
         <button class="modal-close" onclick="closeModal('modal-replacement')">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-replacement" onsubmit="handleReplacementSubmit(event)">
           <input type="hidden" id="rep-claim-no">
+          <datalist id="rep-dealers-datalist"></datalist>
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px;">
-            <div><strong>Claim:</strong> <span id="rep-view-claim"></span> | <strong>Model:</strong> <span id="rep-view-model"></span></div>
-            <div><strong>Original Serial:</strong> <span id="rep-view-original-serial" style="font-family:monospace; font-weight:bold;"></span></div>
+            <div><strong>Claim:</strong> <span id="rep-view-claim"></span> | <strong>Original Model:</strong> <span id="rep-view-model"></span></div>
+            <div><strong>Original Defective Serial:</strong> <span id="rep-view-original-serial" style="font-family:monospace; font-weight:bold;"></span></div>
           </div>
 
           <div class="form-grid form-grid-2">
             <div class="form-group" style="grid-column: span 2;">
-              <label class="form-label">New Replacement Battery Serial Number * (Stored as Text)</label>
-              <input type="text" id="rep-new-serial" class="form-control" required placeholder="e.g. REP-0098412" style="font-family:monospace; font-weight:bold; font-size:15px;">
-              <small style="color:#64748b;">Must NOT match original serial number or any active serial.</small>
+              <label class="form-label">Replaced At (Replacement Location / End) *</label>
+              <select id="rep-replaced-end" class="form-select" required onchange="handleRepEndChange()">
+                <option value="DISTRIBUTOR_END">🏢 Battery Replaced at Distributor End (Distributor Counter / Stock)</option>
+                <option value="DEALER_END">🤝 Battery Replaced at Dealer End (Authorized Dealer Stock)</option>
+                <option value="COMPANY_END">🏭 Received from Company / Factory Depot</option>
+              </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Date Received from Company *</label>
+              <label class="form-label" id="rep-party-label">Replaced By (Distributor / Dealer Name)</label>
+              <input type="text" id="rep-party-name" class="form-control" list="rep-dealers-datalist" placeholder="Distributor or Dealer Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Replacement / Received Date *</label>
               <input type="date" id="rep-date" class="form-control" required>
             </div>
             <div class="form-group">
-              <label class="form-label">Company Invoice / Credit Note Ref</label>
-              <input type="text" id="rep-ref" class="form-control" placeholder="e.g. AM-CN-2026-991">
+              <label class="form-label">Select Replacement Model (Catalog)</label>
+              <select id="rep-model-select" class="form-select" onchange="handleRepModelSelect(this.value)">
+                <option value="">-- Select Battery Model --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Replacement Model Number * (Editable)</label>
+              <input type="text" id="rep-model" class="form-control" required placeholder="e.g. AAM-PR-00042B20R">
             </div>
             <div class="form-group" style="grid-column: span 2;">
-              <label class="form-label">Receipt Remarks</label>
-              <textarea id="rep-remarks" class="form-control" rows="2" placeholder="e.g. Brand new sealed unit delivered by factory depot."></textarea>
+              <label class="form-label">New Replacement Battery Serial Number * (Stored as Text)</label>
+              <input type="text" id="rep-new-serial" class="form-control" required placeholder="e.g. REP-0098412" style="font-family:monospace; font-weight:bold; font-size:15px;">
+              <small style="color:#64748b;">Must NOT match original defective serial number.</small>
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Invoice / Credit Note / Challan Reference</label>
+              <input type="text" id="rep-ref" class="form-control" placeholder="e.g. AM-CN-2026-991 or DIST-REP-01">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Replacement Remarks</label>
+              <textarea id="rep-remarks" class="form-control" rows="2" placeholder="e.g. Replaced at distributor/dealer counter or factory replacement received."></textarea>
             </div>
           </div>
 
           <div class="modal-footer" style="padding:16px 0 0 0; margin-top:16px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modal-replacement')">Cancel</button>
-            <button type="submit" class="btn btn-success">Save Replacement & Create Stock Task</button>
+            <button type="submit" class="btn btn-success">Save Replacement &amp; Create Stock Task</button>
           </div>
         </form>
       </div>

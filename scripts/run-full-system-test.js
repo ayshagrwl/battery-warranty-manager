@@ -1046,6 +1046,79 @@ async function runTests() {
   assert(typeof vmContext.executeFirebaseAction === 'function' && typeof vmContext.initFirebaseAuth === 'function',
          'Firebase Client Engine: Exposes initFirebaseAuth & async executeFirebaseAction RPC dispatcher');
 
+  // 10.5 Distributor End & Dealer End Replacement (with Model & Serial Number) + Fresh Reset
+  assert(rulesContent.includes('isOptionalReplacementEnd') && rulesContent.includes('DISTRIBUTOR_END') && rulesContent.includes('DEALER_END'),
+         'Firestore Security Rules: Validates replacement_end (DISTRIBUTOR_END / DEALER_END / COMPANY_END)');
+
+  const distTkt = vmContext.executeLocalFallback('apiCreateTicket', [{
+    source_type: 'CUSTOMER',
+    customer_name: 'Vikram Patel',
+    mobile: '9825099887',
+    battery_model: 'AAM-PR-00042B20R (Pro 35Ah)',
+    original_serial_no: 'ORIG-DIST-001',
+    date_received: '2026-11-26'
+  }]);
+  vmContext.executeLocalFallback('apiRecordBatteryTest', [{
+    ticket_no: distTkt.data.ticket_no,
+    test_result: 'PASS',
+    open_circuit_voltage: '11.8',
+    load_test_voltage: '10.1'
+  }]);
+  const distClaim = vmContext.executeLocalFallback('apiCreateClaim', [{
+    ticket_no: distTkt.data.ticket_no,
+    date_of_sale: '2026-06-01',
+    replacement_end: 'DISTRIBUTOR_END',
+    replaced_by_party: 'Narayan Das Agrawal And Sons',
+    replacement_model: 'AAM-FL-0BH40B20R (Flo 35Ah)',
+    replacement_serial_no: 'DIST-REP-9901'
+  }]);
+  assert(distClaim.success &&
+         distClaim.data.status === 'REPLACEMENT_RECEIVED' &&
+         distClaim.data.replacement_end === 'DISTRIBUTOR_END' &&
+         distClaim.data.replacement_model === 'AAM-FL-0BH40B20R (Flo 35Ah)' &&
+         distClaim.data.replacement_serial_no === 'DIST-REP-9901',
+         'Replacement (Distributor End): Records immediate Distributor End replacement with custom model & serial');
+
+  const dlrTkt = vmContext.executeLocalFallback('apiCreateTicket', [{
+    source_type: 'DEALER',
+    dealer_name: 'Shree Ganesh Auto Electricals',
+    customer_name: 'Shree Ganesh Auto Electricals',
+    mobile: '9825012345',
+    battery_model: 'AAM-GO-00038B20R (Go 35Ah)',
+    original_serial_no: 'ORIG-DLR-002',
+    date_received: '2026-11-26'
+  }]);
+  vmContext.executeLocalFallback('apiRecordBatteryTest', [{
+    ticket_no: dlrTkt.data.ticket_no,
+    test_result: 'PASS'
+  }]);
+  const dlrClaim = vmContext.executeLocalFallback('apiCreateClaim', [{
+    ticket_no: dlrTkt.data.ticket_no,
+    date_of_sale: '2026-07-01'
+  }]);
+  const dlrRep = vmContext.executeLocalFallback('apiRecordReplacementReceived', [{
+    claim_no: dlrClaim.data.claim_no,
+    replacement_end: 'DEALER_END',
+    replaced_by_party: 'Shree Ganesh Auto Electricals',
+    replacement_model: 'AAM-PR-00042B20R (Pro 35Ah)',
+    replacement_serial_no: 'DLR-REP-8802',
+    received_date: '2026-11-26'
+  }]);
+  assert(dlrRep.success &&
+         dlrRep.data.replacement_end === 'DEALER_END' &&
+         dlrRep.data.replaced_by_party === 'Shree Ganesh Auto Electricals' &&
+         dlrRep.data.replacement_model === 'AAM-PR-00042B20R (Pro 35Ah)' &&
+         dlrRep.data.replacement_serial_no === 'DLR-REP-8802',
+         'Replacement (Dealer End): Records Dealer End replacement with model & serial after claim creation');
+
+  const claimPrintOut = vmContext.buildClaimFormHTML(distClaim.data.claim_no);
+  assert(claimPrintOut.includes('Distributor End') && claimPrintOut.includes('DIST-REP-9901') && claimPrintOut.includes('AAM-FL-0BH40B20R (Flo 35Ah)'),
+         'Print Claim Form: Renders Replaced At (Distributor End), Replacement Model, and Replacement Serial');
+
+  const resetRes = vmContext.executeLocalFallback('apiFreshResetTransactional', []);
+  assert(resetRes.success && vmContext.BWMS.tickets.length === 0 && vmContext.BWMS.claims.length === 0 && vmContext.BWMS.models.length > 0,
+         'Fresh Reset Engine: Clears all transactional tickets & claims while preserving battery models master');
+
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);
   console.log(`${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}\n`);

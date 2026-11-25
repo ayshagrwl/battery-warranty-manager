@@ -145,6 +145,8 @@ rules_version = '2';
 //   - replacement_model: string (optional, <= 150 chars)
 //   - replacement_serial_no: string (optional, <= 80 chars)
 //   - replacement_received_date: string (optional, <= 30 chars)
+//   - replacement_end: string (optional, <= 30 chars, 'DISTRIBUTOR_END' | 'DEALER_END' | 'COMPANY_END' | '')
+//   - replaced_by_party: string (optional, <= 150 chars)
 //   - stock_status: string (optional, <= 40 chars)
 //   - stock_ref_no: string (optional, <= 100 chars)
 //   - stock_updated_date: string (optional, <= 30 chars)
@@ -223,6 +225,8 @@ rules_version = '2';
 //   - replacement_serial_no: string (required, 1..80 chars)
 //   - received_date: string (required, <= 30 chars)
 //   - received_by: string (optional, <= 150 chars)
+//   - replacement_end: string (optional, <= 30 chars, 'DISTRIBUTOR_END' | 'DEALER_END' | 'COMPANY_END' | '')
+//   - replaced_by_party: string (optional, <= 150 chars)
 //   - remarks: string (optional, <= 1000 chars)
 //
 // Collection: stock_update_log
@@ -233,6 +237,7 @@ rules_version = '2';
 //   - replacement_model: string (optional, <= 150 chars)
 //   - replacement_serial_no: string (optional, <= 80 chars)
 //   - received_date: string (optional, <= 30 chars)
+//   - replacement_end: string (optional, <= 30 chars)
 //   - stock_status: string (required, 'UPDATE_REQUIRED' | 'UPDATED')
 //   - accounting_ref_no: string (optional, <= 100 chars)
 //   - updated_at: string (optional, <= 50 chars)
@@ -401,6 +406,14 @@ service cloud.firestore {
     function isOptionalSeqCounter(data, field) {
       return !(field in data) ||
         (data[field] is number && data[field] >= 1 && data[field] <= 1000000000);
+    }
+
+    function isOptionalReplacementEnd(data, field) {
+      return !(field in data) ||
+        data[field] == null ||
+        (data[field] is string &&
+         data[field].size() <= 30 &&
+         data[field] in ['DISTRIBUTOR_END', 'DEALER_END', 'COMPANY_END', '']);
     }
 
     // ===============================================================
@@ -583,6 +596,7 @@ service cloud.firestore {
           'warranty_expiry_date', 'warranty_status', 'claim_date', 'status',
           'dispatch_batch_no', 'company_challan_no', 'company_dispatch_date',
           'replacement_model', 'replacement_serial_no', 'replacement_received_date',
+          'replacement_end', 'replaced_by_party',
           'stock_status', 'stock_ref_no', 'stock_updated_date', 'stock_updated_by',
           'closed_date', 'remarks', 'doc_count', 'created_at', 'updated_at'
         ]) &&
@@ -615,6 +629,8 @@ service cloud.firestore {
         isOptionalString(data, 'replacement_model', 150) &&
         isOptionalString(data, 'replacement_serial_no', 80) &&
         isOptionalString(data, 'replacement_received_date', 30) &&
+        isOptionalReplacementEnd(data, 'replacement_end') &&
+        isOptionalString(data, 'replaced_by_party', 150) &&
         isOptionalString(data, 'stock_status', 40) &&
         isOptionalString(data, 'stock_ref_no', 100) &&
         isOptionalString(data, 'stock_updated_date', 30) &&
@@ -718,7 +734,8 @@ service cloud.firestore {
     function isValidReplacementReceipt(data) {
       return hasOnlyAllowedFields(data, [
           'receipt_id', 'claim_no', 'replacement_model', 'replacement_serial_no',
-          'received_date', 'received_by', 'remarks'
+          'received_date', 'received_by', 'replacement_end', 'replaced_by_party',
+          'remarks'
         ]) &&
         hasRequiredFields(data, [
           'receipt_id', 'claim_no', 'replacement_model',
@@ -730,14 +747,17 @@ service cloud.firestore {
         isRequiredString(data, 'replacement_serial_no', 1, 80) &&
         isRequiredString(data, 'received_date', 0, 30) &&
         isOptionalString(data, 'received_by', 150) &&
+        isOptionalReplacementEnd(data, 'replacement_end') &&
+        isOptionalString(data, 'replaced_by_party', 150) &&
         isOptionalString(data, 'remarks', 1000);
     }
 
     function isValidStockUpdateTask(data) {
       return hasOnlyAllowedFields(data, [
           'stock_task_id', 'claim_no', 'replacement_model',
-          'replacement_serial_no', 'received_date', 'stock_status',
-          'accounting_ref_no', 'updated_at', 'updated_by', 'remarks'
+          'replacement_serial_no', 'received_date', 'replacement_end',
+          'stock_status', 'accounting_ref_no', 'updated_at',
+          'updated_by', 'remarks'
         ]) &&
         hasRequiredFields(data, ['stock_task_id', 'claim_no', 'stock_status']) &&
         isRequiredString(data, 'stock_task_id', 1, 60) &&
@@ -745,6 +765,7 @@ service cloud.firestore {
         isOptionalString(data, 'replacement_model', 150) &&
         isOptionalString(data, 'replacement_serial_no', 80) &&
         isOptionalString(data, 'received_date', 30) &&
+        isOptionalString(data, 'replacement_end', 30) &&
         data.stock_status in ['UPDATE_REQUIRED', 'UPDATED'] &&
         isOptionalString(data, 'accounting_ref_no', 100) &&
         isOptionalString(data, 'updated_at', 50) &&

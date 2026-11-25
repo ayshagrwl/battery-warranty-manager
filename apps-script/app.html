@@ -46,7 +46,7 @@ window.BWMS = {
 };
 
 var BOOTSTRAP_ADMIN_EMAIL = 'ayushmestorage@gmail.com';
-var CACHE_KEY = 'BWMS_STATE_CACHE_V3_FIREBASE';
+var CACHE_KEY = 'BWMS_STATE_CACHE_V4_FRESH';
 
 // ─── INITIALIZATION & FIREBASE AUTH GATE ─────────────────────────────────────
 
@@ -632,7 +632,11 @@ function updateSyncStatusBadge(text, state) {
 
 function populateDropdowns() {
   // Model Selects
-  var modelSelects = ['intake-model', 'filter-tickets-model', 'filter-claims-model', 'dash-calc-model', 'claimstab-calc-model', 'modal-calc-model', 'modalcalc-model'];
+  var modelSelects = [
+    'intake-model', 'claim-rep-model-select', 'rep-model-select',
+    'filter-tickets-model', 'filter-claims-model',
+    'dash-calc-model', 'claimstab-calc-model', 'modal-calc-model', 'modalcalc-model'
+  ];
   modelSelects.forEach(function(selId) {
     var sel = document.getElementById(selId);
     if (!sel) return;
@@ -678,14 +682,14 @@ function populateDropdowns() {
     }
   }
 
-  // Dealer Selects
+  // Dealer Selects & Datalist
   var dealerSelects = ['intake-dealer-name'];
   dealerSelects.forEach(function(selId) {
     var sel = document.getElementById(selId);
     if (!sel) return;
     var currentVal = sel.value;
     sel.innerHTML = '<option value="">-- Select Dealer --</option>';
-    BWMS.dealers.forEach(function(d) {
+    (BWMS.dealers || []).forEach(function(d) {
       var opt = document.createElement('option');
       opt.value = d.dealer_name;
       opt.textContent = d.dealer_name + (d.city ? ' (' + d.city + ')' : '');
@@ -693,6 +697,48 @@ function populateDropdowns() {
     });
     if (currentVal) sel.value = currentVal;
   });
+
+  var dealerListEl = document.getElementById('rep-dealers-datalist');
+  if (dealerListEl) {
+    var seenNames = {};
+    var optsHtml = '';
+    var compName = (BWMS.config && BWMS.config.COMPANY_NAME) ? BWMS.config.COMPANY_NAME : 'Distributor Counter';
+    seenNames[compName] = true;
+    optsHtml += '<option value="' + escapeHtml(compName) + '"></option>';
+    (BWMS.dealers || []).forEach(function(d) {
+      if (d.dealer_name && !seenNames[d.dealer_name]) {
+        seenNames[d.dealer_name] = true;
+        optsHtml += '<option value="' + escapeHtml(d.dealer_name) + '"></option>';
+      }
+    });
+    dealerListEl.innerHTML = optsHtml;
+  }
+}
+
+function getReplacementEndLabel(endVal) {
+  var e = String(endVal || '').toUpperCase();
+  if (e === 'DISTRIBUTOR_END') return 'Distributor End';
+  if (e === 'DEALER_END') return 'Dealer End';
+  if (e === 'COMPANY_END') return 'Company / Factory';
+  return 'Company / Factory';
+}
+
+function renderReplacementEndBadge(c) {
+  if (!c) return '<span class="badge badge-gray">-</span>';
+  var e = String(c.replacement_end || '').toUpperCase();
+  if (!e && (c.replacement_serial_no || c.replacement_received_date)) {
+    e = 'COMPANY_END';
+  }
+  if (e === 'DISTRIBUTOR_END') {
+    return '<span class="badge badge-blue">🏢 Distributor End</span>';
+  }
+  if (e === 'DEALER_END') {
+    return '<span class="badge badge-purple">🤝 Dealer End</span>';
+  }
+  if (e === 'COMPANY_END') {
+    return '<span class="badge badge-green">🏭 Company End</span>';
+  }
+  return '<span class="badge badge-gray">⏳ Pending</span>';
 }
 
 function setSelectValueFuzzy(selectEl, query) {
@@ -1315,6 +1361,7 @@ function renderClaimsTable(params) {
   var search = (document.getElementById('filter-claims-search') ? document.getElementById('filter-claims-search').value : '').toLowerCase().trim();
   var statusFilter = document.getElementById('filter-claims-status') ? document.getElementById('filter-claims-status').value : 'ALL';
   var warrantyFilter = document.getElementById('filter-claims-warranty') ? document.getElementById('filter-claims-warranty').value : 'ALL';
+  var repEndFilter = document.getElementById('filter-claims-rep-end') ? document.getElementById('filter-claims-rep-end').value : 'ALL';
   var modelFilter = document.getElementById('filter-claims-model') ? document.getElementById('filter-claims-model').value : 'ALL';
 
   var claims = BWMS.claims || [];
@@ -1345,6 +1392,14 @@ function renderClaimsTable(params) {
         return false;
       }
     }
+    if (repEndFilter !== 'ALL') {
+      var re = String(c.replacement_end || (c.replacement_serial_no ? 'COMPANY_END' : '')).toUpperCase();
+      if (repEndFilter === 'PENDING') {
+        if (re || c.replacement_serial_no) return false;
+      } else if (re !== repEndFilter) {
+        return false;
+      }
+    }
     if (modelFilter !== 'ALL' && c.battery_model !== modelFilter) return false;
     if (search) {
       var blob = [
@@ -1355,7 +1410,10 @@ function renderClaimsTable(params) {
         c.mobile,
         c.battery_model,
         c.original_serial_no,
-        c.replacement_serial_no
+        c.replacement_model,
+        c.replacement_serial_no,
+        c.replacement_end,
+        c.replaced_by_party
       ].join(' ').toLowerCase();
       if (blob.indexOf(search) === -1) return false;
     }
@@ -1372,19 +1430,26 @@ function renderClaimsTable(params) {
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:25px; color:#94a3b8;">No matching claims found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:25px; color:#94a3b8;">No matching claims found.</td></tr>';
     return;
   }
 
   filtered.slice().reverse().forEach(function(c) {
     var nextAction = getClaimNextAction(c);
+    var repHtml = c.replacement_serial_no
+      ? renderReplacementEndBadge(c) +
+        '<div style="font-size:11px; margin-top:4px;"><strong>' + escapeHtml(c.replacement_model || c.battery_model) + '</strong></div>' +
+        '<div style="font-size:11px; font-family:monospace; color:#15803d; font-weight:700;">SN: ' + escapeHtml(c.replacement_serial_no) + '</div>' +
+        (c.replaced_by_party ? '<div style="font-size:10px; color:#64748b;">By: ' + escapeHtml(c.replaced_by_party) + '</div>' : '')
+      : renderReplacementEndBadge(c);
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
       '<td><small onclick="showTimeline(\'' + c.ticket_no + '\')" style="cursor:pointer; color:var(--text-muted);">' + c.ticket_no + '</small></td>' +
-      '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
-      '<td>' + c.battery_model + '</td>' +
-      '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+      '<td><strong>' + escapeHtml(c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + escapeHtml(c.mobile || '') + '</small></td>' +
+      '<td>' + escapeHtml(c.battery_model) + '</td>' +
+      '<td><span style="font-family:monospace; font-weight:bold;">' + escapeHtml(c.original_serial_no) + '</span></td>' +
+      '<td>' + repHtml + '</td>' +
       '<td>Sale: ' + formatDate(c.date_of_sale) + '<br><small>Exp: ' + formatDate(c.warranty_expiry_date) + '</small></td>' +
       '<td>' + renderWarrantyBadge(c.warranty_status) + '</td>' +
       '<td>' + renderStatusBadge(c.status) + '</td>' +
@@ -1407,6 +1472,18 @@ function openClaimModal(ticketNo) {
   document.getElementById('claim-view-party').textContent = (t.source_type === 'DEALER' ? (t.dealer_name || t.customer_name) : t.customer_name) || '';
   document.getElementById('claim-view-model').textContent = t.battery_model || '';
   document.getElementById('claim-view-serial').textContent = t.original_serial_no || '';
+  BWMS._activeClaimTicket = t;
+
+  // Initialize replacement fields
+  var repEndEl = document.getElementById('claim-rep-end');
+  if (repEndEl) repEndEl.value = '';
+  var repDateEl = document.getElementById('claim-rep-date');
+  if (repDateEl) repDateEl.value = new Date().toISOString().split('T')[0];
+  var repModelEl = document.getElementById('claim-rep-model');
+  if (repModelEl) repModelEl.value = t.battery_model || '';
+  var repModelSelEl = document.getElementById('claim-rep-model-select');
+  if (repModelSelEl && t.battery_model) setSelectValueFuzzy(repModelSelEl, t.battery_model);
+  toggleClaimImmediateRep();
 
   // Look up model specifications via fuzzy resolver
   var m = findBatteryModel(t.battery_model);
@@ -1450,6 +1527,45 @@ function openClaimModal(ticketNo) {
   openModal('modal-claim');
 }
 
+function toggleClaimImmediateRep() {
+  var endVal = document.getElementById('claim-rep-end') ? document.getElementById('claim-rep-end').value : '';
+  var box = document.getElementById('claim-immediate-rep-box');
+  var modelInp = document.getElementById('claim-rep-model');
+  var serialInp = document.getElementById('claim-rep-serial');
+  var partyInp = document.getElementById('claim-rep-party');
+  var partyLbl = document.getElementById('claim-rep-party-label');
+  var show = Boolean(endVal);
+
+  if (box) box.style.display = show ? 'block' : 'none';
+  if (modelInp) modelInp.required = show;
+  if (serialInp) serialInp.required = show;
+
+  if (show && partyInp) {
+    var t = BWMS._activeClaimTicket || {};
+    var compName = (BWMS.config && BWMS.config.COMPANY_NAME) ? BWMS.config.COMPANY_NAME : 'Distributor Counter';
+    if (endVal === 'DEALER_END') {
+      if (partyLbl) partyLbl.textContent = 'Dealer Name (Replaced At Dealer End)';
+      if (!partyInp.value || partyInp.value === compName || partyInp.value === 'Company / Factory Depot') {
+        partyInp.value = t.dealer_name || '';
+      }
+    } else if (endVal === 'DISTRIBUTOR_END') {
+      if (partyLbl) partyLbl.textContent = 'Distributor Name (Replaced At Distributor End)';
+      if (!partyInp.value || partyInp.value === t.dealer_name || partyInp.value === 'Company / Factory Depot') {
+        partyInp.value = compName;
+      }
+    } else {
+      if (partyLbl) partyLbl.textContent = 'Factory / Company Depot';
+      partyInp.value = 'Company / Factory Depot';
+    }
+  }
+}
+
+function handleClaimRepModelSelect(val) {
+  if (!val) return;
+  var inp = document.getElementById('claim-rep-model');
+  if (inp) inp.value = val;
+}
+
 function calculateClaimWarranty() {
   var model = document.getElementById('claim-view-model') ? document.getElementById('claim-view-model').textContent : '';
   var dos = document.getElementById('claim-dos') ? document.getElementById('claim-dos').value : '';
@@ -1485,12 +1601,34 @@ function calculateClaimWarranty() {
 
 function handleClaimSubmit(e) {
   e.preventDefault();
+  var repEnd = document.getElementById('claim-rep-end') ? document.getElementById('claim-rep-end').value : '';
+  var repSerial = document.getElementById('claim-rep-serial') ? document.getElementById('claim-rep-serial').value.trim() : '';
+  var repModel = document.getElementById('claim-rep-model') ? document.getElementById('claim-rep-model').value.trim() : '';
+  var origSerial = document.getElementById('claim-view-serial') ? document.getElementById('claim-view-serial').textContent.trim() : '';
+
+  if (repEnd) {
+    if (!repModel || !repSerial) {
+      showToast('Please enter both Replacement Model Number and Serial Number.', 'warning');
+      return;
+    }
+    if (repSerial.toLowerCase() === origSerial.toLowerCase()) {
+      showToast('Replacement serial number cannot match original defective serial (' + origSerial + ').', 'error');
+      return;
+    }
+  }
+
   var claimData = {
     ticket_no: document.getElementById('claim-ticket-no').value,
     date_of_sale: document.getElementById('claim-dos').value,
     invoice_number: document.getElementById('claim-invoice-no').value,
     km_reading: document.getElementById('claim-km').value,
-    remarks: document.getElementById('claim-remarks').value
+    remarks: document.getElementById('claim-remarks').value,
+    replacement_end: repEnd,
+    replaced_by_party: document.getElementById('claim-rep-party') ? document.getElementById('claim-rep-party').value.trim() : '',
+    replacement_model: repEnd ? repModel : '',
+    replacement_serial_no: repEnd ? repSerial : '',
+    replacement_received_date: repEnd && document.getElementById('claim-rep-date') ? document.getElementById('claim-rep-date').value : '',
+    company_invoice_ref: repEnd && document.getElementById('claim-rep-ref') ? document.getElementById('claim-rep-ref').value.trim() : ''
   };
 
   closeModal('modal-claim');
@@ -1502,12 +1640,16 @@ function handleClaimSubmit(e) {
         if (idx === -1) BWMS.claims.push(res.data);
         else BWMS.claims[idx] = res.data;
         var tkt = (BWMS.tickets || []).find(function(t) { return t.ticket_no === res.data.ticket_no; });
-        if (tkt) tkt.status = 'CLAIM_CREATED';
+        if (tkt) tkt.status = res.data.status || 'CLAIM_CREATED';
         saveStateToLocalCache();
       }
       showToast(res.message || 'Warranty claim created!', 'success');
       syncAllData(false);
-      if (confirm('Claim ' + res.data.claim_no + ' generated! Print official Claim Form for battery company?')) {
+      if (repEnd) {
+        if (confirm('Claim ' + res.data.claim_no + ' created & ' + getReplacementEndLabel(repEnd) + ' replacement logged! Confirm ERP stock entry now?')) {
+          openStockModal(res.data.claim_no);
+        }
+      } else if (confirm('Claim ' + res.data.claim_no + ' generated! Print official Claim Form for battery company?')) {
         printClaimForm(res.data.claim_no);
       }
     } else {
@@ -1779,6 +1921,8 @@ function switchReplacementTab(tab) {
 var renderReplacementsTable = renderReplacementsTables;
 function renderReplacementsTables() {
   var search = (document.getElementById('filter-rep-search') ? document.getElementById('filter-rep-search').value : '').toLowerCase().trim();
+  var histSearch = (document.getElementById('filter-rep-history-search') ? document.getElementById('filter-rep-history-search').value : '').toLowerCase().trim();
+  var repEndFilter = document.getElementById('filter-rep-end') ? document.getElementById('filter-rep-end').value : 'ALL';
   var ageingFilter = document.getElementById('filter-rep-ageing') ? document.getElementById('filter-rep-ageing').value : 'ALL';
 
   var dueClaims = (BWMS.claims || []).filter(function(c) {
@@ -1820,37 +1964,50 @@ function renderReplacementsTables() {
         var tr = document.createElement('tr');
         tr.innerHTML =
           '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-          '<td><small>' + (c.company_challan_no || c.dispatch_batch_no || 'Batch') + '</small></td>' +
-          '<td><strong>' + (c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + (c.mobile || '') + '</small></td>' +
-          '<td>' + c.battery_model + '</td>' +
-          '<td><span style="font-family:monospace; font-weight:bold;">' + c.original_serial_no + '</span></td>' +
+          '<td><small>' + escapeHtml(c.company_challan_no || c.dispatch_batch_no || 'Batch') + '</small></td>' +
+          '<td><strong>' + escapeHtml(c.customer_name || c.dealer_name) + '</strong><br><small style="color:#64748b;">' + escapeHtml(c.mobile || '') + '</small></td>' +
+          '<td>' + escapeHtml(c.battery_model) + '</td>' +
+          '<td><span style="font-family:monospace; font-weight:bold;">' + escapeHtml(c.original_serial_no) + '</span></td>' +
           '<td>' + formatDate(c.company_dispatch_date) + '</td>' +
           '<td>' + renderAgeingBadge(days) + '</td>' +
-          '<td><button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + c.battery_model + '\', \'' + c.original_serial_no + '\')">📥 Receive Replacement</button></td>';
+          '<td><button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + escapeHtml(c.battery_model) + '\', \'' + escapeHtml(c.original_serial_no) + '\', \'COMPANY_END\')">📥 Receive Replacement</button></td>';
         tbodyPending.appendChild(tr);
       });
     }
   }
 
-  // Received History Table
+  // Replaced / Received History Table
   var tbodyHistory = document.getElementById('replacement-history-body');
   if (tbodyHistory) {
     tbodyHistory.innerHTML = '';
-    if (receivedClaims.length === 0) {
-      tbodyHistory.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#94a3b8;">No replacement batteries logged yet.</td></tr>';
+    var filteredHist = receivedClaims.filter(function(c) {
+      var re = String(c.replacement_end || 'COMPANY_END').toUpperCase();
+      if (repEndFilter !== 'ALL' && re !== repEndFilter) return false;
+      if (histSearch) {
+        var blob = [c.claim_no, c.battery_model, c.replacement_model, c.original_serial_no, c.replacement_serial_no, c.replaced_by_party, c.stock_ref_no].join(' ').toLowerCase();
+        if (blob.indexOf(histSearch) === -1) return false;
+      }
+      return true;
+    });
+    if (filteredHist.length === 0) {
+      tbodyHistory.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:25px; color:#94a3b8;">No matching replacement batteries logged yet.</td></tr>';
     } else {
-      receivedClaims.slice().reverse().forEach(function(c) {
+      filteredHist.slice().reverse().forEach(function(c) {
+        var repModel = c.replacement_model || c.battery_model || '-';
+        var repSerial = c.replacement_serial_no || c.replacement_battery_serial_no || '-';
         var tr = document.createElement('tr');
         tr.innerHTML =
           '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-          '<td>' + c.battery_model + '</td>' +
-          '<td><span style="font-family:monospace; color:#64748b;">' + c.original_serial_no + '</span></td>' +
-          '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + (c.replacement_serial_no || c.replacement_battery_serial_no || '-') + '</span></td>' +
+          '<td>' + renderReplacementEndBadge(c) + (c.replaced_by_party ? '<br><small style="color:#64748b;">' + escapeHtml(c.replaced_by_party) + '</small>' : '') + '</td>' +
+          '<td><small>' + escapeHtml(c.battery_model) + '</small><br><span style="font-family:monospace; color:#64748b;">' + escapeHtml(c.original_serial_no) + '</span></td>' +
+          '<td><strong style="color:#0f172a;">' + escapeHtml(repModel) + '</strong></td>' +
+          '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + escapeHtml(repSerial) + '</span></td>' +
           '<td>' + formatDate(c.replacement_received_date) + '</td>' +
-          '<td>' + (c.stock_ref_no || '-') + '</td>' +
+          '<td>' + escapeHtml(c.stock_ref_no || '-') + '</td>' +
           '<td>' + (c.stock_status === 'UPDATED' ? '<span class="badge badge-green">ERP RECONCILED</span>' : '<span class="badge badge-danger">STOCK PENDING</span>') + '</td>' +
-          '<td><div style="display:flex; gap:6px;">' +
+          '<td><div style="display:flex; gap:6px; flex-wrap:wrap;">' +
           (c.stock_status !== 'UPDATED' ? '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>' : (c.status !== 'CLOSED' && c.status !== 'CLAIM_CLOSED' ? '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">🤝 Deliver & Close</button>' : '<span class="badge badge-green">Closed</span>')) +
+          (c.status !== 'CLOSED' && c.status !== 'CLAIM_CLOSED' ? '<button class="btn btn-secondary btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\')">✏️ Edit Rep</button>' : '') +
           '  <button class="btn btn-secondary btn-sm" onclick="showTimeline(\'' + c.claim_no + '\')">Timeline</button>' +
           '</div></td>';
         tbodyHistory.appendChild(tr);
@@ -1859,28 +2016,97 @@ function renderReplacementsTables() {
   }
 }
 
-function openReplacementModal(claimNo, model, origSerial) {
+function openReplacementModal(claimNo, model, origSerial, defaultEnd) {
   document.getElementById('form-replacement').reset();
+  var c = (BWMS.claims || []).find(function(item) { return item.claim_no === claimNo; });
+  BWMS._activeRepClaim = c || null;
+
+  var origModel = model || (c ? c.battery_model : '');
+  var origSer = origSerial || (c ? c.original_serial_no : '');
+  var curRepModel = (c && c.replacement_model) ? c.replacement_model : origModel;
+
   document.getElementById('rep-claim-no').value = claimNo;
   document.getElementById('rep-view-claim').textContent = claimNo;
-  document.getElementById('rep-view-model').textContent = model || '';
-  document.getElementById('rep-view-original-serial').textContent = origSerial || '';
-  document.getElementById('rep-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('rep-view-model').textContent = origModel || '';
+  document.getElementById('rep-view-original-serial').textContent = origSer || '';
+  document.getElementById('rep-date').value = (c && c.replacement_received_date) ? c.replacement_received_date : new Date().toISOString().split('T')[0];
+
+  var pickedEnd = defaultEnd || (c && c.replacement_end) || ((c && c.status === 'SENT_TO_COMPANY') ? 'COMPANY_END' : ((c && c.source_type === 'DEALER') ? 'DEALER_END' : 'DISTRIBUTOR_END'));
+  var endSel = document.getElementById('rep-replaced-end');
+  if (endSel) endSel.value = pickedEnd;
+
+  var partyInp = document.getElementById('rep-party-name');
+  if (partyInp) partyInp.value = (c && c.replaced_by_party) ? c.replaced_by_party : '';
+
+  var repModelInp = document.getElementById('rep-model');
+  if (repModelInp) repModelInp.value = curRepModel || '';
+
+  var repModelSel = document.getElementById('rep-model-select');
+  if (repModelSel && curRepModel) setSelectValueFuzzy(repModelSel, curRepModel);
+
+  var repSerialInp = document.getElementById('rep-new-serial');
+  if (repSerialInp && c && c.replacement_serial_no) repSerialInp.value = c.replacement_serial_no;
+
+  var repRefInp = document.getElementById('rep-ref');
+  if (repRefInp && c && c.stock_ref_no) repRefInp.value = c.stock_ref_no;
+
+  handleRepEndChange();
   openModal('modal-replacement');
+}
+
+function handleRepEndChange() {
+  var endVal = document.getElementById('rep-replaced-end') ? document.getElementById('rep-replaced-end').value : 'DISTRIBUTOR_END';
+  var lbl = document.getElementById('rep-party-label');
+  var inp = document.getElementById('rep-party-name');
+  var c = BWMS._activeRepClaim || {};
+  var compName = (BWMS.config && BWMS.config.COMPANY_NAME) ? BWMS.config.COMPANY_NAME : 'Distributor Counter';
+
+  if (endVal === 'DEALER_END') {
+    if (lbl) lbl.textContent = 'Dealer Name (Replaced At Dealer End)';
+    if (inp && (!inp.value || inp.value === compName || inp.value === 'Company / Factory Depot')) {
+      inp.value = c.dealer_name || '';
+    }
+  } else if (endVal === 'DISTRIBUTOR_END') {
+    if (lbl) lbl.textContent = 'Distributor Name (Replaced At Distributor End)';
+    if (inp && (!inp.value || inp.value === c.dealer_name || inp.value === 'Company / Factory Depot')) {
+      inp.value = compName;
+    }
+  } else {
+    if (lbl) lbl.textContent = 'Company / Factory Depot';
+    if (inp && (!inp.value || inp.value === compName || inp.value === c.dealer_name)) {
+      inp.value = 'Company / Factory Depot';
+    }
+  }
+}
+
+function handleRepModelSelect(val) {
+  if (!val) return;
+  var inp = document.getElementById('rep-model');
+  if (inp) inp.value = val;
 }
 
 function handleReplacementSubmit(e) {
   e.preventDefault();
   var origSerial = document.getElementById('rep-view-original-serial').textContent.trim();
   var newSerial = document.getElementById('rep-new-serial').value.trim();
+  var repModel = document.getElementById('rep-model') ? document.getElementById('rep-model').value.trim() : '';
+  var repEnd = document.getElementById('rep-replaced-end') ? document.getElementById('rep-replaced-end').value : 'DISTRIBUTOR_END';
+  var repParty = document.getElementById('rep-party-name') ? document.getElementById('rep-party-name').value.trim() : '';
 
-  if (newSerial === origSerial) {
+  if (newSerial.toLowerCase() === origSerial.toLowerCase()) {
     alert('CRITICAL BARCODE REJECT: Replacement serial number cannot match the defective original serial (' + origSerial + ').');
+    return;
+  }
+  if (!repModel) {
+    showToast('Please enter the replacement battery model number.', 'warning');
     return;
   }
 
   var data = {
     claim_no: document.getElementById('rep-claim-no').value,
+    replacement_end: repEnd,
+    replaced_by_party: repParty,
+    replacement_model: repModel,
     replacement_serial_no: newSerial,
     received_date: document.getElementById('rep-date').value,
     company_invoice_ref: document.getElementById('rep-ref').value,
@@ -1891,9 +2117,9 @@ function handleReplacementSubmit(e) {
 
   callServer('apiRecordReplacementReceived', [data], function(res) {
     if (res && res.success) {
-      showToast(res.message || 'Replacement received! Stock update task generated.', 'success');
+      showToast(res.message || 'Replacement recorded! Stock update task generated.', 'success');
       syncAllData(false);
-      if (confirm('Replacement serial ' + newSerial + ' logged! Would you like to confirm the Busy/Tally ERP inventory entry now?')) {
+      if (confirm(getReplacementEndLabel(repEnd) + ' replacement (' + repModel + ' / ' + newSerial + ') saved! Confirm Busy/Tally ERP inventory entry now?')) {
         openStockModal(data.claim_no);
       }
     } else {
@@ -1938,20 +2164,21 @@ function renderStockTasksTables() {
     tbodyPending.innerHTML = '';
     var filtered = pendingTasks.filter(function(c) {
       if (!search) return true;
-      var blob = [c.claim_no, c.battery_model, c.replacement_serial_no, c.original_serial_no].join(' ').toLowerCase();
+      var blob = [c.claim_no, c.battery_model, c.replacement_model, c.replacement_serial_no, c.original_serial_no, c.replacement_end, c.replaced_by_party].join(' ').toLowerCase();
       return blob.indexOf(search) !== -1;
     });
 
     if (filtered.length === 0) {
-      tbodyPending.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:25px; color:#16a34a;">✅ All replacement batteries reconciled with accounting inventory! No pending stock tasks.</td></tr>';
+      tbodyPending.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:25px; color:#16a34a;">✅ All replacement batteries reconciled with accounting inventory! No pending stock tasks.</td></tr>';
     } else {
       filtered.forEach(function(c) {
         var tr = document.createElement('tr');
         tr.innerHTML =
           '<td><strong style="color:var(--accent); cursor:pointer;" onclick="showTimeline(\'' + c.claim_no + '\')">' + c.claim_no + '</strong></td>' +
-          '<td>' + c.battery_model + '</td>' +
-          '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + (c.replacement_serial_no || c.replacement_battery_serial_no || '-') + '</span></td>' +
-          '<td><span style="font-family:monospace; color:#64748b;">' + c.original_serial_no + '</span></td>' +
+          '<td>' + renderReplacementEndBadge(c) + '</td>' +
+          '<td><strong>' + escapeHtml(c.replacement_model || c.battery_model) + '</strong></td>' +
+          '<td><span style="font-family:monospace; font-weight:bold; color:#16a34a;">' + escapeHtml(c.replacement_serial_no || c.replacement_battery_serial_no || '-') + '</span></td>' +
+          '<td><span style="font-family:monospace; color:#64748b;">' + escapeHtml(c.original_serial_no) + '</span></td>' +
           '<td>' + formatDate(c.replacement_received_date) + '</td>' +
           '<td><span class="badge badge-danger">STOCK UPDATE REQUIRED</span></td>' +
           '<td><button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Certify ERP Entry</button></td>';
@@ -3303,6 +3530,29 @@ function runLatencyProbe() {
   });
 }
 
+function handleFreshResetTransactionalData() {
+  if (!BWMS.isAdminUser) {
+    showToast('Only an Admin account can reset ticket & claim records.', 'error');
+    return;
+  }
+  if (!confirm('⚠️ FRESH START WARNING: This will permanently delete ALL intake tickets, diagnostic tests, warranty claims, attachments, delivery challans, company dispatches, and stock logs from Cloud Firestore (Battery Models, Dealers & Staff logins will be preserved).\n\nDo you want to continue?')) {
+    return;
+  }
+  if (!confirm('Final confirmation: Delete all tickets/claims and reset sequence numbers back to 1001?')) {
+    return;
+  }
+  showToast('Cleaning transactional data in Firestore...', 'info');
+  callServer('apiFreshResetTransactional', [], function(res) {
+    if (res && res.success) {
+      try { localStorage.removeItem(CACHE_KEY); } catch (e) {}
+      syncAllData(false);
+      showToast(res.message || 'All tickets and claims cleared for a fresh start.', 'success');
+    } else {
+      showToast((res && (res.error || res.message)) ? (res.error || res.message) : 'Reset failed', 'error');
+    }
+  });
+}
+
 // ─── UNIVERSAL TIMELINE & INSTANT SEARCH ─────────────────────────────────────
 
 function handleUniversalSearchInput(val) {
@@ -3524,10 +3774,13 @@ function showTimeline(query) {
     }
 
     if (matchedClaim.replacement_received_date) {
+      var repLocTitle = getReplacementEndLabel(matchedClaim.replacement_end) + ' Replacement';
+      var repModInfo = matchedClaim.replacement_model ? ('Model: ' + matchedClaim.replacement_model + ' • ') : '';
+      var repPartyInfo = matchedClaim.replaced_by_party ? (' • Party: ' + matchedClaim.replaced_by_party) : '';
       events.push({
-        title: 'Factory Replacement Received',
+        title: repLocTitle + ' Recorded',
         date: matchedClaim.replacement_received_date,
-        details: 'Replacement Serial: ' + (matchedClaim.replacement_serial_no || '-') + ' • Invoice/CN Ref: ' + (matchedClaim.stock_ref_no || '-')
+        details: repModInfo + 'Replacement Serial: ' + (matchedClaim.replacement_serial_no || '-') + repPartyInfo + ' • Ref: ' + (matchedClaim.stock_ref_no || '-')
       });
     }
 
@@ -4409,7 +4662,22 @@ function buildClaimFormHTML(claimOrTicketId) {
     '  <div style="margin-top:5px; font-size:10.5px;"><strong>Technical Diagnostic Conclusion:</strong> <span style="color:#334155;">' + escapeHtml(testRem) + '</span></div>' +
     '  <div style="margin-top:4px; font-size:10px; color:#64748b;">Tested By: <strong>' + escapeHtml(testedBy) + '</strong> &nbsp;|&nbsp; Date Tested: <strong>' + testDate + '</strong> &nbsp;|&nbsp; Test Ref: <strong>' + escapeHtml(testId) + '</strong></div>' +
     '</div>' +
-    '<div class="section-title">4. Document Verification &amp; Enclosures</div>' +
+    (claim.replacement_serial_no
+      ? '<div class="section-title">4. Battery Replacement Settlement Details</div>' +
+        '<div class="grid-2">' +
+        '  <div class="grid-col">' +
+        '    <div class="info-row"><span class="info-label">Replaced At:</span><span class="info-val"><strong>' + escapeHtml(getReplacementEndLabel(claim.replacement_end)) + '</strong></span></div>' +
+        '    <div class="info-row"><span class="info-label">Replaced By Party:</span><span class="info-val">' + escapeHtml(claim.replaced_by_party || '-') + '</span></div>' +
+        '    <div class="info-row"><span class="info-label">Replacement Date:</span><span class="info-val">' + formatDate(claim.replacement_received_date) + '</span></div>' +
+        '  </div>' +
+        '  <div class="grid-col">' +
+        '    <div class="info-row"><span class="info-label">Replacement Model:</span><span class="info-val"><strong>' + escapeHtml(claim.replacement_model || bModel) + '</strong></span></div>' +
+        '    <div class="info-row"><span class="info-label">Replacement Serial:</span><span class="info-val"><span style="font-family:monospace; font-size:13px; font-weight:bold; color:#15803d;">' + escapeHtml(claim.replacement_serial_no) + '</span></span></div>' +
+        '    <div class="info-row"><span class="info-label">ERP / Invoice Ref:</span><span class="info-val">' + escapeHtml(claim.stock_ref_no || '-') + '</span></div>' +
+        '  </div>' +
+        '</div>'
+      : '') +
+    '<div class="section-title">Document Verification &amp; Enclosures</div>' +
     '<div style="display:flex; gap:20px; font-size:10.5px; padding:4px 6px;">' +
     '  <div>☑ Original Purchase Invoice Copy</div>' +
     '  <div>☑ Manufacturer Warranty Card</div>' +
@@ -4795,7 +5063,7 @@ function exportLabCSV() {
 }
 
 function exportClaimsCSV() {
-  var headers = ['Claim #', 'Ticket #', 'Customer / Dealer', 'Mobile', 'Model', 'Serial #', 'Date of Sale', 'Expiry', 'Warranty Status', 'Claim Status', 'Dispatch Batch', 'Replacement Serial'];
+  var headers = ['Claim #', 'Ticket #', 'Customer / Dealer', 'Mobile', 'Original Model', 'Original Serial #', 'Date of Sale', 'Expiry', 'Warranty Status', 'Claim Status', 'Dispatch Batch', 'Replaced At', 'Replaced By Party', 'Replacement Model', 'Replacement Serial'];
   var rows = (BWMS.claims || []).map(function(c) {
     return [
       c.claim_no,
@@ -4809,24 +5077,41 @@ function exportClaimsCSV() {
       c.warranty_status,
       c.status,
       c.dispatch_batch_no,
-      c.replacement_serial_no
+      c.replacement_end ? getReplacementEndLabel(c.replacement_end) : '',
+      c.replaced_by_party || '',
+      c.replacement_model || '',
+      c.replacement_serial_no || ''
     ];
   });
   downloadCSV('warranty-claims-' + getExportDate() + '.csv', headers, rows);
 }
 
 function exportReplacementsCSV() {
-  var headers = ['Claim #', 'Battery Model', 'Original Serial', 'Replacement Serial', 'Received Date', 'Invoice CN Ref', 'ERP Stock Status'];
-  var rows = (BWMS.claims || []).filter(function(c) { return c.status === 'REPLACEMENT_RECEIVED' || c.status === 'CLAIM_CLOSED'; }).map(function(c) {
-    return [c.claim_no, c.battery_model, c.original_serial_no, c.replacement_serial_no, c.replacement_received_date, c.stock_ref_no, c.stock_status];
+  var headers = ['Claim #', 'Replaced At', 'Replaced By Party', 'Original Model', 'Original Serial', 'Replacement Model', 'Replacement Serial', 'Replacement Date', 'Ref / CN #', 'ERP Stock Status'];
+  var rows = (BWMS.claims || []).filter(function(c) {
+    var s = (c.status || '').toUpperCase();
+    return s === 'REPLACEMENT_RECEIVED' || s === 'STOCK_UPDATED' || s === 'CLOSED' || s === 'CLAIM_CLOSED';
+  }).map(function(c) {
+    return [
+      c.claim_no,
+      getReplacementEndLabel(c.replacement_end),
+      c.replaced_by_party || '',
+      c.battery_model,
+      c.original_serial_no,
+      c.replacement_model || c.battery_model,
+      c.replacement_serial_no,
+      c.replacement_received_date,
+      c.stock_ref_no,
+      c.stock_status
+    ];
   });
   downloadCSV('received-replacements-' + getExportDate() + '.csv', headers, rows);
 }
 
 function exportStockCSV() {
-  var headers = ['Task ID', 'Claim #', 'Replacement Serial', 'ERP Software', 'Voucher Ref', 'Reconciled Date', 'Reconciled By', 'Remarks'];
+  var headers = ['Task ID', 'Claim #', 'Replaced At', 'Replacement Model', 'Replacement Serial', 'ERP Software', 'Voucher Ref', 'Reconciled Date', 'Reconciled By', 'Remarks'];
   var rows = (BWMS.stockUpdates || []).map(function(s) {
-    return [s.stock_task_id, s.claim_no, s.replacement_serial_no, 'Busy/Tally', s.accounting_ref_no, s.updated_at, s.updated_by, s.remarks];
+    return [s.stock_task_id, s.claim_no, s.replacement_end ? getReplacementEndLabel(s.replacement_end) : '', s.replacement_model || '', s.replacement_serial_no, 'Busy/Tally', s.accounting_ref_no, s.updated_at, s.updated_by, s.remarks];
   });
   downloadCSV('erp-stock-log-' + getExportDate() + '.csv', headers, rows);
 }
@@ -4995,7 +5280,7 @@ function getTicketNextAction(t) {
 function getClaimNextAction(c) {
   var s = (c.status || '').toUpperCase();
   if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
-    return { stepNumber: 3, stepLabel: 'Step 3: Dispatch to Co.', badgeClass: 'step-purple' };
+    return { stepNumber: 3, stepLabel: 'Step 3: Dispatch / Replace', badgeClass: 'step-purple' };
   }
   if (s === 'SENT_TO_COMPANY') {
     return { stepNumber: 4, stepLabel: 'Step 4: Awaiting Mfr Rep', badgeClass: 'step-amber' };
@@ -5042,8 +5327,10 @@ function renderTicketActions(t) {
   // Linked claim lifecycle progression actions directly on ticket card/row
   if (c) {
     var cs = (c.status || '').toUpperCase();
-    if (cs === 'SENT_TO_COMPANY') {
-      html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + (c.battery_model || t.battery_model || '') + '\', \'' + (c.original_serial_no || t.original_serial_no || '') + '\')">📥 Receive Rep</button>';
+    if (cs === 'CLAIM_CREATED' || cs === 'READY_FOR_COMPANY') {
+      html += '<button class="btn btn-primary btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + escapeHtml(c.battery_model || t.battery_model || '') + '\', \'' + escapeHtml(c.original_serial_no || t.original_serial_no || '') + '\')" title="Record Distributor End or Dealer End Replacement">🔄 Replace (Dist/Dealer)</button>';
+    } else if (cs === 'SENT_TO_COMPANY') {
+      html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + escapeHtml(c.battery_model || t.battery_model || '') + '\', \'' + escapeHtml(c.original_serial_no || t.original_serial_no || '') + '\', \'COMPANY_END\')">📥 Receive Rep</button>';
     } else if (cs === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
       html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>';
     } else if (cs === 'STOCK_UPDATED' || (cs === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED')) {
@@ -5080,11 +5367,13 @@ function renderClaimActions(c) {
   html += '<button class="btn btn-secondary btn-sm" onclick="openUploadDocModal(\'' + c.claim_no + '\')">📎 Docs' + (docCount > 0 ? ' (' + docCount + ')' : '') + '</button>';
 
   if (s === 'CLAIM_CREATED' || s === 'READY_FOR_COMPANY') {
+    html += '<button class="btn btn-primary btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + escapeHtml(c.battery_model || '') + '\', \'' + escapeHtml(c.original_serial_no || '') + '\')" title="Record Distributor End / Dealer End Replacement">🔄 Replace (Dist/Dealer)</button>';
     html += '<button class="btn btn-warning btn-sm" onclick="navigateTo(\'pending-company\')">🚚 Dispatch to Co.</button>';
   } else if (s === 'SENT_TO_COMPANY') {
-    html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + (c.battery_model || '') + '\', \'' + (c.original_serial_no || '') + '\')">📥 Receive Rep</button>';
+    html += '<button class="btn btn-success btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\', \'' + escapeHtml(c.battery_model || '') + '\', \'' + escapeHtml(c.original_serial_no || '') + '\', \'COMPANY_END\')">📥 Receive Rep</button>';
   } else if (s === 'REPLACEMENT_RECEIVED' && c.stock_status !== 'UPDATED') {
     html += '<button class="btn btn-primary btn-sm" onclick="openStockModal(\'' + c.claim_no + '\')">✍️ Stock Task</button>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="openReplacementModal(\'' + c.claim_no + '\')">✏️ Edit Rep</button>';
   } else if (s === 'STOCK_UPDATED' || (s === 'REPLACEMENT_RECEIVED' && c.stock_status === 'UPDATED')) {
     html += '<button class="btn btn-success btn-sm" onclick="openCloseClaimModal(\'' + c.claim_no + '\')">🤝 Close Claim</button>';
   }
@@ -5956,6 +6245,7 @@ var FB_ALLOWED_FIELDS = {
     'warranty_expiry_date', 'warranty_status', 'claim_date', 'status',
     'dispatch_batch_no', 'company_challan_no', 'company_dispatch_date',
     'replacement_model', 'replacement_serial_no', 'replacement_received_date',
+    'replacement_end', 'replaced_by_party',
     'stock_status', 'stock_ref_no', 'stock_updated_date', 'stock_updated_by',
     'closed_date', 'remarks', 'doc_count', 'created_at', 'updated_at'
   ],
@@ -5980,12 +6270,13 @@ var FB_ALLOWED_FIELDS = {
   ],
   replacement_receipts: [
     'receipt_id', 'claim_no', 'replacement_model', 'replacement_serial_no',
-    'received_date', 'received_by', 'remarks'
+    'received_date', 'received_by', 'replacement_end', 'replaced_by_party',
+    'remarks'
   ],
   stock_update_log: [
     'stock_task_id', 'claim_no', 'replacement_model',
-    'replacement_serial_no', 'received_date', 'stock_status',
-    'accounting_ref_no', 'updated_at', 'updated_by', 'remarks'
+    'replacement_serial_no', 'received_date', 'replacement_end',
+    'stock_status', 'accounting_ref_no', 'updated_at', 'updated_by', 'remarks'
   ],
   service_batteries: [
     'sb_id', 'serial_no', 'brand', 'model_name', 'capacity_ah',
@@ -6597,6 +6888,18 @@ async function executeFirebaseAction(funcName, args) {
       if (d.km_reading) extraNotes.push('KM: ' + fbStr(d.km_reading, 30));
       if (d.remarks || origTkt.remarks) extraNotes.push(fbStr(d.remarks || origTkt.remarks, 800));
 
+      var immEnd = fbStr(d.replacement_end || '', 30).toUpperCase();
+      var validImmEnd = (immEnd === 'DISTRIBUTOR_END' || immEnd === 'DEALER_END' || immEnd === 'COMPANY_END') ? immEnd : '';
+      var immSerial = validImmEnd ? fbStr(d.replacement_serial_no, 80) : '';
+      var hasImmediateRep = Boolean(validImmEnd && immSerial);
+      if (hasImmediateRep && origTkt.original_serial_no && immSerial.toLowerCase() === String(origTkt.original_serial_no).trim().toLowerCase()) {
+        throw new Error('Replacement serial number cannot match original serial (' + origTkt.original_serial_no + ').');
+      }
+      var immModel = hasImmediateRep ? (fbStr(d.replacement_model || origTkt.battery_model, 150) || origTkt.battery_model) : '';
+      var immParty = hasImmediateRep ? fbStr(d.replaced_by_party || (validImmEnd === 'DEALER_END' ? origTkt.dealer_name : ((validImmEnd === 'DISTRIBUTOR_END') ? ((cfgData && cfgData.COMPANY_NAME) || 'Distributor Counter') : 'Company / Factory Depot')), 150) : '';
+      var immDate = hasImmediateRep ? fbStr(d.replacement_received_date || todayIso, 30) : '';
+      var immRef = hasImmediateRep ? fbStr(d.company_invoice_ref || d.stock_ref_no || '', 100) : '';
+
       var claimDoc = {
         claim_no: cNo,
         ticket_no: ctNo,
@@ -6613,8 +6916,14 @@ async function executeFirebaseAction(funcName, args) {
         warranty_expiry_date: fbStr(expIso, 30),
         warranty_status: fbStr(wStatus, 40),
         claim_date: todayIso,
-        status: 'CLAIM_CREATED',
-        stock_status: 'NOT_APPLICABLE',
+        status: hasImmediateRep ? 'REPLACEMENT_RECEIVED' : 'CLAIM_CREATED',
+        replacement_end: validImmEnd,
+        replaced_by_party: immParty,
+        replacement_model: immModel,
+        replacement_serial_no: immSerial,
+        replacement_received_date: immDate,
+        stock_status: hasImmediateRep ? 'UPDATE_REQUIRED' : 'NOT_APPLICABLE',
+        stock_ref_no: immRef,
         doc_count: 0,
         remarks: fbStr(extraNotes.join(' | '), 1000),
         created_at: nowIso,
@@ -6622,11 +6931,44 @@ async function executeFirebaseAction(funcName, args) {
       };
 
       var nextCfg = fbCleanConfig(Object.assign({}, cfgData, { CLAIM_PREFIX: seqRes.prefix, CLAIM_SEQ: seqRes.nextSeq, updated_at: nowIso }), nowIso);
-      var updatedTkt = Object.assign({}, origTkt, { status: 'CLAIM_CREATED', date_of_sale: dos || origTkt.date_of_sale || '', updated_at: nowIso });
+      var updatedTkt = Object.assign({}, origTkt, { status: claimDoc.status, date_of_sale: dos || origTkt.date_of_sale || '', updated_at: nowIso });
       tx.set(cfgRefClm, nextCfg);
       tx.set(FB.doc(db, 'claims', cNo), fbPickFields(claimDoc, FB_ALLOWED_FIELDS.claims));
       tx.set(tktRefClm, fbPickFields(updatedTkt, FB_ALLOWED_FIELDS.tickets));
-      var audClm = fbBuildAuditDoc('CLAIM_CREATE', 'CLAIM', cNo, origTkt.status, 'CLAIM_CREATED', 'Warranty claim created for ' + origTkt.original_serial_no);
+
+      if (hasImmediateRep) {
+        var immRcpId = 'RCP-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        tx.set(FB.doc(db, 'replacement_receipts', immRcpId), {
+          receipt_id: immRcpId,
+          claim_no: cNo,
+          replacement_model: immModel,
+          replacement_serial_no: immSerial,
+          received_date: immDate,
+          received_by: userName,
+          replacement_end: validImmEnd,
+          replaced_by_party: immParty,
+          remarks: fbStr(d.remarks || 'Immediate counter replacement recorded at claim creation', 1000)
+        });
+        var immStkId = 'STK-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        tx.set(FB.doc(db, 'stock_update_log', immStkId), {
+          stock_task_id: immStkId,
+          claim_no: cNo,
+          replacement_model: immModel,
+          replacement_serial_no: immSerial,
+          received_date: immDate,
+          replacement_end: validImmEnd,
+          stock_status: 'UPDATE_REQUIRED',
+          accounting_ref_no: immRef,
+          updated_at: '',
+          updated_by: '',
+          remarks: fbStr(getReplacementEndLabel(validImmEnd) + ' replacement (' + immModel + ') pending ERP ledger entry', 1000)
+        });
+      }
+
+      var audDetails = hasImmediateRep
+        ? ('Warranty claim created with ' + getReplacementEndLabel(validImmEnd) + ' replacement (' + immModel + ' / ' + immSerial + ')')
+        : ('Warranty claim created for ' + origTkt.original_serial_no);
+      var audClm = fbBuildAuditDoc('CLAIM_CREATE', 'CLAIM', cNo, origTkt.status, claimDoc.status, audDetails);
       tx.set(FB.doc(db, 'audit_log', audClm.audit_id), audClm);
       return claimDoc;
     });
@@ -6875,6 +7217,9 @@ async function executeFirebaseAction(funcName, args) {
     var claimRefR = FB.doc(db, 'claims', rcNo);
     var linkedTktR = ((BWMS.claims || []).find(function(c) { return c.claim_no === rcNo; }) || {}).ticket_no;
     var tktRefR = linkedTktR ? FB.doc(db, 'tickets', linkedTktR) : null;
+    var existingStkTask = (BWMS.stockUpdates || []).find(function(s) { return s.claim_no === rcNo; });
+    var stkIdR = existingStkTask ? existingStkTask.stock_task_id : ('STK-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+    var stkRefR = FB.doc(db, 'stock_update_log', stkIdR);
 
     var recClaim = await FB.runTransaction(db, async function(tx) {
       var clmSnap = await tx.get(claimRefR);
@@ -6885,25 +7230,33 @@ async function executeFirebaseAction(funcName, args) {
       }
       var finalTktRef = tktRefR || (clm.ticket_no ? FB.doc(db, 'tickets', clm.ticket_no) : null);
       var tktSnap = finalTktRef ? await tx.get(finalTktRef) : null;
+      var stkSnap = await tx.get(stkRefR);
 
       var rDate = fbStr(d.received_date || todayIso, 30);
       var rModel = fbStr(d.replacement_model || clm.battery_model, 150) || clm.battery_model;
+      var rawEnd = fbStr(d.replacement_end || clm.replacement_end || 'COMPANY_END', 30).toUpperCase();
+      var rEnd = (rawEnd === 'DISTRIBUTOR_END' || rawEnd === 'DEALER_END' || rawEnd === 'COMPANY_END') ? rawEnd : 'COMPANY_END';
+      var rParty = fbStr(d.replaced_by_party || (rEnd === 'DEALER_END' ? clm.dealer_name : (rEnd === 'DISTRIBUTOR_END' ? ((BWMS.config && BWMS.config.COMPANY_NAME) || 'Distributor Counter') : 'Company / Factory Depot')), 150);
       var invRef = fbStr(d.company_invoice_ref || d.stock_ref_no || '', 100);
       var oldSt = clm.status;
+      var alreadyUpdatedStk = (clm.stock_status === 'UPDATED');
+      var nextClaimSt = alreadyUpdatedStk ? 'STOCK_UPDATED' : 'REPLACEMENT_RECEIVED';
 
       var updClm = Object.assign({}, clm, {
+        replacement_end: rEnd,
+        replaced_by_party: rParty,
         replacement_model: rModel,
         replacement_serial_no: repSerial,
         replacement_received_date: rDate,
-        status: 'REPLACEMENT_RECEIVED',
-        stock_status: 'UPDATE_REQUIRED',
+        status: nextClaimSt,
+        stock_status: alreadyUpdatedStk ? 'UPDATED' : 'UPDATE_REQUIRED',
         stock_ref_no: invRef || clm.stock_ref_no || '',
         updated_at: nowIso
       });
       tx.set(claimRefR, fbPickFields(updClm, FB_ALLOWED_FIELDS.claims));
 
       if (tktSnap && tktSnap.exists()) {
-        tx.set(finalTktRef, fbPickFields(Object.assign({}, tktSnap.data(), { status: 'REPLACEMENT_RECEIVED', updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
+        tx.set(finalTktRef, fbPickFields(Object.assign({}, tktSnap.data(), { status: nextClaimSt, updated_at: nowIso }), FB_ALLOWED_FIELDS.tickets));
       }
 
       var rcpId = 'RCP-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -6914,29 +7267,32 @@ async function executeFirebaseAction(funcName, args) {
         replacement_serial_no: repSerial,
         received_date: rDate,
         received_by: userName,
-        remarks: fbStr(d.remarks, 1000)
+        replacement_end: rEnd,
+        replaced_by_party: rParty,
+        remarks: fbStr(d.remarks || (getReplacementEndLabel(rEnd) + ' replacement'), 1000)
       });
 
-      var stkId = 'STK-' + new Date().getFullYear() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      tx.set(FB.doc(db, 'stock_update_log', stkId), {
-        stock_task_id: stkId,
+      var prevStk = stkSnap.exists() ? stkSnap.data() : {};
+      tx.set(stkRefR, {
+        stock_task_id: stkIdR,
         claim_no: rcNo,
         replacement_model: rModel,
         replacement_serial_no: repSerial,
         received_date: rDate,
-        stock_status: 'UPDATE_REQUIRED',
-        accounting_ref_no: invRef,
-        updated_at: '',
-        updated_by: '',
-        remarks: fbStr(d.remarks || 'Pending ERP stock inward entry', 1000)
+        replacement_end: rEnd,
+        stock_status: alreadyUpdatedStk ? 'UPDATED' : 'UPDATE_REQUIRED',
+        accounting_ref_no: invRef || prevStk.accounting_ref_no || '',
+        updated_at: prevStk.updated_at || '',
+        updated_by: prevStk.updated_by || '',
+        remarks: fbStr(d.remarks || prevStk.remarks || (getReplacementEndLabel(rEnd) + ' (' + rModel + ') pending ERP stock entry'), 1000)
       });
 
-      var audRep = fbBuildAuditDoc('REPLACEMENT_RECEIVE', 'CLAIM', rcNo, oldSt, 'REPLACEMENT_RECEIVED', 'Received replacement serial: ' + repSerial);
+      var audRep = fbBuildAuditDoc('REPLACEMENT_RECEIVE', 'CLAIM', rcNo, oldSt, nextClaimSt, getReplacementEndLabel(rEnd) + ' replacement recorded: ' + rModel + ' / ' + repSerial);
       tx.set(FB.doc(db, 'audit_log', audRep.audit_id), audRep);
       return updClm;
     });
 
-    return { success: true, data: recClaim, message: 'Replacement serial ' + repSerial + ' logged.' };
+    return { success: true, data: recClaim, message: getReplacementEndLabel(recClaim.replacement_end) + ' replacement (' + recClaim.replacement_model + ' / ' + repSerial + ') logged.' };
   }
 
   if (funcName === 'apiRecordStockUpdated') {
@@ -6981,6 +7337,7 @@ async function executeFirebaseAction(funcName, args) {
         replacement_model: fbStr(prevTask.replacement_model || clm.replacement_model || clm.battery_model || '', 150),
         replacement_serial_no: fbStr(prevTask.replacement_serial_no || clm.replacement_serial_no || '-', 80),
         received_date: fbStr(prevTask.received_date || clm.replacement_received_date || todayIso, 30),
+        replacement_end: fbStr(prevTask.replacement_end || clm.replacement_end || '', 30),
         stock_status: 'UPDATED',
         accounting_ref_no: vRef,
         updated_at: nowIso,
@@ -7377,6 +7734,62 @@ async function executeFirebaseAction(funcName, args) {
     return { success: true, data: { sb_id: delMeta.sb_id, serial_no: delMeta.serial_no, removed: true }, message: 'Service battery removed.' };
   }
 
+  if (funcName === 'apiFreshResetTransactional') {
+    if (!BWMS.isAdminUser) throw new Error('Only Admin accounts can wipe transactional records.');
+    var resetCols = [
+      'tickets', 'battery_tests', 'claims', 'claim_documents',
+      'delivery_challans', 'company_dispatches', 'company_dispatch_items',
+      'replacement_receipts', 'stock_update_log', 'customers'
+    ];
+    var delRefs = [];
+    for (var ci = 0; ci < resetCols.length; ci++) {
+      var snap = await FB.getDocs(FB.collection(db, resetCols[ci]));
+      snap.forEach(function(docItem) { delRefs.push(docItem.ref); });
+    }
+    var CHUNK = 350;
+    for (var wi = 0; wi < delRefs.length; wi += CHUNK) {
+      var batchDel = FB.writeBatch(db);
+      delRefs.slice(wi, wi + CHUNK).forEach(function(r) { batchDel.delete(r); });
+      await batchDel.commit();
+    }
+
+    // Release any ASSIGNED service batteries back to pool
+    var sbSnapAll = await FB.getDocs(FB.collection(db, 'service_batteries'));
+    var batchResetExtra = FB.writeBatch(db);
+    sbSnapAll.forEach(function(sbDoc) {
+      var sb = sbDoc.data();
+      if (String(sb.status).toUpperCase() === 'ASSIGNED' || sb.current_ticket_no) {
+        var upd = Object.assign({}, sb, {
+          status: sb.is_blocked ? 'BLOCKED' : 'AVAILABLE',
+          current_ticket_no: '',
+          current_customer_name: '',
+          current_mobile: '',
+          assigned_date: '',
+          updated_at: nowIso
+        });
+        batchResetExtra.set(sbDoc.ref, fbPickFields(upd, FB_ALLOWED_FIELDS.service_batteries));
+      }
+    });
+
+    // Reset sequence counters to 1001
+    var cfgSnapCur = await FB.getDoc(FB.doc(db, 'config', 'app_settings'));
+    var baseCfg = cfgSnapCur.exists() ? cfgSnapCur.data() : {};
+    var resetCfg = fbCleanConfig(Object.assign({}, baseCfg, {
+      TICKET_SEQ: 1001,
+      CLAIM_SEQ: 1001,
+      RETURN_CHALLAN_SEQ: 1001,
+      COMPANY_CHALLAN_SEQ: 1001,
+      DISPATCH_SEQ: 1001,
+      updated_at: nowIso
+    }), nowIso);
+    batchResetExtra.set(FB.doc(db, 'config', 'app_settings'), resetCfg);
+    var audRst = fbBuildAuditDoc('FRESH_RESET', 'SYSTEM', 'all_tickets', '', 'CLEAN', 'Cleared ' + delRefs.length + ' transactional records for fresh start');
+    batchResetExtra.set(FB.doc(db, 'audit_log', audRst.audit_id), audRst);
+    await batchResetExtra.commit();
+
+    return { success: true, data: { deletedCount: delRefs.length }, message: 'Cleared ' + delRefs.length + ' ticket/claim records. Portal is ready for a fresh start!' };
+  }
+
   throw new Error('Unsupported Firebase action: ' + funcName);
 }
 
@@ -7576,6 +7989,14 @@ function executeLocalFallback(funcName, args) {
       var wCalc = calculateWarrantyDetails(origTicket.battery_model, d.date_of_sale, origTicket.date_received || todayIso);
       var wStatus = (wCalc.status === 'FULL_GUARANTEE') ? 'IN_WARRANTY' : (wCalc.status === 'PRO_RATA' ? 'PRO_RATA' : 'OUT_OF_WARRANTY');
       var expIso = wCalc.warrantyExpiry ? (wCalc.warrantyExpiry instanceof Date ? wCalc.warrantyExpiry.toISOString().split('T')[0] : String(wCalc.warrantyExpiry)) : '';
+      var immEndL = d.replacement_end ? String(d.replacement_end).trim().toUpperCase() : '';
+      var hasImmL = Boolean((immEndL === 'DISTRIBUTOR_END' || immEndL === 'DEALER_END' || immEndL === 'COMPANY_END') && d.replacement_serial_no);
+      if (hasImmL && String(d.replacement_serial_no).trim().toLowerCase() === String(origTicket.original_serial_no || '').trim().toLowerCase()) {
+        return { success: false, error: 'Replacement serial cannot match original serial', message: 'Duplicate serial rejected' };
+      }
+      var immModelL = hasImmL ? (d.replacement_model || origTicket.battery_model || '') : '';
+      var immPartyL = hasImmL ? (d.replaced_by_party || (immEndL === 'DEALER_END' ? origTicket.dealer_name : ((BWMS.config && BWMS.config.COMPANY_NAME) || 'Distributor Counter'))) : '';
+      var immDateL = hasImmL ? (d.replacement_received_date || todayIso) : '';
       var claimRec = {
         claim_no: cNo,
         ticket_no: origTicket.ticket_no,
@@ -7592,14 +8013,36 @@ function executeLocalFallback(funcName, args) {
         warranty_expiry_date: expIso,
         warranty_status: wStatus,
         claim_date: todayIso,
-        status: 'CLAIM_CREATED',
-        stock_status: 'NOT_APPLICABLE',
+        status: hasImmL ? 'REPLACEMENT_RECEIVED' : 'CLAIM_CREATED',
+        replacement_end: hasImmL ? immEndL : '',
+        replaced_by_party: immPartyL,
+        replacement_model: immModelL,
+        replacement_serial_no: hasImmL ? String(d.replacement_serial_no).trim() : '',
+        replacement_received_date: immDateL,
+        stock_status: hasImmL ? 'UPDATE_REQUIRED' : 'NOT_APPLICABLE',
+        stock_ref_no: hasImmL ? (d.company_invoice_ref || '') : '',
         remarks: d.remarks || origTicket.remarks || '',
         created_at: nowIso,
         updated_at: nowIso
       };
       BWMS.claims.push(claimRec);
-      origTicket.status = 'CLAIM_CREATED';
+      origTicket.status = claimRec.status;
+      if (hasImmL) {
+        BWMS.stockUpdates = BWMS.stockUpdates || [];
+        BWMS.stockUpdates.push({
+          stock_task_id: 'STK-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900000 + 100000),
+          claim_no: cNo,
+          replacement_model: immModelL,
+          replacement_serial_no: claimRec.replacement_serial_no,
+          received_date: immDateL,
+          replacement_end: immEndL,
+          stock_status: 'UPDATE_REQUIRED',
+          accounting_ref_no: d.company_invoice_ref || '',
+          updated_at: '',
+          updated_by: '',
+          remarks: getReplacementEndLabel(immEndL) + ' replacement (' + immModelL + ') pending ERP entry'
+        });
+      }
       appendLocalAudit('CLAIM_CREATE', 'CLAIM', cNo, 'Warranty claim created for ' + origTicket.original_serial_no);
       saveStateToLocalCache();
       return { success: true, isLocalFallback: true, data: claimRec, message: 'Warranty Claim ' + cNo + ' created.' };
@@ -7710,30 +8153,53 @@ function executeLocalFallback(funcName, args) {
     if (funcName === 'apiRecordReplacementReceived') {
       var repClm = (BWMS.claims || []).find(function(c) { return c.claim_no === d.claim_no; });
       if (!repClm) return { success: false, error: 'Claim not found: ' + d.claim_no, message: 'Claim not found' };
-      repClm.replacement_model = d.replacement_model || repClm.battery_model;
-      repClm.replacement_serial_no = d.replacement_serial_no;
-      repClm.replacement_received_date = d.received_date || todayIso;
-      repClm.status = 'REPLACEMENT_RECEIVED';
-      repClm.stock_status = 'UPDATE_REQUIRED';
+      var lRepSer = String(d.replacement_serial_no || '').trim();
+      if (repClm.original_serial_no && lRepSer.toLowerCase() === String(repClm.original_serial_no).trim().toLowerCase()) {
+        return { success: false, error: 'Replacement serial cannot match original serial', message: 'Duplicate serial rejected' };
+      }
+      var lEndRaw = String(d.replacement_end || repClm.replacement_end || 'COMPANY_END').trim().toUpperCase();
+      var lEnd = (lEndRaw === 'DISTRIBUTOR_END' || lEndRaw === 'DEALER_END' || lEndRaw === 'COMPANY_END') ? lEndRaw : 'COMPANY_END';
+      var lParty = d.replaced_by_party || (lEnd === 'DEALER_END' ? repClm.dealer_name : ((lEnd === 'DISTRIBUTOR_END') ? ((BWMS.config && BWMS.config.COMPANY_NAME) || 'Distributor Counter') : 'Company / Factory Depot'));
+      var lModel = d.replacement_model || repClm.battery_model;
+      var lDate = d.received_date || todayIso;
+
+      repClm.replacement_end = lEnd;
+      repClm.replaced_by_party = lParty;
+      repClm.replacement_model = lModel;
+      repClm.replacement_serial_no = lRepSer;
+      repClm.replacement_received_date = lDate;
+      repClm.status = (repClm.stock_status === 'UPDATED') ? 'STOCK_UPDATED' : 'REPLACEMENT_RECEIVED';
+      repClm.stock_status = (repClm.stock_status === 'UPDATED') ? 'UPDATED' : 'UPDATE_REQUIRED';
       if (d.company_invoice_ref) repClm.stock_ref_no = d.company_invoice_ref;
+
       var repTkt = (BWMS.tickets || []).find(function(t) { return t.ticket_no === repClm.ticket_no; });
-      if (repTkt) repTkt.status = 'REPLACEMENT_RECEIVED';
-      var stkTask = {
-        stock_task_id: 'STK-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900000 + 100000),
-        claim_no: repClm.claim_no,
-        replacement_model: repClm.replacement_model,
-        replacement_serial_no: repClm.replacement_serial_no,
-        received_date: repClm.replacement_received_date,
-        stock_status: 'UPDATE_REQUIRED',
-        accounting_ref_no: d.company_invoice_ref || '',
-        updated_at: '',
-        updated_by: '',
-        remarks: d.remarks || 'Pending ERP stock inward entry'
-      };
-      BWMS.stockUpdates.push(stkTask);
-      appendLocalAudit('REPLACEMENT_RECEIVE', 'CLAIM', repClm.claim_no, 'Received replacement serial: ' + d.replacement_serial_no);
+      if (repTkt) repTkt.status = repClm.status;
+
+      var existStk = (BWMS.stockUpdates || []).find(function(s) { return s.claim_no === repClm.claim_no; });
+      if (existStk) {
+        existStk.replacement_model = lModel;
+        existStk.replacement_serial_no = lRepSer;
+        existStk.received_date = lDate;
+        existStk.replacement_end = lEnd;
+        if (d.company_invoice_ref) existStk.accounting_ref_no = d.company_invoice_ref;
+      } else {
+        BWMS.stockUpdates.push({
+          stock_task_id: 'STK-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900000 + 100000),
+          claim_no: repClm.claim_no,
+          replacement_model: lModel,
+          replacement_serial_no: lRepSer,
+          received_date: lDate,
+          replacement_end: lEnd,
+          stock_status: 'UPDATE_REQUIRED',
+          accounting_ref_no: d.company_invoice_ref || '',
+          updated_at: '',
+          updated_by: '',
+          remarks: d.remarks || (getReplacementEndLabel(lEnd) + ' replacement pending ERP stock entry')
+        });
+      }
+      appendLocalAudit('REPLACEMENT_RECEIVE', 'CLAIM', repClm.claim_no, getReplacementEndLabel(lEnd) + ' replacement: ' + lModel + ' / ' + lRepSer);
       saveStateToLocalCache();
-      return { success: true, isLocalFallback: true, data: repClm, message: 'Replacement serial ' + d.replacement_serial_no + ' logged.' };
+      return { success: true, isLocalFallback: true, data: repClm, message: getReplacementEndLabel(lEnd) + ' replacement (' + lModel + ' / ' + lRepSer + ') logged.' };
     }
 
     if (funcName === 'apiRecordStockUpdated') {
@@ -8133,6 +8599,36 @@ function executeLocalFallback(funcName, args) {
       if (exSt) Object.assign(exSt, nextSt);
       else BWMS.staffList.push(nextSt);
       return { success: true, isLocalFallback: true, data: nextSt, message: 'Staff saved.' };
+    }
+
+    if (funcName === 'apiFreshResetTransactional') {
+      BWMS.tickets = [];
+      BWMS.tests = [];
+      BWMS.claims = [];
+      BWMS.claimDocuments = [];
+      BWMS.challans = [];
+      BWMS.dispatches = [];
+      BWMS.dispatchItems = [];
+      BWMS.stockUpdates = [];
+      BWMS.customers = [];
+      (BWMS.serviceBatteries || []).forEach(function(sb) {
+        if (String(sb.status).toUpperCase() === 'ASSIGNED') {
+          sb.status = sb.is_blocked ? 'BLOCKED' : 'AVAILABLE';
+          sb.current_ticket_no = '';
+          sb.current_customer_name = '';
+          sb.current_mobile = '';
+          sb.assigned_date = '';
+        }
+      });
+      if (BWMS.config) {
+        BWMS.config.TICKET_SEQ = 1001;
+        BWMS.config.CLAIM_SEQ = 1001;
+        BWMS.config.RETURN_CHALLAN_SEQ = 1001;
+        BWMS.config.COMPANY_CHALLAN_SEQ = 1001;
+        BWMS.config.DISPATCH_SEQ = 1001;
+      }
+      saveStateToLocalCache();
+      return { success: true, isLocalFallback: true, data: { deletedCount: 1 }, message: 'Cleared all transactional records.' };
     }
 
     if (funcName === 'apiCheckConnection') {
