@@ -486,13 +486,16 @@ function loadCachedState() {
 
 function saveStateToLocalCache() {
   try {
+    var cleanTickets = (BWMS.tickets || []).filter(function(t) {
+      return t && String(t.ticket_no || '').indexOf('TKT-TEMP-') !== 0;
+    });
     var snapshot = {
       tables: {
         Config: BWMS.config,
         Battery_Models: BWMS.models,
         Dealers: BWMS.dealers,
         Customers: BWMS.customers,
-        Tickets: BWMS.tickets,
+        Tickets: cleanTickets,
         Claims: BWMS.claims,
         Claim_Documents: BWMS.claimDocuments,
         Battery_Tests: BWMS.tests,
@@ -508,7 +511,7 @@ function saveStateToLocalCache() {
       models: BWMS.models,
       dealers: BWMS.dealers,
       customers: BWMS.customers,
-      tickets: BWMS.tickets,
+      tickets: cleanTickets,
       claims: BWMS.claims,
       claimDocuments: BWMS.claimDocuments,
       staffList: BWMS.staffList,
@@ -1088,6 +1091,7 @@ function handleIntakeSubmit(e) {
   e.preventDefault();
   var cleanSerial = document.getElementById('intake-serial').value.trim();
   var dup = (BWMS.tickets || []).find(function(t) {
+    if (!t || !t.ticket_no || String(t.ticket_no).indexOf('TKT-TEMP-') === 0) return false;
     var ts = (t.status || '').toUpperCase();
     return String(t.original_serial_no || '').trim().toLowerCase() === cleanSerial.toLowerCase() &&
            ts !== 'CLOSED' && ts !== 'CLAIM_CLOSED' && ts !== 'REJECTED_RETURNED' && ts !== 'REJECTED — RETURNED';
@@ -1150,19 +1154,21 @@ function handleIntakeSubmit(e) {
   callServer('apiCreateTicket', [ticketData], function(res) {
     BWMS.tickets = (BWMS.tickets || []).filter(function(t) { return t.ticket_no !== tempTicketNo; });
     if (res && res.success) {
-      if (res.data && res.data.ticket_no) {
+      if (res.data && res.data.ticket_no && !BWMS.tickets.some(function(t) { return t.ticket_no === res.data.ticket_no; })) {
         BWMS.tickets.push(res.data);
-        saveStateToLocalCache();
-        renderTicketsTable();
-        renderDashboard();
       }
+      saveStateToLocalCache();
+      renderTicketsTable();
+      renderDashboard();
       showToast(res.message || 'Ticket generated successfully!', 'success');
       syncAllData(false);
 
-      if (confirm('Intake ticket ' + res.data.ticket_no + ' created! Would you like to print the Customer Intake Slip now?')) {
-        printIntakeSlip(res.data.ticket_no);
-      } else if (confirm('Would you like to conduct the Diagnostic Bench Test now?')) {
-        openTestModal(res.data.ticket_no, res.data.battery_model, res.data.original_serial_no);
+      if (typeof confirm === 'function') {
+        if (confirm('Intake ticket ' + res.data.ticket_no + ' created! Would you like to print the Customer Intake Slip now?')) {
+          printIntakeSlip(res.data.ticket_no);
+        } else if (confirm('Would you like to conduct the Diagnostic Bench Test now?')) {
+          openTestModal(res.data.ticket_no, res.data.battery_model, res.data.original_serial_no);
+        }
       }
     } else {
       renderTicketsTable();
@@ -6440,6 +6446,7 @@ function fbComputeNextSeq(cfgData, seqKey, prefixKey, defaultPrefix, list, field
   var maxExisting = 1000;
   (list || []).forEach(function(item) {
     var val = String((item && item[field]) || '');
+    if (val.indexOf('-TEMP-') !== -1) return;
     var m = val.match(/(\d+)$/);
     if (m) {
       var n = parseInt(m[1], 10);
@@ -6650,7 +6657,13 @@ async function executeFirebaseAction(funcName, args) {
   if (funcName === 'apiCreateTicket') {
     var cleanSerial = fbStr(d.original_serial_no, 80);
     if (!cleanSerial) throw new Error('Battery serial number is required.');
-    var dup = (BWMS.tickets || []).find(function(t) {
+
+    var liveTicketsSnap = await FB.getDocs(FB.collection(db, 'tickets'));
+    var liveTickets = [];
+    liveTicketsSnap.forEach(function(s) { liveTickets.push(s.data()); });
+
+    var dup = liveTickets.find(function(t) {
+      if (!t || !t.ticket_no || String(t.ticket_no).indexOf('TKT-TEMP-') === 0) return false;
       var ts = String(t.status || '').toUpperCase();
       return String(t.original_serial_no || '').trim().toLowerCase() === cleanSerial.toLowerCase() &&
              ts !== 'CLOSED' && ts !== 'CLAIM_CLOSED' && ts !== 'REJECTED_RETURNED' && ts !== 'REJECTED — RETURNED';
@@ -6676,7 +6689,7 @@ async function executeFirebaseAction(funcName, args) {
       var cfgSnap = await tx.get(cfgRef);
       var sbSnap = sbRef ? await tx.get(sbRef) : null;
       var cfgData = cfgSnap.exists() ? cfgSnap.data() : {};
-      var seqRes = fbComputeNextSeq(cfgData, 'TICKET_SEQ', 'TICKET_PREFIX', 'TKT', BWMS.tickets, 'ticket_no');
+      var seqRes = fbComputeNextSeq(cfgData, 'TICKET_SEQ', 'TICKET_PREFIX', 'TKT', liveTickets, 'ticket_no');
       var ticketNo = seqRes.id;
 
       // Update config counter cleanly
@@ -7859,6 +7872,7 @@ function nextLocalSeq(prefix, list, field) {
   var maxNum = 1000;
   (list || []).forEach(function(item) {
     var val = String(item[field] || '');
+    if (val.indexOf('-TEMP-') !== -1) return;
     var m = val.match(/(\d+)$/);
     if (m) {
       var n = parseInt(m[1], 10);

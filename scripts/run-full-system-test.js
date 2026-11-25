@@ -1119,6 +1119,26 @@ async function runTests() {
   assert(resetRes.success && vmContext.BWMS.tickets.length === 0 && vmContext.BWMS.claims.length === 0 && vmContext.BWMS.models.length > 0,
          'Fresh Reset Engine: Clears all transactional tickets & claims while preserving battery models master');
 
+  // Verify handleIntakeSubmit optimistic TKT-TEMP does not self-block duplicate check
+  getEl('intake-source').value = 'CUSTOMER';
+  getEl('intake-dealer-name').value = '';
+  getEl('intake-customer-name').value = 'Fresh Customer';
+  getEl('intake-mobile').value = '9876543210';
+  getEl('intake-address').value = 'Surat';
+  getEl('intake-vehicle').value = 'GJ05XX1234';
+  getEl('intake-model').value = 'AAM-PR-00042B20R (Pro 35Ah)';
+  getEl('intake-serial').value = 'FRESH-001';
+  getEl('intake-date').value = '2026-11-26';
+  getEl('intake-service-issued').value = 'NO';
+  getEl('intake-sb-model').value = '';
+  getEl('intake-sb-serial').value = '';
+  getEl('intake-remarks').value = '';
+  vmContext.handleIntakeSubmit({ preventDefault: () => {} });
+  assert(vmContext.BWMS.tickets.length === 1 &&
+         vmContext.BWMS.tickets[0].original_serial_no === 'FRESH-001' &&
+         String(vmContext.BWMS.tickets[0].ticket_no).endsWith('001001'),
+         'Intake Submission: Optimistic UI placeholder does not falsely trigger duplicate check or inflate sequence counter');
+
   console.log(`\n${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}`);
   console.log(`  ${colors.bold}TEST RESULTS:${colors.reset} ${passedCount} / ${totalCount} TESTS PASSED (${Math.round((passedCount / totalCount) * 100)}%)`);
   console.log(`${colors.bold}${colors.cyan}═════════════════════════════════════════════════════════════════════════════${colors.reset}\n`);
