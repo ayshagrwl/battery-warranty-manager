@@ -984,7 +984,7 @@ async function runTests() {
   const rulesContent = fs.readFileSync(rulesPath, 'utf8');
   assert(rulesContent.includes('match /authorized_staff/{email}') && rulesContent.includes('isBootstrapAdmin()') && rulesContent.includes('isAuthorizedStaff()'),
          'Firestore Security Rules: Enforces authorized_staff RBAC & bootstrap admin access control');
-  assert(rulesContent.includes("data.status != 'CLOSED'") && rulesContent.includes("data.stock_status == 'UPDATED'"),
+  assert(/(?:data|d)\.status\s*!=\s*'CLOSED'/.test(rulesContent) && /(?:data|d)\.stock_status\s*==\s*'UPDATED'/.test(rulesContent),
          'Firestore Security Rules: Enforces stock reconciliation gate before claim closure');
   assert(!/allow\s+read\s*,\s*write\s*:\s*if\s+true\s*;/.test(rulesContent),
          'Firestore Security Rules: Zero insecure wildcard allow-all rules');
@@ -1047,7 +1047,7 @@ async function runTests() {
          'Firebase Client Engine: Exposes initFirebaseAuth & async executeFirebaseAction RPC dispatcher');
 
   // 10.5 Distributor End & Dealer End Replacement (with Model & Serial Number) + Fresh Reset
-  assert(rulesContent.includes('isOptionalReplacementEnd') && rulesContent.includes('DISTRIBUTOR_END') && rulesContent.includes('DEALER_END'),
+  assert(rulesContent.includes('replacement_end in') && rulesContent.includes('DISTRIBUTOR_END') && rulesContent.includes('DEALER_END') && rulesContent.includes('COMPANY_END'),
          'Firestore Security Rules: Validates replacement_end (DISTRIBUTOR_END / DEALER_END / COMPANY_END)');
 
   const distTkt = vmContext.executeLocalFallback('apiCreateTicket', [{

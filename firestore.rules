@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // ===============================================================
-// Assumed Data Model
+// Assumed Data Model (Prototype Security Rules)
 // ===============================================================
 //
 // This security rules file assumes the following Cloud Firestore
@@ -15,8 +15,8 @@ rules_version = '2';
 //   - name: string (required, 1..100 chars)
 //   - role: string (required, 'ADMIN' | 'OPERATOR' | 'TESTER')
 //   - active: bool (required)
-//   - created_at: string (required, 1..40 chars, immutable)
-//   - updated_at: string (optional, <= 40 chars)
+//   - created_at: string (1..40 chars) | timestamp (required, immutable)
+//   - updated_at: string (<= 40 chars) | timestamp (optional)
 //
 // Collection: config
 // Document ID: {docId} (specifically 'app_settings')
@@ -38,7 +38,7 @@ rules_version = '2';
 //   - RETURN_CHALLAN_SEQ: number (1..1000000000)
 //   - COMPANY_CHALLAN_SEQ: number (1..1000000000)
 //   - DISPATCH_SEQ: number (1..1000000000)
-//   - updated_at: string (<= 50 chars)
+//   - updated_at: string (<= 50 chars) | timestamp
 //
 // Collection: battery_models
 // Document ID: {modelId}
@@ -53,7 +53,7 @@ rules_version = '2';
 //   - pro_rata_months: number (required, 0..240)
 //   - mrp: number (optional, 0..1000000)
 //   - is_active: bool (required)
-//   - updated_at: string (optional, <= 50 chars)
+//   - updated_at: string (<= 50 chars) | timestamp (optional)
 //
 // Collection: dealers
 // Document ID: {dealerId}
@@ -66,7 +66,7 @@ rules_version = '2';
 //   - gstin: string (optional, <= 30 chars)
 //   - city: string (optional, <= 80 chars)
 //   - is_active: bool (required)
-//   - updated_at: string (optional, <= 50 chars)
+//   - updated_at: string (<= 50 chars) | timestamp (optional)
 //
 // Collection: customers
 // Document ID: {customerId}
@@ -76,7 +76,7 @@ rules_version = '2';
 //   - mobile: string (optional, <= 30 chars)
 //   - address: string (optional, <= 300 chars)
 //   - vehicle_number: string (optional, <= 40 chars)
-//   - created_at: string (required, <= 50 chars, immutable)
+//   - created_at: string (<= 50 chars) | timestamp (required, immutable)
 //
 // Collection: tickets
 // Document ID: {ticketNo}
@@ -92,16 +92,16 @@ rules_version = '2';
 //   - vehicle_number: string (optional, <= 40 chars)
 //   - battery_model: string (required, 1..150 chars)
 //   - original_serial_no: string (required, 1..80 chars)
-//   - date_received: string (required, <= 30 chars)
-//   - date_of_sale: string (optional, <= 30 chars)
+//   - date_received: string (<= 30 chars) | timestamp (required)
+//   - date_of_sale: string (<= 30 chars) | timestamp (optional)
 //   - service_battery_issued: bool (required)
 //   - service_battery_model: string (optional, <= 150 chars)
 //   - service_battery_serial: string (optional, <= 80 chars)
-//   - service_battery_date: string (optional, <= 30 chars)
+//   - service_battery_date: string (<= 30 chars) | timestamp (optional)
 //   - status: string (required, lifecycle enum)
 //   - remarks: string (optional, <= 1000 chars)
-//   - created_at: string (required, <= 50 chars, immutable)
-//   - updated_at: string (required, <= 50 chars)
+//   - created_at: string (<= 50 chars) | timestamp (required, immutable)
+//   - updated_at: string (<= 50 chars) | timestamp (required)
 //   - created_by: string (optional, <= 150 chars)
 //
 // Collection: battery_tests
@@ -110,7 +110,7 @@ rules_version = '2';
 //   - test_id: string (required, 1..60 chars, immutable)
 //   - ticket_no: string (required, 1..60 chars, immutable)
 //   - original_serial_no: string (required, <= 80 chars)
-//   - test_date: string (required, <= 30 chars)
+//   - test_date: string (<= 30 chars) | timestamp (required)
 //   - tested_by: string (optional, <= 100 chars)
 //   - open_circuit_voltage: string (<= 30 chars) | number (-100..1000) (optional)
 //   - specific_gravity: string (optional, <= 200 chars)
@@ -133,29 +133,29 @@ rules_version = '2';
 //   - vehicle_number: string (optional, <= 40 chars)
 //   - battery_model: string (required, 1..150 chars)
 //   - original_serial_no: string (required, 1..80 chars)
-//   - date_of_sale: string (optional, <= 30 chars)
+//   - date_of_sale: string (<= 30 chars) | timestamp (optional)
 //   - warranty_months: number (optional, 0..240)
-//   - warranty_expiry_date: string (optional, <= 30 chars)
+//   - warranty_expiry_date: string (<= 30 chars) | timestamp (optional)
 //   - warranty_status: string (optional, <= 40 chars)
-//   - claim_date: string (optional, <= 30 chars)
+//   - claim_date: string (<= 30 chars) | timestamp (optional)
 //   - status: string (required, lifecycle enum; 'CLOSED' requires stock_status == 'UPDATED')
 //   - dispatch_batch_no: string (optional, <= 60 chars)
 //   - company_challan_no: string (optional, <= 60 chars)
-//   - company_dispatch_date: string (optional, <= 30 chars)
+//   - company_dispatch_date: string (<= 30 chars) | timestamp (optional)
 //   - replacement_model: string (optional, <= 150 chars)
 //   - replacement_serial_no: string (optional, <= 80 chars)
-//   - replacement_received_date: string (optional, <= 30 chars)
+//   - replacement_received_date: string (<= 30 chars) | timestamp (optional)
 //   - replacement_end: string (optional, <= 30 chars, 'DISTRIBUTOR_END' | 'DEALER_END' | 'COMPANY_END' | '')
 //   - replaced_by_party: string (optional, <= 150 chars)
 //   - stock_status: string (optional, <= 40 chars)
 //   - stock_ref_no: string (optional, <= 100 chars)
-//   - stock_updated_date: string (optional, <= 30 chars)
+//   - stock_updated_date: string (<= 30 chars) | timestamp (optional)
 //   - stock_updated_by: string (optional, <= 150 chars)
-//   - closed_date: string (optional, <= 30 chars)
+//   - closed_date: string (<= 30 chars) | timestamp (optional)
 //   - remarks: string (optional, <= 1000 chars)
 //   - doc_count: number (optional, 0..1000)
-//   - created_at: string (required, <= 50 chars, immutable)
-//   - updated_at: string (required, <= 50 chars)
+//   - created_at: string (<= 50 chars) | timestamp (required, immutable)
+//   - updated_at: string (<= 50 chars) | timestamp (required)
 //
 // Collection: claim_documents
 // Document ID: {docId}
@@ -167,7 +167,7 @@ rules_version = '2';
 //   - mime_type: string (required, 1..100 chars)
 //   - file_size_kb: number (required, 0..1024)
 //   - data_url: string (required, <= 950000 chars)
-//   - uploaded_at: string (required, <= 50 chars)
+//   - uploaded_at: string (<= 50 chars) | timestamp (required)
 //   - uploaded_by: string (optional, <= 150 chars)
 //
 // Collection: delivery_challans
@@ -175,7 +175,7 @@ rules_version = '2';
 // Fields:
 //   - challan_no: string (required, 1..60 chars, immutable)
 //   - challan_type: string (required, 'BATTERY_RETURN' | 'COMPANY_DISPATCH', immutable)
-//   - challan_date: string (required, <= 30 chars)
+//   - challan_date: string (<= 30 chars) | timestamp (required)
 //   - recipient_type: string (optional, <= 30 chars)
 //   - recipient_name: string (required, <= 150 chars)
 //   - mobile: string (optional, <= 30 chars)
@@ -185,7 +185,7 @@ rules_version = '2';
 //   - battery_serial_no: string (optional, <= 80 chars)
 //   - quantity: number (required, 1..10000)
 //   - received_by_name: string (optional, <= 150 chars)
-//   - received_date: string (optional, <= 30 chars)
+//   - received_date: string (<= 30 chars) | timestamp (optional)
 //   - status: string (required, 'GENERATED' | 'ACKNOWLEDGED' | 'DISPATCHED')
 //   - remarks: string (optional, <= 1000 chars)
 //
@@ -196,7 +196,7 @@ rules_version = '2';
 //   - company_name: string (required, 1..150 chars)
 //   - destination: string (optional, <= 200 chars)
 //   - company_challan_no: string (required, 1..60 chars)
-//   - dispatch_date: string (required, <= 30 chars)
+//   - dispatch_date: string (<= 30 chars) | timestamp (required)
 //   - carrier_transporter: string (optional, <= 150 chars)
 //   - lr_docket_no: string (optional, <= 80 chars)
 //   - claim_count: number (required, 1..10000)
@@ -223,7 +223,7 @@ rules_version = '2';
 //   - claim_no: string (required, 1..60 chars)
 //   - replacement_model: string (required, <= 150 chars)
 //   - replacement_serial_no: string (required, 1..80 chars)
-//   - received_date: string (required, <= 30 chars)
+//   - received_date: string (<= 30 chars) | timestamp (required)
 //   - received_by: string (optional, <= 150 chars)
 //   - replacement_end: string (optional, <= 30 chars, 'DISTRIBUTOR_END' | 'DEALER_END' | 'COMPANY_END' | '')
 //   - replaced_by_party: string (optional, <= 150 chars)
@@ -236,11 +236,11 @@ rules_version = '2';
 //   - claim_no: string (required, 1..60 chars, immutable)
 //   - replacement_model: string (optional, <= 150 chars)
 //   - replacement_serial_no: string (optional, <= 80 chars)
-//   - received_date: string (optional, <= 30 chars)
+//   - received_date: string (<= 30 chars) | timestamp (optional)
 //   - replacement_end: string (optional, <= 30 chars)
 //   - stock_status: string (required, 'UPDATE_REQUIRED' | 'UPDATED')
 //   - accounting_ref_no: string (optional, <= 100 chars)
-//   - updated_at: string (optional, <= 50 chars)
+//   - updated_at: string (<= 50 chars) | timestamp (optional)
 //   - updated_by: string (optional, <= 150 chars)
 //   - remarks: string (optional, <= 1000 chars)
 //
@@ -258,12 +258,12 @@ rules_version = '2';
 //   - current_ticket_no: string (optional, <= 60 chars)
 //   - current_customer_name: string (optional, <= 150 chars)
 //   - current_mobile: string (optional, <= 30 chars)
-//   - assigned_date: string (optional, <= 30 chars)
+//   - assigned_date: string (<= 30 chars) | timestamp (optional)
 //   - rotation_count: number (required, 0..100000, monotonic non-decreasing)
-//   - last_rotated_date: string (optional, <= 30 chars)
+//   - last_rotated_date: string (<= 30 chars) | timestamp (optional)
 //   - condition_notes: string (optional, <= 500 chars)
-//   - created_at: string (required, <= 50 chars, immutable)
-//   - updated_at: string (required, <= 50 chars)
+//   - created_at: string (<= 50 chars) | timestamp (required, immutable)
+//   - updated_at: string (<= 50 chars) | timestamp (required)
 //
 // Collection: service_battery_logs (append-only)
 // Document ID: {logId}
@@ -276,18 +276,18 @@ rules_version = '2';
 //   - ticket_no: string (optional, <= 60 chars)
 //   - customer_name: string (optional, <= 150 chars)
 //   - mobile: string (optional, <= 30 chars)
-//   - assigned_date: string (optional, <= 30 chars)
-//   - returned_date: string (optional, <= 30 chars)
+//   - assigned_date: string (<= 30 chars) | timestamp (optional)
+//   - returned_date: string (<= 30 chars) | timestamp (optional)
 //   - days_rotated: number (optional, 0..100000)
 //   - performed_by: string (optional, <= 150 chars)
 //   - remarks: string (optional, <= 1000 chars)
-//   - created_at: string (required, <= 50 chars)
+//   - created_at: string (<= 50 chars) | timestamp (required)
 //
 // Collection: audit_log (strictly append-only)
 // Document ID: {auditId}
 // Fields:
 //   - audit_id: string (required, 1..60 chars)
-//   - timestamp: string (required, <= 50 chars)
+//   - timestamp: string (<= 50 chars) | timestamp (required)
 //   - user_email: string (optional, <= 150 chars)
 //   - action: string (required, 1..80 chars)
 //   - record_type: string (optional, <= 50 chars)
@@ -307,46 +307,38 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
 
-    // Check if the caller is authenticated with a non-empty email claim
     function isAuthenticated() {
       return request.auth != null &&
-        request.auth.token.email != null &&
         request.auth.token.email is string &&
         request.auth.token.email.size() > 0;
     }
 
-    // Bootstrap administrator identified via verified email claim
+    // Only call after isAuthenticated() succeeds
     function isBootstrapAdmin() {
-      return isAuthenticated() &&
-        request.auth.token.email.lower() == 'ayushmestorage@gmail.com' &&
+      return request.auth.token.email.lower() == 'ayushmestorage@gmail.com' &&
         request.auth.token.email_verified == true;
     }
 
-    // Path to the caller's staff authorization record
     function staffDocPath() {
       return /databases/$(database)/documents/authorized_staff/$(request.auth.token.email.lower());
     }
 
-    // Check if caller is an active authorized staff member (or bootstrap admin)
     function isAuthorizedStaff() {
-      return isBootstrapAdmin() || (
-        isAuthenticated() &&
-        exists(staffDocPath()) &&
-        get(staffDocPath()).data.active == true
+      return isAuthenticated() && (
+        isBootstrapAdmin() ||
+        (exists(staffDocPath()) && get(staffDocPath()).data.active == true)
       );
     }
 
-    // Check if caller is an active ADMIN staff member (or bootstrap admin)
     function isAdmin() {
-      return isBootstrapAdmin() || (
-        isAuthenticated() &&
-        exists(staffDocPath()) &&
-        get(staffDocPath()).data.active == true &&
-        get(staffDocPath()).data.role == 'ADMIN'
+      return isAuthenticated() && (
+        isBootstrapAdmin() ||
+        (exists(staffDocPath()) &&
+         get(staffDocPath()).data.active == true &&
+         get(staffDocPath()).data.role == 'ADMIN')
       );
     }
 
-    // Schema & type validation helpers
     function hasRequiredFields(data, fields) {
       return data.keys().hasAll(fields);
     }
@@ -366,81 +358,63 @@ service cloud.firestore {
         email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
-    function isRequiredString(data, field, minLen, maxLen) {
-      return (field in data) &&
-        data[field] is string &&
-        data[field].size() >= minLen &&
-        data[field].size() <= maxLen;
+    // Ultra-low-expression value validators (use with d.get('field', default) on optional fields)
+    function optStr(v, maxLen) {
+      return (v is string && v.size() <= maxLen) || v == null;
     }
 
-    function isOptionalString(data, field, maxLen) {
-      return !(field in data) ||
-        data[field] == null ||
-        (data[field] is string && data[field].size() <= maxLen);
+    function optNum(v, minVal, maxVal) {
+      return (v is number && v >= minVal && v <= maxVal) || v == null;
     }
 
-    function isRequiredNumber(data, field, minVal, maxVal) {
-      return (field in data) &&
-        data[field] is number &&
-        data[field] >= minVal &&
-        data[field] <= maxVal;
+    function isTsOrStr(v, maxLen) {
+      return (v is string && v.size() <= maxLen) || v is timestamp;
     }
 
-    function isOptionalNumber(data, field, minVal, maxVal) {
-      return !(field in data) ||
-        data[field] == null ||
-        (data[field] is number && data[field] >= minVal && data[field] <= maxVal);
+    function isReqTsOrStr(v, minLen, maxLen) {
+      return (v is string && v.size() >= minLen && v.size() <= maxLen) || v is timestamp;
     }
 
-    function isRequiredBool(data, field) {
-      return (field in data) && data[field] is bool;
+    function optTs(v, maxLen) {
+      return (v is string && v.size() <= maxLen) || v is timestamp || v == null;
     }
 
-    function isOptionalStringOrNumber(data, field, maxStrLen, minNum, maxNum) {
-      return !(field in data) ||
-        data[field] == null ||
-        (data[field] is string && data[field].size() <= maxStrLen) ||
-        (data[field] is number && data[field] >= minNum && data[field] <= maxNum);
+    function optStrOrNum(v, maxStrLen, minNum, maxNum) {
+      return (v is string && v.size() <= maxStrLen) ||
+        (v is number && v >= minNum && v <= maxNum) ||
+        v == null;
     }
 
-    function isOptionalSeqCounter(data, field) {
-      return !(field in data) ||
-        (data[field] is number && data[field] >= 1 && data[field] <= 1000000000);
-    }
-
-    function isOptionalReplacementEnd(data, field) {
-      return !(field in data) ||
-        data[field] == null ||
-        (data[field] is string &&
-         data[field].size() <= 30 &&
-         data[field] in ['DISTRIBUTOR_END', 'DEALER_END', 'COMPANY_END', '']);
+    function optSeq(d, field) {
+      return !(field in d) ||
+        (d[field] is number && d[field] >= 1 && d[field] <= 1000000000);
     }
 
     // ===============================================================
     // Domain Validators (Used in BOTH create and update rules)
     // ===============================================================
 
-    function isValidStaff(data, emailId) {
-      return hasOnlyAllowedFields(data, [
+    function isValidStaff(d, emailId) {
+      return hasOnlyAllowedFields(d, [
           'email', 'name', 'role', 'active', 'created_at', 'updated_at'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'email', 'name', 'role', 'active', 'created_at'
         ]) &&
-        isValidEmail(data.email) &&
-        data.email == emailId &&
-        data.email == data.email.lower() &&
-        isRequiredString(data, 'name', 1, 100) &&
-        data.role in ['ADMIN', 'OPERATOR', 'TESTER'] &&
-        isRequiredBool(data, 'active') &&
-        isRequiredString(data, 'created_at', 1, 40) &&
-        isOptionalString(data, 'updated_at', 40) &&
-        (emailId != 'ayushmestorage@gmail.com' || (data.role == 'ADMIN' && data.active == true));
+        isValidEmail(d.email) &&
+        d.email == emailId &&
+        d.email == d.email.lower() &&
+        d.name is string && d.name.size() >= 1 && d.name.size() <= 100 &&
+        d.role in ['ADMIN', 'OPERATOR', 'TESTER'] &&
+        d.active is bool &&
+        isReqTsOrStr(d.created_at, 1, 40) &&
+        optTs(d.get('updated_at', ''), 40) &&
+        (emailId != 'ayushmestorage@gmail.com' || (d.role == 'ADMIN' && d.active == true));
     }
 
-    function isValidConfig(data) {
-      return data.keys().size() > 0 &&
-        hasOnlyAllowedFields(data, [
+    function isValidConfig(d) {
+      return d.keys().size() > 0 &&
+        hasOnlyAllowedFields(d, [
           'COMPANY_NAME', 'COMPANY_ADDRESS', 'COMPANY_PHONE', 'COMPANY_EMAIL',
           'COMPANY_GST', 'COMPANY_TERMS', 'TIMEZONE',
           'TICKET_PREFIX', 'CLAIM_PREFIX', 'RETURN_CHALLAN_PREFIX',
@@ -448,81 +422,81 @@ service cloud.firestore {
           'TICKET_SEQ', 'CLAIM_SEQ', 'RETURN_CHALLAN_SEQ',
           'COMPANY_CHALLAN_SEQ', 'DISPATCH_SEQ', 'updated_at'
         ]) &&
-        isOptionalString(data, 'COMPANY_NAME', 200) &&
-        isOptionalString(data, 'COMPANY_ADDRESS', 400) &&
-        isOptionalString(data, 'COMPANY_PHONE', 50) &&
-        isOptionalString(data, 'COMPANY_EMAIL', 150) &&
-        isOptionalString(data, 'COMPANY_GST', 30) &&
-        isOptionalString(data, 'COMPANY_TERMS', 2000) &&
-        isOptionalString(data, 'TIMEZONE', 50) &&
-        isOptionalString(data, 'TICKET_PREFIX', 20) &&
-        isOptionalString(data, 'CLAIM_PREFIX', 20) &&
-        isOptionalString(data, 'RETURN_CHALLAN_PREFIX', 20) &&
-        isOptionalString(data, 'COMPANY_CHALLAN_PREFIX', 20) &&
-        isOptionalString(data, 'DISPATCH_PREFIX', 20) &&
-        isOptionalSeqCounter(data, 'TICKET_SEQ') &&
-        isOptionalSeqCounter(data, 'CLAIM_SEQ') &&
-        isOptionalSeqCounter(data, 'RETURN_CHALLAN_SEQ') &&
-        isOptionalSeqCounter(data, 'COMPANY_CHALLAN_SEQ') &&
-        isOptionalSeqCounter(data, 'DISPATCH_SEQ') &&
-        isOptionalString(data, 'updated_at', 50);
+        optStr(d.get('COMPANY_NAME', ''), 200) &&
+        optStr(d.get('COMPANY_ADDRESS', ''), 400) &&
+        optStr(d.get('COMPANY_PHONE', ''), 50) &&
+        optStr(d.get('COMPANY_EMAIL', ''), 150) &&
+        optStr(d.get('COMPANY_GST', ''), 30) &&
+        optStr(d.get('COMPANY_TERMS', ''), 2000) &&
+        optStr(d.get('TIMEZONE', ''), 50) &&
+        optStr(d.get('TICKET_PREFIX', ''), 20) &&
+        optStr(d.get('CLAIM_PREFIX', ''), 20) &&
+        optStr(d.get('RETURN_CHALLAN_PREFIX', ''), 20) &&
+        optStr(d.get('COMPANY_CHALLAN_PREFIX', ''), 20) &&
+        optStr(d.get('DISPATCH_PREFIX', ''), 20) &&
+        optSeq(d, 'TICKET_SEQ') &&
+        optSeq(d, 'CLAIM_SEQ') &&
+        optSeq(d, 'RETURN_CHALLAN_SEQ') &&
+        optSeq(d, 'COMPANY_CHALLAN_SEQ') &&
+        optSeq(d, 'DISPATCH_SEQ') &&
+        optTs(d.get('updated_at', ''), 50);
     }
 
-    function isValidBatteryModel(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidBatteryModel(d) {
+      return hasOnlyAllowedFields(d, [
           'model_id', 'model_code', 'brand', 'model_name', 'capacity_ah',
           'warranty_months', 'guarantee_months', 'pro_rata_months', 'mrp',
           'is_active', 'updated_at'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'model_id', 'brand', 'model_name', 'capacity_ah',
           'warranty_months', 'guarantee_months', 'pro_rata_months', 'is_active'
         ]) &&
-        isRequiredString(data, 'model_id', 1, 60) &&
-        isOptionalString(data, 'model_code', 60) &&
-        isRequiredString(data, 'brand', 1, 80) &&
-        isRequiredString(data, 'model_name', 1, 150) &&
-        isRequiredNumber(data, 'capacity_ah', 0, 1000) &&
-        isRequiredNumber(data, 'warranty_months', 0, 240) &&
-        isRequiredNumber(data, 'guarantee_months', 0, 240) &&
-        isRequiredNumber(data, 'pro_rata_months', 0, 240) &&
-        isOptionalNumber(data, 'mrp', 0, 1000000) &&
-        isRequiredBool(data, 'is_active') &&
-        isOptionalString(data, 'updated_at', 50);
+        d.model_id is string && d.model_id.size() >= 1 && d.model_id.size() <= 60 &&
+        optStr(d.get('model_code', ''), 60) &&
+        d.brand is string && d.brand.size() >= 1 && d.brand.size() <= 80 &&
+        d.model_name is string && d.model_name.size() >= 1 && d.model_name.size() <= 150 &&
+        d.capacity_ah is number && d.capacity_ah >= 0 && d.capacity_ah <= 1000 &&
+        d.warranty_months is number && d.warranty_months >= 0 && d.warranty_months <= 240 &&
+        d.guarantee_months is number && d.guarantee_months >= 0 && d.guarantee_months <= 240 &&
+        d.pro_rata_months is number && d.pro_rata_months >= 0 && d.pro_rata_months <= 240 &&
+        optNum(d.get('mrp', 0), 0, 1000000) &&
+        d.is_active is bool &&
+        optTs(d.get('updated_at', ''), 50);
     }
 
-    function isValidDealer(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidDealer(d) {
+      return hasOnlyAllowedFields(d, [
           'dealer_id', 'dealer_name', 'contact_person', 'mobile',
           'address', 'gstin', 'city', 'is_active', 'updated_at'
         ]) &&
-        hasRequiredFields(data, ['dealer_id', 'dealer_name', 'is_active']) &&
-        isRequiredString(data, 'dealer_id', 1, 60) &&
-        isRequiredString(data, 'dealer_name', 1, 150) &&
-        isOptionalString(data, 'contact_person', 100) &&
-        isOptionalString(data, 'mobile', 30) &&
-        isOptionalString(data, 'address', 300) &&
-        isOptionalString(data, 'gstin', 30) &&
-        isOptionalString(data, 'city', 80) &&
-        isRequiredBool(data, 'is_active') &&
-        isOptionalString(data, 'updated_at', 50);
+        hasRequiredFields(d, ['dealer_id', 'dealer_name', 'is_active']) &&
+        d.dealer_id is string && d.dealer_id.size() >= 1 && d.dealer_id.size() <= 60 &&
+        d.dealer_name is string && d.dealer_name.size() >= 1 && d.dealer_name.size() <= 150 &&
+        optStr(d.get('contact_person', ''), 100) &&
+        optStr(d.get('mobile', ''), 30) &&
+        optStr(d.get('address', ''), 300) &&
+        optStr(d.get('gstin', ''), 30) &&
+        optStr(d.get('city', ''), 80) &&
+        d.is_active is bool &&
+        optTs(d.get('updated_at', ''), 50);
     }
 
-    function isValidCustomer(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidCustomer(d) {
+      return hasOnlyAllowedFields(d, [
           'customer_id', 'name', 'mobile', 'address', 'vehicle_number', 'created_at'
         ]) &&
-        hasRequiredFields(data, ['customer_id', 'name', 'created_at']) &&
-        isRequiredString(data, 'customer_id', 1, 60) &&
-        isRequiredString(data, 'name', 1, 150) &&
-        isOptionalString(data, 'mobile', 30) &&
-        isOptionalString(data, 'address', 300) &&
-        isOptionalString(data, 'vehicle_number', 40) &&
-        isRequiredString(data, 'created_at', 0, 50);
+        hasRequiredFields(d, ['customer_id', 'name', 'created_at']) &&
+        d.customer_id is string && d.customer_id.size() >= 1 && d.customer_id.size() <= 60 &&
+        d.name is string && d.name.size() >= 1 && d.name.size() <= 150 &&
+        optStr(d.get('mobile', ''), 30) &&
+        optStr(d.get('address', ''), 300) &&
+        optStr(d.get('vehicle_number', ''), 40) &&
+        isTsOrStr(d.created_at, 50);
     }
 
-    function isValidTicket(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidTicket(d) {
+      return hasOnlyAllowedFields(d, [
           'ticket_no', 'source_type', 'customer_id', 'customer_name',
           'dealer_id', 'dealer_name', 'mobile', 'address', 'vehicle_number',
           'battery_model', 'original_serial_no', 'date_received', 'date_of_sale',
@@ -530,66 +504,66 @@ service cloud.firestore {
           'service_battery_serial', 'service_battery_date',
           'status', 'remarks', 'created_at', 'updated_at', 'created_by'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'ticket_no', 'source_type', 'customer_name', 'battery_model',
           'original_serial_no', 'date_received', 'service_battery_issued',
           'status', 'created_at', 'updated_at'
         ]) &&
-        isRequiredString(data, 'ticket_no', 1, 60) &&
-        data.source_type in ['CUSTOMER', 'DEALER'] &&
-        isOptionalString(data, 'customer_id', 60) &&
-        isRequiredString(data, 'customer_name', 1, 150) &&
-        isOptionalString(data, 'dealer_id', 60) &&
-        isOptionalString(data, 'dealer_name', 150) &&
-        isOptionalString(data, 'mobile', 30) &&
-        isOptionalString(data, 'address', 300) &&
-        isOptionalString(data, 'vehicle_number', 40) &&
-        isRequiredString(data, 'battery_model', 1, 150) &&
-        isRequiredString(data, 'original_serial_no', 1, 80) &&
-        isRequiredString(data, 'date_received', 0, 30) &&
-        isOptionalString(data, 'date_of_sale', 30) &&
-        isRequiredBool(data, 'service_battery_issued') &&
-        isOptionalString(data, 'service_battery_model', 150) &&
-        isOptionalString(data, 'service_battery_serial', 80) &&
-        isOptionalString(data, 'service_battery_date', 30) &&
-        data.status in [
+        d.ticket_no is string && d.ticket_no.size() >= 1 && d.ticket_no.size() <= 60 &&
+        d.source_type in ['CUSTOMER', 'DEALER'] &&
+        optStr(d.get('customer_id', ''), 60) &&
+        d.customer_name is string && d.customer_name.size() >= 1 && d.customer_name.size() <= 150 &&
+        optStr(d.get('dealer_id', ''), 60) &&
+        optStr(d.get('dealer_name', ''), 150) &&
+        optStr(d.get('mobile', ''), 30) &&
+        optStr(d.get('address', ''), 300) &&
+        optStr(d.get('vehicle_number', ''), 40) &&
+        d.battery_model is string && d.battery_model.size() >= 1 && d.battery_model.size() <= 150 &&
+        d.original_serial_no is string && d.original_serial_no.size() >= 1 && d.original_serial_no.size() <= 80 &&
+        isTsOrStr(d.date_received, 30) &&
+        optTs(d.get('date_of_sale', ''), 30) &&
+        d.service_battery_issued is bool &&
+        optStr(d.get('service_battery_model', ''), 150) &&
+        optStr(d.get('service_battery_serial', ''), 80) &&
+        optTs(d.get('service_battery_date', ''), 30) &&
+        d.status in [
           'RECEIVED', 'TESTING', 'PASSED', 'TEST_PASSED',
           'REJECTED_RETURN_PENDING', 'REJECTED_RETURNED',
           'CLAIM_CREATED', 'READY_FOR_COMPANY', 'SENT_TO_COMPANY',
           'REPLACEMENT_RECEIVED', 'STOCK_UPDATE_REQUIRED',
           'STOCK_UPDATED', 'CLOSED'
         ] &&
-        isOptionalString(data, 'remarks', 1000) &&
-        isRequiredString(data, 'created_at', 0, 50) &&
-        isRequiredString(data, 'updated_at', 0, 50) &&
-        isOptionalString(data, 'created_by', 150);
+        optStr(d.get('remarks', ''), 1000) &&
+        isTsOrStr(d.created_at, 50) &&
+        isTsOrStr(d.updated_at, 50) &&
+        optStr(d.get('created_by', ''), 150);
     }
 
-    function isValidBatteryTest(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidBatteryTest(d) {
+      return hasOnlyAllowedFields(d, [
           'test_id', 'ticket_no', 'original_serial_no', 'test_date', 'tested_by',
           'open_circuit_voltage', 'specific_gravity', 'load_test_voltage',
           'physical_condition', 'test_result', 'test_remarks', 'report_file_id'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'test_id', 'ticket_no', 'original_serial_no', 'test_date', 'test_result'
         ]) &&
-        isRequiredString(data, 'test_id', 1, 60) &&
-        isRequiredString(data, 'ticket_no', 1, 60) &&
-        isRequiredString(data, 'original_serial_no', 0, 80) &&
-        isRequiredString(data, 'test_date', 0, 30) &&
-        isOptionalString(data, 'tested_by', 100) &&
-        isOptionalStringOrNumber(data, 'open_circuit_voltage', 30, -100, 1000) &&
-        isOptionalString(data, 'specific_gravity', 200) &&
-        isOptionalStringOrNumber(data, 'load_test_voltage', 30, -100, 1000) &&
-        isOptionalString(data, 'physical_condition', 200) &&
-        data.test_result in ['PASS', 'REJECT'] &&
-        isOptionalString(data, 'test_remarks', 1000) &&
-        isOptionalString(data, 'report_file_id', 120);
+        d.test_id is string && d.test_id.size() >= 1 && d.test_id.size() <= 60 &&
+        d.ticket_no is string && d.ticket_no.size() >= 1 && d.ticket_no.size() <= 60 &&
+        d.original_serial_no is string && d.original_serial_no.size() <= 80 &&
+        isTsOrStr(d.test_date, 30) &&
+        optStr(d.get('tested_by', ''), 100) &&
+        optStrOrNum(d.get('open_circuit_voltage', ''), 30, -100, 1000) &&
+        optStr(d.get('specific_gravity', ''), 200) &&
+        optStrOrNum(d.get('load_test_voltage', ''), 30, -100, 1000) &&
+        optStr(d.get('physical_condition', ''), 200) &&
+        d.test_result in ['PASS', 'REJECT'] &&
+        optStr(d.get('test_remarks', ''), 1000) &&
+        optStr(d.get('report_file_id', ''), 120);
     }
 
-    function isValidClaim(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidClaim(d) {
+      return hasOnlyAllowedFields(d, [
           'claim_no', 'ticket_no', 'source_type', 'customer_name', 'mobile',
           'address', 'dealer_name', 'vehicle_number', 'battery_model',
           'original_serial_no', 'date_of_sale', 'warranty_months',
@@ -600,256 +574,258 @@ service cloud.firestore {
           'stock_status', 'stock_ref_no', 'stock_updated_date', 'stock_updated_by',
           'closed_date', 'remarks', 'doc_count', 'created_at', 'updated_at'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'claim_no', 'ticket_no', 'battery_model', 'original_serial_no',
           'status', 'created_at', 'updated_at'
         ]) &&
-        isRequiredString(data, 'claim_no', 1, 60) &&
-        isRequiredString(data, 'ticket_no', 1, 60) &&
-        isOptionalString(data, 'source_type', 20) &&
-        isOptionalString(data, 'customer_name', 150) &&
-        isOptionalString(data, 'mobile', 30) &&
-        isOptionalString(data, 'address', 300) &&
-        isOptionalString(data, 'dealer_name', 150) &&
-        isOptionalString(data, 'vehicle_number', 40) &&
-        isRequiredString(data, 'battery_model', 1, 150) &&
-        isRequiredString(data, 'original_serial_no', 1, 80) &&
-        isOptionalString(data, 'date_of_sale', 30) &&
-        isOptionalNumber(data, 'warranty_months', 0, 240) &&
-        isOptionalString(data, 'warranty_expiry_date', 30) &&
-        isOptionalString(data, 'warranty_status', 40) &&
-        isOptionalString(data, 'claim_date', 30) &&
-        data.status in [
+        d.claim_no is string && d.claim_no.size() >= 1 && d.claim_no.size() <= 60 &&
+        d.ticket_no is string && d.ticket_no.size() >= 1 && d.ticket_no.size() <= 60 &&
+        d.battery_model is string && d.battery_model.size() >= 1 && d.battery_model.size() <= 150 &&
+        d.original_serial_no is string && d.original_serial_no.size() >= 1 && d.original_serial_no.size() <= 80 &&
+        d.status in [
           'CLAIM_CREATED', 'READY_FOR_COMPANY', 'SENT_TO_COMPANY',
           'REPLACEMENT_RECEIVED', 'STOCK_UPDATED', 'CLOSED'
         ] &&
-        isOptionalString(data, 'dispatch_batch_no', 60) &&
-        isOptionalString(data, 'company_challan_no', 60) &&
-        isOptionalString(data, 'company_dispatch_date', 30) &&
-        isOptionalString(data, 'replacement_model', 150) &&
-        isOptionalString(data, 'replacement_serial_no', 80) &&
-        isOptionalString(data, 'replacement_received_date', 30) &&
-        isOptionalReplacementEnd(data, 'replacement_end') &&
-        isOptionalString(data, 'replaced_by_party', 150) &&
-        isOptionalString(data, 'stock_status', 40) &&
-        isOptionalString(data, 'stock_ref_no', 100) &&
-        isOptionalString(data, 'stock_updated_date', 30) &&
-        isOptionalString(data, 'stock_updated_by', 150) &&
-        isOptionalString(data, 'closed_date', 30) &&
-        isOptionalString(data, 'remarks', 1000) &&
-        isOptionalNumber(data, 'doc_count', 0, 1000) &&
-        isRequiredString(data, 'created_at', 0, 50) &&
-        isRequiredString(data, 'updated_at', 0, 50) &&
+        isTsOrStr(d.created_at, 50) &&
+        isTsOrStr(d.updated_at, 50) &&
         // Business rule: claim cannot enter CLOSED unless stock reconciliation is UPDATED
-        (data.status != 'CLOSED' || ('stock_status' in data && data.stock_status == 'UPDATED'));
+        (d.status != 'CLOSED' || ('stock_status' in d && d.stock_status == 'UPDATED')) &&
+        (!('replacement_end' in d) || d.replacement_end == null ||
+          d.replacement_end in ['DISTRIBUTOR_END', 'DEALER_END', 'COMPANY_END', '']) &&
+        optStr(d.get('source_type', ''), 20) &&
+        optStr(d.get('customer_name', ''), 150) &&
+        optStr(d.get('mobile', ''), 30) &&
+        optStr(d.get('address', ''), 300) &&
+        optStr(d.get('dealer_name', ''), 150) &&
+        optStr(d.get('vehicle_number', ''), 40) &&
+        optTs(d.get('date_of_sale', ''), 30) &&
+        optNum(d.get('warranty_months', 0), 0, 240) &&
+        optTs(d.get('warranty_expiry_date', ''), 30) &&
+        optStr(d.get('warranty_status', ''), 40) &&
+        optTs(d.get('claim_date', ''), 30) &&
+        optStr(d.get('dispatch_batch_no', ''), 60) &&
+        optStr(d.get('company_challan_no', ''), 60) &&
+        optTs(d.get('company_dispatch_date', ''), 30) &&
+        optStr(d.get('replacement_model', ''), 150) &&
+        optStr(d.get('replacement_serial_no', ''), 80) &&
+        optTs(d.get('replacement_received_date', ''), 30) &&
+        optStr(d.get('replaced_by_party', ''), 150) &&
+        optStr(d.get('stock_status', ''), 40) &&
+        optStr(d.get('stock_ref_no', ''), 100) &&
+        optTs(d.get('stock_updated_date', ''), 30) &&
+        optStr(d.get('stock_updated_by', ''), 150) &&
+        optTs(d.get('closed_date', ''), 30) &&
+        optStr(d.get('remarks', ''), 1000) &&
+        optNum(d.get('doc_count', 0), 0, 1000);
     }
 
-    function isValidClaimDocument(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidClaimDocument(d) {
+      return hasOnlyAllowedFields(d, [
           'doc_id', 'claim_no', 'doc_type', 'file_name', 'mime_type',
           'file_size_kb', 'data_url', 'uploaded_at', 'uploaded_by'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'doc_id', 'claim_no', 'doc_type', 'file_name', 'mime_type',
           'file_size_kb', 'data_url', 'uploaded_at'
         ]) &&
-        isRequiredString(data, 'doc_id', 1, 60) &&
-        isRequiredString(data, 'claim_no', 1, 60) &&
-        isRequiredString(data, 'doc_type', 1, 50) &&
-        isRequiredString(data, 'file_name', 1, 200) &&
-        isRequiredString(data, 'mime_type', 1, 100) &&
-        isRequiredNumber(data, 'file_size_kb', 0, 1024) &&
-        isRequiredString(data, 'data_url', 0, 950000) &&
-        isRequiredString(data, 'uploaded_at', 0, 50) &&
-        isOptionalString(data, 'uploaded_by', 150);
+        d.doc_id is string && d.doc_id.size() >= 1 && d.doc_id.size() <= 60 &&
+        d.claim_no is string && d.claim_no.size() >= 1 && d.claim_no.size() <= 60 &&
+        d.doc_type is string && d.doc_type.size() >= 1 && d.doc_type.size() <= 50 &&
+        d.file_name is string && d.file_name.size() >= 1 && d.file_name.size() <= 200 &&
+        d.mime_type is string && d.mime_type.size() >= 1 && d.mime_type.size() <= 100 &&
+        d.file_size_kb is number && d.file_size_kb >= 0 && d.file_size_kb <= 1024 &&
+        d.data_url is string && d.data_url.size() <= 950000 &&
+        isTsOrStr(d.uploaded_at, 50) &&
+        optStr(d.get('uploaded_by', ''), 150);
     }
 
-    function isValidDeliveryChallan(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidDeliveryChallan(d) {
+      return hasOnlyAllowedFields(d, [
           'challan_no', 'challan_type', 'challan_date', 'recipient_type',
           'recipient_name', 'mobile', 'address', 'ticket_no', 'battery_model',
           'battery_serial_no', 'quantity', 'received_by_name', 'received_date',
           'status', 'remarks'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'challan_no', 'challan_type', 'challan_date',
           'recipient_name', 'quantity', 'status'
         ]) &&
-        isRequiredString(data, 'challan_no', 1, 60) &&
-        data.challan_type in ['BATTERY_RETURN', 'COMPANY_DISPATCH'] &&
-        isRequiredString(data, 'challan_date', 0, 30) &&
-        isOptionalString(data, 'recipient_type', 30) &&
-        isRequiredString(data, 'recipient_name', 0, 150) &&
-        isOptionalString(data, 'mobile', 30) &&
-        isOptionalString(data, 'address', 300) &&
-        isOptionalString(data, 'ticket_no', 60) &&
-        isOptionalString(data, 'battery_model', 150) &&
-        isOptionalString(data, 'battery_serial_no', 80) &&
-        isRequiredNumber(data, 'quantity', 1, 10000) &&
-        isOptionalString(data, 'received_by_name', 150) &&
-        isOptionalString(data, 'received_date', 30) &&
-        data.status in ['GENERATED', 'ACKNOWLEDGED', 'DISPATCHED'] &&
-        isOptionalString(data, 'remarks', 1000);
+        d.challan_no is string && d.challan_no.size() >= 1 && d.challan_no.size() <= 60 &&
+        d.challan_type in ['BATTERY_RETURN', 'COMPANY_DISPATCH'] &&
+        isTsOrStr(d.challan_date, 30) &&
+        optStr(d.get('recipient_type', ''), 30) &&
+        d.recipient_name is string && d.recipient_name.size() <= 150 &&
+        optStr(d.get('mobile', ''), 30) &&
+        optStr(d.get('address', ''), 300) &&
+        optStr(d.get('ticket_no', ''), 60) &&
+        optStr(d.get('battery_model', ''), 150) &&
+        optStr(d.get('battery_serial_no', ''), 80) &&
+        d.quantity is number && d.quantity >= 1 && d.quantity <= 10000 &&
+        optStr(d.get('received_by_name', ''), 150) &&
+        optTs(d.get('received_date', ''), 30) &&
+        d.status in ['GENERATED', 'ACKNOWLEDGED', 'DISPATCHED'] &&
+        optStr(d.get('remarks', ''), 1000);
     }
 
-    function isValidCompanyDispatch(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidCompanyDispatch(d) {
+      return hasOnlyAllowedFields(d, [
           'dispatch_batch_no', 'company_name', 'destination',
           'company_challan_no', 'dispatch_date', 'carrier_transporter',
           'lr_docket_no', 'claim_count', 'battery_count', 'created_by', 'remarks'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'dispatch_batch_no', 'company_name', 'company_challan_no',
           'dispatch_date', 'claim_count', 'battery_count'
         ]) &&
-        isRequiredString(data, 'dispatch_batch_no', 1, 60) &&
-        isRequiredString(data, 'company_name', 1, 150) &&
-        isOptionalString(data, 'destination', 200) &&
-        isRequiredString(data, 'company_challan_no', 1, 60) &&
-        isRequiredString(data, 'dispatch_date', 0, 30) &&
-        isOptionalString(data, 'carrier_transporter', 150) &&
-        isOptionalString(data, 'lr_docket_no', 80) &&
-        isRequiredNumber(data, 'claim_count', 1, 10000) &&
-        isRequiredNumber(data, 'battery_count', 1, 10000) &&
-        isOptionalString(data, 'created_by', 150) &&
-        isOptionalString(data, 'remarks', 1000);
+        d.dispatch_batch_no is string && d.dispatch_batch_no.size() >= 1 && d.dispatch_batch_no.size() <= 60 &&
+        d.company_name is string && d.company_name.size() >= 1 && d.company_name.size() <= 150 &&
+        optStr(d.get('destination', ''), 200) &&
+        d.company_challan_no is string && d.company_challan_no.size() >= 1 && d.company_challan_no.size() <= 60 &&
+        isTsOrStr(d.dispatch_date, 30) &&
+        optStr(d.get('carrier_transporter', ''), 150) &&
+        optStr(d.get('lr_docket_no', ''), 80) &&
+        d.claim_count is number && d.claim_count >= 1 && d.claim_count <= 10000 &&
+        d.battery_count is number && d.battery_count >= 1 && d.battery_count <= 10000 &&
+        optStr(d.get('created_by', ''), 150) &&
+        optStr(d.get('remarks', ''), 1000);
     }
 
-    function isValidCompanyDispatchItem(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidCompanyDispatchItem(d) {
+      return hasOnlyAllowedFields(d, [
           'item_id', 'dispatch_batch_no', 'claim_no', 'ticket_no',
           'customer_name', 'battery_model', 'original_serial_no', 'warranty_status'
         ]) &&
-        hasRequiredFields(data, ['item_id', 'dispatch_batch_no', 'claim_no']) &&
-        isRequiredString(data, 'item_id', 1, 60) &&
-        isRequiredString(data, 'dispatch_batch_no', 1, 60) &&
-        isRequiredString(data, 'claim_no', 1, 60) &&
-        isOptionalString(data, 'ticket_no', 60) &&
-        isOptionalString(data, 'customer_name', 150) &&
-        isOptionalString(data, 'battery_model', 150) &&
-        isOptionalString(data, 'original_serial_no', 80) &&
-        isOptionalString(data, 'warranty_status', 40);
+        hasRequiredFields(d, ['item_id', 'dispatch_batch_no', 'claim_no']) &&
+        d.item_id is string && d.item_id.size() >= 1 && d.item_id.size() <= 60 &&
+        d.dispatch_batch_no is string && d.dispatch_batch_no.size() >= 1 && d.dispatch_batch_no.size() <= 60 &&
+        d.claim_no is string && d.claim_no.size() >= 1 && d.claim_no.size() <= 60 &&
+        optStr(d.get('ticket_no', ''), 60) &&
+        optStr(d.get('customer_name', ''), 150) &&
+        optStr(d.get('battery_model', ''), 150) &&
+        optStr(d.get('original_serial_no', ''), 80) &&
+        optStr(d.get('warranty_status', ''), 40);
     }
 
-    function isValidReplacementReceipt(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidReplacementReceipt(d) {
+      return hasOnlyAllowedFields(d, [
           'receipt_id', 'claim_no', 'replacement_model', 'replacement_serial_no',
           'received_date', 'received_by', 'replacement_end', 'replaced_by_party',
           'remarks'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'receipt_id', 'claim_no', 'replacement_model',
           'replacement_serial_no', 'received_date'
         ]) &&
-        isRequiredString(data, 'receipt_id', 1, 60) &&
-        isRequiredString(data, 'claim_no', 1, 60) &&
-        isRequiredString(data, 'replacement_model', 0, 150) &&
-        isRequiredString(data, 'replacement_serial_no', 1, 80) &&
-        isRequiredString(data, 'received_date', 0, 30) &&
-        isOptionalString(data, 'received_by', 150) &&
-        isOptionalReplacementEnd(data, 'replacement_end') &&
-        isOptionalString(data, 'replaced_by_party', 150) &&
-        isOptionalString(data, 'remarks', 1000);
+        d.receipt_id is string && d.receipt_id.size() >= 1 && d.receipt_id.size() <= 60 &&
+        d.claim_no is string && d.claim_no.size() >= 1 && d.claim_no.size() <= 60 &&
+        d.replacement_model is string && d.replacement_model.size() <= 150 &&
+        d.replacement_serial_no is string && d.replacement_serial_no.size() >= 1 && d.replacement_serial_no.size() <= 80 &&
+        isTsOrStr(d.received_date, 30) &&
+        optStr(d.get('received_by', ''), 150) &&
+        (!('replacement_end' in d) || d.replacement_end == null ||
+          d.replacement_end in ['DISTRIBUTOR_END', 'DEALER_END', 'COMPANY_END', '']) &&
+        optStr(d.get('replaced_by_party', ''), 150) &&
+        optStr(d.get('remarks', ''), 1000);
     }
 
-    function isValidStockUpdateTask(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidStockUpdateTask(d) {
+      return hasOnlyAllowedFields(d, [
           'stock_task_id', 'claim_no', 'replacement_model',
           'replacement_serial_no', 'received_date', 'replacement_end',
           'stock_status', 'accounting_ref_no', 'updated_at',
           'updated_by', 'remarks'
         ]) &&
-        hasRequiredFields(data, ['stock_task_id', 'claim_no', 'stock_status']) &&
-        isRequiredString(data, 'stock_task_id', 1, 60) &&
-        isRequiredString(data, 'claim_no', 1, 60) &&
-        isOptionalString(data, 'replacement_model', 150) &&
-        isOptionalString(data, 'replacement_serial_no', 80) &&
-        isOptionalString(data, 'received_date', 30) &&
-        isOptionalString(data, 'replacement_end', 30) &&
-        data.stock_status in ['UPDATE_REQUIRED', 'UPDATED'] &&
-        isOptionalString(data, 'accounting_ref_no', 100) &&
-        isOptionalString(data, 'updated_at', 50) &&
-        isOptionalString(data, 'updated_by', 150) &&
-        isOptionalString(data, 'remarks', 1000);
+        hasRequiredFields(d, ['stock_task_id', 'claim_no', 'stock_status']) &&
+        d.stock_task_id is string && d.stock_task_id.size() >= 1 && d.stock_task_id.size() <= 60 &&
+        d.claim_no is string && d.claim_no.size() >= 1 && d.claim_no.size() <= 60 &&
+        optStr(d.get('replacement_model', ''), 150) &&
+        optStr(d.get('replacement_serial_no', ''), 80) &&
+        optTs(d.get('received_date', ''), 30) &&
+        optStr(d.get('replacement_end', ''), 30) &&
+        d.stock_status in ['UPDATE_REQUIRED', 'UPDATED'] &&
+        optStr(d.get('accounting_ref_no', ''), 100) &&
+        optTs(d.get('updated_at', ''), 50) &&
+        optStr(d.get('updated_by', ''), 150) &&
+        optStr(d.get('remarks', ''), 1000);
     }
 
-    function isValidServiceBattery(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidServiceBattery(d) {
+      return hasOnlyAllowedFields(d, [
           'sb_id', 'serial_no', 'brand', 'model_name', 'capacity_ah',
           'status', 'is_blocked', 'block_reason', 'current_ticket_no',
           'current_customer_name', 'current_mobile', 'assigned_date',
           'rotation_count', 'last_rotated_date', 'condition_notes',
           'created_at', 'updated_at'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'sb_id', 'serial_no', 'brand', 'model_name', 'capacity_ah',
           'status', 'is_blocked', 'rotation_count', 'created_at', 'updated_at'
         ]) &&
-        isRequiredString(data, 'sb_id', 1, 60) &&
-        isRequiredString(data, 'serial_no', 1, 80) &&
-        isRequiredString(data, 'brand', 1, 80) &&
-        isRequiredString(data, 'model_name', 1, 150) &&
-        isRequiredNumber(data, 'capacity_ah', 0, 1000) &&
-        data.status in ['AVAILABLE', 'ASSIGNED', 'BLOCKED'] &&
-        isRequiredBool(data, 'is_blocked') &&
-        isOptionalString(data, 'block_reason', 300) &&
-        isOptionalString(data, 'current_ticket_no', 60) &&
-        isOptionalString(data, 'current_customer_name', 150) &&
-        isOptionalString(data, 'current_mobile', 30) &&
-        isOptionalString(data, 'assigned_date', 30) &&
-        isRequiredNumber(data, 'rotation_count', 0, 100000) &&
-        isOptionalString(data, 'last_rotated_date', 30) &&
-        isOptionalString(data, 'condition_notes', 500) &&
-        isRequiredString(data, 'created_at', 0, 50) &&
-        isRequiredString(data, 'updated_at', 0, 50);
+        d.sb_id is string && d.sb_id.size() >= 1 && d.sb_id.size() <= 60 &&
+        d.serial_no is string && d.serial_no.size() >= 1 && d.serial_no.size() <= 80 &&
+        d.brand is string && d.brand.size() >= 1 && d.brand.size() <= 80 &&
+        d.model_name is string && d.model_name.size() >= 1 && d.model_name.size() <= 150 &&
+        d.capacity_ah is number && d.capacity_ah >= 0 && d.capacity_ah <= 1000 &&
+        d.status in ['AVAILABLE', 'ASSIGNED', 'BLOCKED'] &&
+        d.is_blocked is bool &&
+        optStr(d.get('block_reason', ''), 300) &&
+        optStr(d.get('current_ticket_no', ''), 60) &&
+        optStr(d.get('current_customer_name', ''), 150) &&
+        optStr(d.get('current_mobile', ''), 30) &&
+        optTs(d.get('assigned_date', ''), 30) &&
+        d.rotation_count is number && d.rotation_count >= 0 && d.rotation_count <= 100000 &&
+        optTs(d.get('last_rotated_date', ''), 30) &&
+        optStr(d.get('condition_notes', ''), 500) &&
+        isTsOrStr(d.created_at, 50) &&
+        isTsOrStr(d.updated_at, 50);
     }
 
-    function isValidServiceBatteryLog(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidServiceBatteryLog(d) {
+      return hasOnlyAllowedFields(d, [
           'log_id', 'sb_id', 'serial_no', 'model_name', 'action_type',
           'ticket_no', 'customer_name', 'mobile', 'assigned_date',
           'returned_date', 'days_rotated', 'performed_by', 'remarks', 'created_at'
         ]) &&
-        hasRequiredFields(data, [
+        hasRequiredFields(d, [
           'log_id', 'sb_id', 'serial_no', 'action_type', 'created_at'
         ]) &&
-        isRequiredString(data, 'log_id', 1, 60) &&
-        isRequiredString(data, 'sb_id', 1, 60) &&
-        isRequiredString(data, 'serial_no', 1, 80) &&
-        isOptionalString(data, 'model_name', 150) &&
-        data.action_type in [
+        d.log_id is string && d.log_id.size() >= 1 && d.log_id.size() <= 60 &&
+        d.sb_id is string && d.sb_id.size() >= 1 && d.sb_id.size() <= 60 &&
+        d.serial_no is string && d.serial_no.size() >= 1 && d.serial_no.size() <= 80 &&
+        optStr(d.get('model_name', ''), 150) &&
+        d.action_type in [
           'STOCK_ADDED', 'ASSIGNED', 'RETURNED',
           'BLOCKED', 'UNBLOCKED', 'REMOVED'
         ] &&
-        isOptionalString(data, 'ticket_no', 60) &&
-        isOptionalString(data, 'customer_name', 150) &&
-        isOptionalString(data, 'mobile', 30) &&
-        isOptionalString(data, 'assigned_date', 30) &&
-        isOptionalString(data, 'returned_date', 30) &&
-        isOptionalNumber(data, 'days_rotated', 0, 100000) &&
-        isOptionalString(data, 'performed_by', 150) &&
-        isOptionalString(data, 'remarks', 1000) &&
-        isRequiredString(data, 'created_at', 0, 50);
+        optStr(d.get('ticket_no', ''), 60) &&
+        optStr(d.get('customer_name', ''), 150) &&
+        optStr(d.get('mobile', ''), 30) &&
+        optTs(d.get('assigned_date', ''), 30) &&
+        optTs(d.get('returned_date', ''), 30) &&
+        optNum(d.get('days_rotated', 0), 0, 100000) &&
+        optStr(d.get('performed_by', ''), 150) &&
+        optStr(d.get('remarks', ''), 1000) &&
+        isTsOrStr(d.created_at, 50);
     }
 
-    function isValidAuditLog(data) {
-      return hasOnlyAllowedFields(data, [
+    function isValidAuditLog(d) {
+      return hasOnlyAllowedFields(d, [
           'audit_id', 'timestamp', 'user_email', 'action', 'record_type',
           'entity_type', 'record_id', 'entity_id', 'old_status',
           'new_status', 'details'
         ]) &&
-        hasRequiredFields(data, ['audit_id', 'timestamp', 'action']) &&
-        isRequiredString(data, 'audit_id', 1, 60) &&
-        isRequiredString(data, 'timestamp', 0, 50) &&
-        isOptionalString(data, 'user_email', 150) &&
-        isRequiredString(data, 'action', 1, 80) &&
-        isOptionalString(data, 'record_type', 50) &&
-        isOptionalString(data, 'entity_type', 50) &&
-        isOptionalString(data, 'record_id', 80) &&
-        isOptionalString(data, 'entity_id', 80) &&
-        isOptionalString(data, 'old_status', 60) &&
-        isOptionalString(data, 'new_status', 60) &&
-        isOptionalString(data, 'details', 1000);
+        hasRequiredFields(d, ['audit_id', 'timestamp', 'action']) &&
+        d.audit_id is string && d.audit_id.size() >= 1 && d.audit_id.size() <= 60 &&
+        isTsOrStr(d.timestamp, 50) &&
+        optStr(d.get('user_email', ''), 150) &&
+        d.action is string && d.action.size() >= 1 && d.action.size() <= 80 &&
+        optStr(d.get('record_type', ''), 50) &&
+        optStr(d.get('entity_type', ''), 50) &&
+        optStr(d.get('record_id', ''), 80) &&
+        optStr(d.get('entity_id', ''), 80) &&
+        optStr(d.get('old_status', ''), 60) &&
+        optStr(d.get('new_status', ''), 60) &&
+        optStr(d.get('details', ''), 1000);
     }
 
     // ===============================================================
